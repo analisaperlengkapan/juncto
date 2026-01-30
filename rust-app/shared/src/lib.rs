@@ -39,11 +39,19 @@ pub struct Participant {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
+pub enum ClientMessage {
+    Chat(String), // Content
+    ToggleRoomLock,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "payload")]
 pub enum ServerMessage {
     Chat(ChatMessage),
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
+    RoomUpdated(RoomConfig),
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use serde_json::json;
-use shared::{RoomConfig, ChatMessage, ServerMessage, Participant};
+use shared::{RoomConfig, ChatMessage, ServerMessage, Participant, ClientMessage};
 use std::sync::Arc;
 use crate::AppState;
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -50,12 +50,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // 2. Broadcast Join Message
     let _ = state.tx.send(ServerMessage::ParticipantJoined(me.clone()));
 
-    // 3. Send current participant list to the new user
+    // 3. Send current state to the new user
+    // Participants List
     let current_list: Vec<Participant> = {
         let participants = state.participants.lock().unwrap();
         participants.values().cloned().collect()
     };
     if let Ok(json) = serde_json::to_string(&ServerMessage::ParticipantList(current_list)) {
+        let _ = sender.send(Message::Text(json)).await;
+    }
+    // Room Config
+    let current_config: RoomConfig = {
+        let config = state.room_config.lock().unwrap();
+        config.clone()
+    };
+    if let Ok(json) = serde_json::to_string(&ServerMessage::RoomUpdated(current_config)) {
         let _ = sender.send(Message::Text(json)).await;
     }
 
@@ -77,22 +86,34 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Spawn a task to receive messages from this client and broadcast them
     let tx = state.tx.clone();
     let my_id_clone = my_id.clone();
+    let room_config_mutex = state.room_config.clone();
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            // Deserialize message (Client sends ChatMessage directly, but we want to wrap it?)
-            // Or client sends ChatMessage, and we wrap it in ServerMessage::Chat?
-            // For now, let's assume client sends ChatMessage JSON.
-            if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&text) {
-                // Broadcast to all connected clients as ServerMessage
-                // Enforce the correct user_id
-                let verified_msg = ChatMessage {
-                    user_id: my_id_clone.clone(), // Use server-assigned ID
-                    ..chat_msg
-                };
-                let _ = tx.send(ServerMessage::Chat(verified_msg));
+            if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+                match client_msg {
+                    ClientMessage::Chat(content) => {
+                        let chat_msg = ChatMessage {
+                            user_id: my_id_clone.clone(),
+                            content,
+                            timestamp: chrono::Utc::now().timestamp_millis() as u64,
+                        };
+                        let _ = tx.send(ServerMessage::Chat(chat_msg));
+                    },
+                    ClientMessage::ToggleRoomLock => {
+                        let new_config = {
+                            let mut config = room_config_mutex.lock().unwrap();
+                            config.is_locked = !config.is_locked;
+                            config.clone()
+                        };
+                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                    }
+                }
             } else {
-                eprintln!("Failed to parse message: {}", text);
+                // Fallback for raw chat messages if any legacy client exists, or just log error
+                // For now, let's try to parse as ChatMessage for backward compat if we didn't update frontend fully yet
+                // But we are updating frontend. So let's stick to ClientMessage.
+                eprintln!("Failed to parse ClientMessage: {}", text);
             }
         }
     });

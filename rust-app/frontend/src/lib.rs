@@ -1,6 +1,7 @@
 mod components;
 mod chat;
 mod participants;
+mod toolbox;
 
 use leptos::*;
 use leptos_router::*;

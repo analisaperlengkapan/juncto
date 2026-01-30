@@ -2,7 +2,8 @@ use leptos::*;
 use leptos_router::*;
 use crate::chat::Chat;
 use crate::participants::ParticipantsList;
-use shared::{ChatMessage, Participant, ServerMessage};
+use crate::toolbox::Toolbox;
+use shared::{ChatMessage, Participant, ServerMessage, ClientMessage};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -50,6 +51,7 @@ pub fn Room() -> impl IntoView {
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
+    let (is_locked, set_is_locked) = create_signal(false);
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -76,6 +78,9 @@ pub fn Room() -> impl IntoView {
                             },
                             ServerMessage::ParticipantList(list) => {
                                 set_participants.set(list);
+                            },
+                            ServerMessage::RoomUpdated(config) => {
+                                set_is_locked.set(config.is_locked);
                             }
                         }
                     }
@@ -97,11 +102,20 @@ pub fn Room() -> impl IntoView {
 
     let send_message = Callback::new(move |content: String| {
         if let Some(socket) = ws.get() {
-            let msg = ChatMessage {
-                user_id: "Me".to_string(),
-                content,
-                timestamp: js_sys::Date::now() as u64,
-            };
+            // We now assume backend parses ClientMessage, so we need to wrap content?
+            // Wait, previous chat implementation sent ClientMessage?
+            // In api.rs, I updated it to expect ClientMessage.
+            // So I MUST send ClientMessage here.
+            let msg = ClientMessage::Chat(content);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_lock = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleRoomLock;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -111,13 +125,16 @@ pub fn Room() -> impl IntoView {
     view! {
         <div class="room-container" style="display: flex; height: 100vh;">
             <ParticipantsList participants=participants />
-            <div class="main-content" style="flex: 1; display: flex; justify-content: center; align-items: center; background: #333; color: white;">
-                <div>
-                    <h2>"Meeting Room: " {room_id}</h2>
-                    <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
-                        <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+            <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+                    <div>
+                        <h2>"Meeting Room: " {room_id}</h2>
+                        <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
+                            <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+                        </div>
                     </div>
                 </div>
+                <Toolbox is_locked=is_locked on_toggle_lock=toggle_lock />
             </div>
             <Chat
                 messages=messages

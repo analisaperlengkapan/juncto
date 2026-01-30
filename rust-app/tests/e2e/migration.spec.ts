@@ -50,4 +50,12 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(participantsList).toBeVisible();
   // Should contain at least "User ..." because backend assigns random names starting with "User"
   await expect(participantsList.locator('ul')).toContainText('User');
+
+  // 7. Verify Room Lock
+  const lockBtn = page.getByRole('button', { name: 'Lock Room' });
+  await expect(lockBtn).toBeVisible();
+  await lockBtn.click();
+
+  // Verify button text changes to "Unlock Room"
+  await expect(page.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
 });

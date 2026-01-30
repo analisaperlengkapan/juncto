@@ -9,13 +9,14 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use shared::{ServerMessage, Participant};
+use shared::{ServerMessage, Participant, RoomConfig};
 
 // AppState to hold the broadcast channel and participants list
 #[derive(Clone)]
 pub struct AppState {
     pub tx: broadcast::Sender<ServerMessage>,
     pub participants: Arc<Mutex<HashMap<String, Participant>>>,
+    pub room_config: Arc<Mutex<RoomConfig>>,
 }
 
 #[tokio::main]
@@ -24,8 +25,10 @@ async fn main() {
     let (tx, _rx) = broadcast::channel(100);
     // Initialize participants list
     let participants = Arc::new(Mutex::new(HashMap::new()));
+    // Initialize room config
+    let room_config = Arc::new(Mutex::new(RoomConfig::default()));
 
-    let app_state = Arc::new(AppState { tx, participants });
+    let app_state = Arc::new(AppState { tx, participants, room_config });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")

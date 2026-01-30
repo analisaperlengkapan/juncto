@@ -25,3 +25,11 @@ fn test_server_message_serialization() {
     let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 }
+
+#[test]
+fn test_client_message_serialization() {
+    let msg = ClientMessage::ToggleRoomLock;
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}
