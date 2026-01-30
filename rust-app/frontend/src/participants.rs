@@ -11,7 +11,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || participants.get()
-                    key=|p| p.id.clone()
+                    key=|p| (p.id.clone(), p.name.clone())
                     children=move |p| {
                         view! {
                             <li>{p.name}</li>

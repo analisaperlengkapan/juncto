@@ -4,6 +4,7 @@ use crate::chat::Chat;
 use crate::participants::ParticipantsList;
 use crate::toolbox::Toolbox;
 use crate::prejoin::PrejoinScreen;
+use crate::settings::SettingsDialog;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
@@ -60,6 +61,7 @@ pub fn Room() -> impl IntoView {
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (show_settings, set_show_settings) = create_signal(false);
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -89,6 +91,13 @@ pub fn Room() -> impl IntoView {
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
+                            },
+                            ServerMessage::ParticipantUpdated(p) => {
+                                set_participants.update(|list| {
+                                    if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
+                                        *existing = p;
+                                    }
+                                });
                             }
                         }
                     }
@@ -126,6 +135,15 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let save_profile = Callback::new(move |new_name: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdateProfile(new_name);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let join_meeting = Callback::new(move |display_name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
@@ -154,12 +172,21 @@ pub fn Room() -> impl IntoView {
                                     </div>
                                 </div>
                             </div>
-                            <Toolbox is_locked=is_locked on_toggle_lock=toggle_lock />
+                            <Toolbox
+                                is_locked=is_locked
+                                on_toggle_lock=toggle_lock
+                                on_settings=Callback::new(move |_| set_show_settings.set(true))
+                            />
                         </div>
                         <Chat
                             messages=messages
                             on_send=send_message
                             is_connected=is_connected
+                        />
+                        <SettingsDialog
+                            show=show_settings
+                            on_close=Callback::new(move |_| set_show_settings.set(false))
+                            on_save_profile=save_profile
                         />
                     </div>
                 }.into_view()

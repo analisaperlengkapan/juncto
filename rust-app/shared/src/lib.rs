@@ -43,6 +43,7 @@ pub enum ClientMessage {
     Join(String), // Display Name
     Chat(String), // Content
     ToggleRoomLock,
+    UpdateProfile(String), // New Name
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -53,6 +54,7 @@ pub enum ServerMessage {
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
     RoomUpdated(RoomConfig),
+    ParticipantUpdated(Participant),
 }
 
 #[cfg(test)]

@@ -21,9 +21,13 @@ fn test_server_message_serialization() {
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
-    // {"type":"ParticipantJoined","payload":{"id":"123","name":"Alice"}}
     let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
+
+    let msg_update = ServerMessage::ParticipantUpdated(p.clone());
+    let json_update = serde_json::to_string(&msg_update).unwrap();
+    let deserialized_update: ServerMessage = serde_json::from_str(&json_update).unwrap();
+    assert_eq!(msg_update, deserialized_update);
 }
 
 #[test]
@@ -32,4 +36,9 @@ fn test_client_message_serialization() {
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
+
+    let msg_prof = ClientMessage::UpdateProfile("Bob".to_string());
+    let json_prof = serde_json::to_string(&msg_prof).unwrap();
+    let deserialized_prof: ClientMessage = serde_json::from_str(&json_prof).unwrap();
+    assert_eq!(msg_prof, deserialized_prof);
 }

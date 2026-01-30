@@ -65,4 +65,21 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // Verify button text changes to "Unlock Room"
   await expect(page.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+
+  // 8. Verify Settings / Profile Update
+  // Open Settings
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByText('Save Profile')).toBeVisible();
+
+  // Change Name
+  const nameSettingInput = page.locator('.modal-content input[type="text"]');
+  await nameSettingInput.fill('Updated Name');
+  await page.click('button:has-text("Save Profile")');
+
+  // Verify modal closed
+  await expect(page.getByText('Save Profile')).not.toBeVisible();
+
+  // Verify name updated in Participants List
+  // Ideally we wait for the update
+  await expect(participantsList.locator('ul')).toContainText('Updated Name');
 });

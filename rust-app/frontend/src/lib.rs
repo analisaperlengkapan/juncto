@@ -3,6 +3,7 @@ mod chat;
 mod participants;
 mod toolbox;
 mod prejoin;
+mod settings;
 
 use leptos::*;
 use leptos_router::*;
