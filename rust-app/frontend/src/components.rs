@@ -3,10 +3,17 @@ use leptos_router::*;
 use crate::chat::Chat;
 use crate::participants::ParticipantsList;
 use crate::toolbox::Toolbox;
+use crate::prejoin::PrejoinScreen;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+
+#[derive(Clone, PartialEq)]
+enum RoomState {
+    Prejoin,
+    Joined,
+}
 
 #[component]
 pub fn WelcomePage() -> impl IntoView {
@@ -47,6 +54,7 @@ pub fn Room() -> impl IntoView {
     let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
 
     // State
+    let (current_state, set_current_state) = create_signal(RoomState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
@@ -102,10 +110,6 @@ pub fn Room() -> impl IntoView {
 
     let send_message = Callback::new(move |content: String| {
         if let Some(socket) = ws.get() {
-            // We now assume backend parses ClientMessage, so we need to wrap content?
-            // Wait, previous chat implementation sent ClientMessage?
-            // In api.rs, I updated it to expect ClientMessage.
-            // So I MUST send ClientMessage here.
             let msg = ClientMessage::Chat(content);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
@@ -122,25 +126,44 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let join_meeting = Callback::new(move |display_name: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Join(display_name);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+            set_current_state.set(RoomState::Joined);
+        }
+    });
+
     view! {
-        <div class="room-container" style="display: flex; height: 100vh;">
-            <ParticipantsList participants=participants />
-            <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
-                    <div>
-                        <h2>"Meeting Room: " {room_id}</h2>
-                        <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
-                            <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+        <div style="height: 100vh;">
+            {move || match current_state.get() {
+                RoomState::Prejoin => view! {
+                    <PrejoinScreen on_join=join_meeting />
+                }.into_view(),
+                RoomState::Joined => view! {
+                    <div class="room-container" style="display: flex; height: 100vh;">
+                        <ParticipantsList participants=participants />
+                        <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
+                            <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+                                <div>
+                                    <h2>"Meeting Room: " {room_id}</h2>
+                                    <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
+                                        <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <Toolbox is_locked=is_locked on_toggle_lock=toggle_lock />
                         </div>
+                        <Chat
+                            messages=messages
+                            on_send=send_message
+                            is_connected=is_connected
+                        />
                     </div>
-                </div>
-                <Toolbox is_locked=is_locked on_toggle_lock=toggle_lock />
-            </div>
-            <Chat
-                messages=messages
-                on_send=send_message
-                is_connected=is_connected
-            />
+                }.into_view()
+            }}
         </div>
     }
 }

@@ -35,31 +35,7 @@ pub async fn chat_handler(
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = socket.split();
 
-    // 1. Register new participant
-    let my_id = uuid::Uuid::new_v4().to_string();
-    let me = Participant {
-        id: my_id.clone(),
-        name: format!("User {}", &my_id[0..4]),
-    };
-
-    {
-        let mut participants = state.participants.lock().unwrap();
-        participants.insert(my_id.clone(), me.clone());
-    }
-
-    // 2. Broadcast Join Message
-    let _ = state.tx.send(ServerMessage::ParticipantJoined(me.clone()));
-
-    // 3. Send current state to the new user
-    // Participants List
-    let current_list: Vec<Participant> = {
-        let participants = state.participants.lock().unwrap();
-        participants.values().cloned().collect()
-    };
-    if let Ok(json) = serde_json::to_string(&ServerMessage::ParticipantList(current_list)) {
-        let _ = sender.send(Message::Text(json)).await;
-    }
-    // Room Config
+    // Send initial room config immediately so Prejoin screen knows status
     let current_config: RoomConfig = {
         let config = state.room_config.lock().unwrap();
         config.clone()
@@ -68,13 +44,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         let _ = sender.send(Message::Text(json)).await;
     }
 
-    // Subscribe to the broadcast channel
+    // Subscribe to broadcast channel
     let mut rx = state.tx.subscribe();
 
-    // Spawn a task to send broadcast messages to this client
-    let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            // Serialize as JSON string
+    // Channel for internal messages to self
+    let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
+
+    // Send loop
+    let send_task = tokio::spawn(async move {
+        loop {
+            let msg = tokio::select! {
+                Ok(msg) = rx.recv() => msg,
+                Some(msg) = internal_rx.recv() => msg,
+                else => break,
+            };
+
             if let Ok(json_msg) = serde_json::to_string(&msg) {
                 if sender.send(Message::Text(json_msg)).await.is_err() {
                     break;
@@ -83,24 +67,51 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     });
 
-    // Spawn a task to receive messages from this client and broadcast them
+    // Receive loop
     let tx = state.tx.clone();
-    let my_id_clone = my_id.clone();
+    let participants_mutex = state.participants.clone();
     let room_config_mutex = state.room_config.clone();
 
-    let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                match client_msg {
-                    ClientMessage::Chat(content) => {
+    // We don't have an ID yet
+    let mut my_id: Option<String> = None;
+
+    while let Some(Ok(Message::Text(text))) = receiver.next().await {
+        if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+            match client_msg {
+                ClientMessage::Join(name) => {
+                    if my_id.is_some() { continue; } // Already joined
+
+                    let id = uuid::Uuid::new_v4().to_string();
+                    let me = Participant { id: id.clone(), name };
+
+                    {
+                        let mut participants = participants_mutex.lock().unwrap();
+                        participants.insert(id.clone(), me.clone());
+                    }
+                    my_id = Some(id.clone());
+
+                    // Broadcast Join
+                    let _ = tx.send(ServerMessage::ParticipantJoined(me));
+
+                    // Send current participants to self
+                    let current_list: Vec<Participant> = {
+                        let participants = participants_mutex.lock().unwrap();
+                        participants.values().cloned().collect()
+                    };
+                    let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
+                },
+                ClientMessage::Chat(content) => {
+                    if let Some(uid) = &my_id {
                         let chat_msg = ChatMessage {
-                            user_id: my_id_clone.clone(),
+                            user_id: uid.clone(),
                             content,
                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
                         };
                         let _ = tx.send(ServerMessage::Chat(chat_msg));
-                    },
-                    ClientMessage::ToggleRoomLock => {
+                    }
+                },
+                ClientMessage::ToggleRoomLock => {
+                    if my_id.is_some() {
                         let new_config = {
                             let mut config = room_config_mutex.lock().unwrap();
                             config.is_locked = !config.is_locked;
@@ -109,27 +120,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         let _ = tx.send(ServerMessage::RoomUpdated(new_config));
                     }
                 }
-            } else {
-                // Fallback for raw chat messages if any legacy client exists, or just log error
-                // For now, let's try to parse as ChatMessage for backward compat if we didn't update frontend fully yet
-                // But we are updating frontend. So let's stick to ClientMessage.
-                eprintln!("Failed to parse ClientMessage: {}", text);
             }
         }
-    });
-
-    // Wait for either task to finish (connection closed)
-    tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
-    };
-
-    // Cleanup: Remove participant and broadcast Leave message
-    {
-        let mut participants = state.participants.lock().unwrap();
-        participants.remove(&my_id);
     }
-    let _ = state.tx.send(ServerMessage::ParticipantLeft(my_id));
+
+    send_task.abort();
+
+    // Cleanup
+    if let Some(id) = my_id {
+        {
+            let mut participants = participants_mutex.lock().unwrap();
+            participants.remove(&id);
+        }
+        let _ = tx.send(ServerMessage::ParticipantLeft(id));
+    }
 }
 
 #[cfg(test)]

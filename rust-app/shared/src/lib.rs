@@ -40,6 +40,7 @@ pub struct Participant {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ClientMessage {
+    Join(String), // Display Name
     Chat(String), // Content
     ToggleRoomLock,
 }

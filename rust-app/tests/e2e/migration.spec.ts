@@ -15,16 +15,23 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Wait for WASM to hydrate and show content
   await expect(page.getByText('Welcome to Juncto (Rust Edition)')).toBeVisible({ timeout: 10000 });
 
-  // 3. Interact
+  // 3. Interact (Start Meeting)
   const input = page.locator('input[type="text"]');
   await expect(input).toBeVisible();
   await input.fill('Rust Meeting');
+  await page.click('button.create-btn');
 
-  await page.click('button');
-
-  // 4. Verify Navigation to Room
+  // 4. Prejoin Screen
   // "Rust Meeting" gets encoded to "Rust%20Meeting"
   await expect(page).toHaveURL(/\/room\/Rust%20Meeting/);
+  await expect(page.getByText('Ready to join?')).toBeVisible();
+
+  // Enter Name and Join
+  const nameInput = page.locator('.prejoin-container input[type="text"]');
+  await nameInput.fill('E2E User');
+  await page.click('button.join-btn');
+
+  // 5. Verify Room UI
   // The component likely displays the decoded parameter
   await expect(page.getByText('Meeting Room: Rust Meeting')).toBeVisible();
 
