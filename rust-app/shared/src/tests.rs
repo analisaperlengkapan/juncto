@@ -28,6 +28,11 @@ fn test_server_message_serialization() {
     let json_update = serde_json::to_string(&msg_update).unwrap();
     let deserialized_update: ServerMessage = serde_json::from_str(&json_update).unwrap();
     assert_eq!(msg_update, deserialized_update);
+
+    let msg_reaction = ServerMessage::Reaction { sender_id: "123".to_string(), emoji: "👍".to_string() };
+    let json_reaction = serde_json::to_string(&msg_reaction).unwrap();
+    let deserialized_reaction: ServerMessage = serde_json::from_str(&json_reaction).unwrap();
+    assert_eq!(msg_reaction, deserialized_reaction);
 }
 
 #[test]
@@ -41,4 +46,9 @@ fn test_client_message_serialization() {
     let json_prof = serde_json::to_string(&msg_prof).unwrap();
     let deserialized_prof: ClientMessage = serde_json::from_str(&json_prof).unwrap();
     assert_eq!(msg_prof, deserialized_prof);
+
+    let msg_reaction = ClientMessage::Reaction("👍".to_string());
+    let json_reaction = serde_json::to_string(&msg_reaction).unwrap();
+    let deserialized_reaction: ClientMessage = serde_json::from_str(&json_reaction).unwrap();
+    assert_eq!(msg_reaction, deserialized_reaction);
 }

@@ -120,6 +120,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         let _ = tx.send(ServerMessage::RoomUpdated(new_config));
                     }
                 },
+                ClientMessage::Reaction(emoji) => {
+                    if let Some(uid) = &my_id {
+                        let _ = tx.send(ServerMessage::Reaction {
+                            sender_id: uid.clone(),
+                            emoji,
+                        });
+                    }
+                },
                 ClientMessage::UpdateProfile(new_name) => {
                     if let Some(uid) = &my_id {
                         let updated_participant = {

@@ -82,4 +82,13 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Verify name updated in Participants List
   // Ideally we wait for the update
   await expect(participantsList.locator('ul')).toContainText('Updated Name');
+
+  // 9. Verify Reactions
+  const likeBtn = page.getByRole('button', { name: '👍' });
+  await expect(likeBtn).toBeVisible();
+  await likeBtn.click();
+
+  // Verify reaction appears in the overlay
+  // Note: Animation lasts 2s, so we must be quick or just check existence
+  await expect(page.locator('.reaction-layer')).toContainText('👍');
 });

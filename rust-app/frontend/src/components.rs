@@ -5,6 +5,7 @@ use crate::participants::ParticipantsList;
 use crate::toolbox::Toolbox;
 use crate::prejoin::PrejoinScreen;
 use crate::settings::SettingsDialog;
+use crate::reactions::ReactionDisplay;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
@@ -62,6 +63,7 @@ pub fn Room() -> impl IntoView {
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
+    let (last_reaction, set_last_reaction) = create_signal(None::<(String, String)>);
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -98,6 +100,9 @@ pub fn Room() -> impl IntoView {
                                         *existing = p;
                                     }
                                 });
+                            },
+                            ServerMessage::Reaction { sender_id, emoji } => {
+                                set_last_reaction.set(Some((sender_id, emoji)));
                             }
                         }
                     }
@@ -144,6 +149,15 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let send_reaction = Callback::new(move |emoji: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Reaction(emoji);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let join_meeting = Callback::new(move |display_name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
@@ -164,18 +178,22 @@ pub fn Room() -> impl IntoView {
                     <div class="room-container" style="display: flex; height: 100vh;">
                         <ParticipantsList participants=participants />
                         <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
-                            <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
-                                <div>
-                                    <h2>"Meeting Room: " {room_id}</h2>
-                                    <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
-                                        <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+                            <div style="position: relative; flex: 1; width: 100%; height: 100%;">
+                                <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                                    <div>
+                                        <h2>"Meeting Room: " {room_id}</h2>
+                                        <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
+                                            <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
+                                        </div>
                                     </div>
                                 </div>
+                                <ReactionDisplay last_reaction=last_reaction />
                             </div>
                             <Toolbox
                                 is_locked=is_locked
                                 on_toggle_lock=toggle_lock
                                 on_settings=Callback::new(move |_| set_show_settings.set(true))
+                                on_reaction=send_reaction
                             />
                         </div>
                         <Chat

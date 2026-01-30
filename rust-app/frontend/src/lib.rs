@@ -4,6 +4,7 @@ mod participants;
 mod toolbox;
 mod prejoin;
 mod settings;
+mod reactions;
 
 use leptos::*;
 use leptos_router::*;

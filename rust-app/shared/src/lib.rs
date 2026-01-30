@@ -44,6 +44,7 @@ pub enum ClientMessage {
     Chat(String), // Content
     ToggleRoomLock,
     UpdateProfile(String), // New Name
+    Reaction(String), // Emoji
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -55,6 +56,7 @@ pub enum ServerMessage {
     ParticipantList(Vec<Participant>),
     RoomUpdated(RoomConfig),
     ParticipantUpdated(Participant),
+    Reaction { sender_id: String, emoji: String },
 }
 
 #[cfg(test)]

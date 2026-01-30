@@ -5,6 +5,7 @@ pub fn Toolbox(
     is_locked: ReadSignal<bool>,
     on_toggle_lock: Callback<()>,
     on_settings: Callback<()>,
+    on_reaction: Callback<String>,
 ) -> impl IntoView {
     view! {
         <div class="toolbox" style="padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px;">
@@ -20,6 +21,11 @@ pub fn Toolbox(
             >
                 "Settings"
             </button>
+            <div class="reactions" style="display: flex; gap: 5px;">
+                <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>
+                <button on:click=move |_| on_reaction.call("👏".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👏"</button>
+                <button on:click=move |_| on_reaction.call("😂".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"😂"</button>
+            </div>
         </div>
     }
 }
