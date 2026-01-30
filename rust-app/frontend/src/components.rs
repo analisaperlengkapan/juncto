@@ -1,6 +1,11 @@
 use leptos::*;
 use leptos_router::*;
 use crate::chat::Chat;
+use crate::participants::ParticipantsList;
+use shared::{ChatMessage, Participant, ServerMessage};
+use web_sys::{MessageEvent, WebSocket};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn WelcomePage() -> impl IntoView {
@@ -40,14 +45,72 @@ pub fn Room() -> impl IntoView {
     let params = use_params_map();
     let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
 
+    // State
+    let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
+    let (participants, set_participants) = create_signal(Vec::<Participant>::new());
+    let (ws, set_ws) = create_signal(None::<WebSocket>);
+    let (is_connected, set_is_connected) = create_signal(false);
+
+    // Initialize WebSocket
+    create_effect(move |_| {
+        let location = web_sys::window().unwrap().location();
+        let protocol = if location.protocol().unwrap() == "https:" { "wss:" } else { "ws:" };
+        let host = location.host().unwrap();
+        let url = format!("{}//{}/ws/chat", protocol, host);
+
+        if let Ok(socket) = WebSocket::new(&url) {
+            // Handle incoming messages
+            let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
+                if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
+                    let txt: String = txt.into();
+                    if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
+                        match server_msg {
+                            ServerMessage::Chat(msg) => {
+                                set_messages.update(|msgs| msgs.push(msg));
+                            },
+                            ServerMessage::ParticipantJoined(p) => {
+                                set_participants.update(|list| list.push(p));
+                            },
+                            ServerMessage::ParticipantLeft(id) => {
+                                set_participants.update(|list| list.retain(|p| p.id != id));
+                            },
+                            ServerMessage::ParticipantList(list) => {
+                                set_participants.set(list);
+                            }
+                        }
+                    }
+                }
+            });
+            socket.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+            onmessage_callback.forget();
+
+            // Handle connection open
+            let onopen_callback = Closure::<dyn FnMut()>::new(move || {
+                set_is_connected.set(true);
+            });
+            socket.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+            onopen_callback.forget();
+
+            set_ws.set(Some(socket));
+        }
+    });
+
+    let send_message = Callback::new(move |content: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ChatMessage {
+                user_id: "Me".to_string(),
+                content,
+                timestamp: js_sys::Date::now() as u64,
+            };
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     view! {
         <div class="room-container" style="display: flex; height: 100vh;">
-            <div class="sidebar" style="width: 200px; background: #eee; padding: 20px;">
-                <h3>"Participants"</h3>
-                <ul>
-                    <li>"You (Host)"</li>
-                </ul>
-            </div>
+            <ParticipantsList participants=participants />
             <div class="main-content" style="flex: 1; display: flex; justify-content: center; align-items: center; background: #333; color: white;">
                 <div>
                     <h2>"Meeting Room: " {room_id}</h2>
@@ -56,7 +119,11 @@ pub fn Room() -> impl IntoView {
                     </div>
                 </div>
             </div>
-            <Chat />
+            <Chat
+                messages=messages
+                on_send=send_message
+                is_connected=is_connected
+            />
         </div>
     }
 }

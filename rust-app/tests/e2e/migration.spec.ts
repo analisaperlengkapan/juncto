@@ -44,6 +44,10 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Verify message appears (User ID "Me" is hardcoded in chat.rs)
   // Check for the content first as it's most unique
   await expect(page.getByText('Hello from E2E')).toBeVisible();
-  // Check that the user ID is also present
-  await expect(page.locator('.messages')).toContainText('Me');
+
+  // 6. Verify Participants List
+  const participantsList = page.locator('.participants-list');
+  await expect(participantsList).toBeVisible();
+  // Should contain at least "User ..." because backend assigns random names starting with "User"
+  await expect(participantsList.locator('ul')).toContainText('User');
 });

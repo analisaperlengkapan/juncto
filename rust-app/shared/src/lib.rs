@@ -31,19 +31,20 @@ pub struct ChatMessage {
     pub timestamp: u64,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_chat_message_serialization() {
-        let msg = ChatMessage {
-            user_id: "user1".to_string(),
-            content: "Hello Rust".to_string(),
-            timestamp: 1627840000,
-        };
-        let json = serde_json::to_string(&msg).unwrap();
-        let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(msg, deserialized);
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Participant {
+    pub id: String,
+    pub name: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "payload")]
+pub enum ServerMessage {
+    Chat(ChatMessage),
+    ParticipantJoined(Participant),
+    ParticipantLeft(String), // ID
+    ParticipantList(Vec<Participant>),
+}
+
+#[cfg(test)]
+mod tests;

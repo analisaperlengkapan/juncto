@@ -7,20 +7,25 @@ use axum::{
 use tower_http::services::{ServeDir, ServeFile};
 use std::net::SocketAddr;
 use tokio::sync::broadcast;
-use std::sync::Arc;
-use shared::ChatMessage;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use shared::{ServerMessage, Participant};
 
-// AppState to hold the broadcast channel
+// AppState to hold the broadcast channel and participants list
 #[derive(Clone)]
 pub struct AppState {
-    pub tx: broadcast::Sender<ChatMessage>,
+    pub tx: broadcast::Sender<ServerMessage>,
+    pub participants: Arc<Mutex<HashMap<String, Participant>>>,
 }
 
 #[tokio::main]
 async fn main() {
     // Initialize broadcast channel (capacity 100)
     let (tx, _rx) = broadcast::channel(100);
-    let app_state = Arc::new(AppState { tx });
+    // Initialize participants list
+    let participants = Arc::new(Mutex::new(HashMap::new()));
+
+    let app_state = Arc::new(AppState { tx, participants });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")
