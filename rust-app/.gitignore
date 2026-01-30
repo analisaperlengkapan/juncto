@@ -1,0 +1,11 @@
+target/
+node_modules/
+dist/
+pkg/
+**/*.rs.bk
+*.swp
+.DS_Store
+test_output.txt
+playwright_output.txt
+playwright-report/
+test-results/
