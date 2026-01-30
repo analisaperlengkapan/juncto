@@ -1,0 +1,6 @@
+doc/debian/juncto/juncto.example        /usr/share/juncto-web-config/
+doc/debian/juncto/juncto.example-apache /usr/share/juncto-web-config/
+config.js                                       /usr/share/juncto-web-config/
+doc/jaas/nginx-jaas.conf                        /usr/share/juncto-web-config/
+doc/jaas/index-jaas.html                        /usr/share/juncto-web-config/
+doc/jaas/Juncto.vc-config.js                        /usr/share/juncto-web-config/

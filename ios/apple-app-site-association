@@ -1,0 +1,15 @@
+{
+    "applinks": {
+        "apps": [],
+        "details": [
+            {
+                "appID": "BQNXB4G3KQ.org.juncto.JunctoMeet.ios",
+                "paths": [ "*" ]
+            },
+            {
+                "appID": "UPXU4CQZ5P.com.atlassian.JunctoMeet.ios",
+                "paths": [ "*" ]
+            }
+        ]
+    }
+}

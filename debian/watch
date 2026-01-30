@@ -1,0 +1,2 @@
+version=3
+opts="uversionmangle=s/^/1.0./" https://github.com/juncto/juncto/releases/ /juncto/juncto/archive/(\S+)\.tar\.gz

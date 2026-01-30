@@ -1,0 +1,15 @@
+interface_config.js		/usr/share/juncto/
+*.html					/usr/share/juncto/
+libs					/usr/share/juncto/
+static                  /usr/share/juncto/
+css/all.css 			/usr/share/juncto/css/
+sounds					/usr/share/juncto/
+fonts					/usr/share/juncto/
+images					/usr/share/juncto/
+lang					/usr/share/juncto/
+resources/robots.txt	/usr/share/juncto/
+resources/*.sh			/usr/share/juncto/scripts/
+pwa-worker.js			/usr/share/juncto/
+manifest.json			/usr/share/juncto/
+doc/jaas/move-to-jaas.sh        /usr/share/juncto/scripts/
+doc/jaas/update-asap-daily.sh   /usr/share/juncto/scripts/

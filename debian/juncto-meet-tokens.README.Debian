@@ -1,0 +1,7 @@
+Token authentication plugin for Juncto
+----------------------------
+
+Juncto is a WebRTC video conferencing application. This package contains
+Prosody plugin which enables token authentication in Juncto installation.
+
+ -- Pawel Domas <pawel.domas@juncto.org>  Mon, 2 Nov 2015 14:45:00 -0600

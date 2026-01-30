@@ -1,0 +1,2 @@
+doc/debian/juncto-turn/turnserver.conf          /usr/share/juncto-turnserver/
+doc/debian/juncto/juncto.conf               /usr/share/juncto-turnserver/

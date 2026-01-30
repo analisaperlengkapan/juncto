@@ -1,0 +1,58 @@
+Source: juncto-web
+Section: net
+Priority: extra
+Maintainer: Juncto Team <dev@juncto.org>
+Uploaders: Emil Ivov <emcho@juncto.org>, Damian Minkov <damencho@juncto.org>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.6
+Homepage: https://juncto.org/meet
+
+Package: juncto-web
+Replaces: juncto (<= 1.0.1525-1)
+Architecture: all
+Depends: ${misc:Depends}
+Description: WebRTC JavaScript video conferences
+ Juncto is a WebRTC JavaScript application that uses Juncto
+ Junctobridge to provide high quality, scalable video conferences.
+ .
+ It is a web interface to Juncto Junctobridge for audio and video
+ forwarding and relaying.
+
+Package: juncto-web-config
+Architecture: all
+Pre-Depends: nginx | nginx-full | nginx-extras | openresty | apache2
+Depends: openssl, curl
+Description: Configuration for web serving of Juncto
+ Juncto is a WebRTC JavaScript application that uses Juncto
+ Junctobridge to provide high quality, scalable video conferences.
+ .
+ It is a web interface to Juncto Junctobridge for audio and video
+ forwarding and relaying, using a webserver Nginx or Apache2.
+ .
+ This package contains configuration for Nginx to be used with
+ Juncto.
+
+Package: juncto-prosody
+Architecture: all
+Depends: openssl, prosody (>= 0.12.0) | prosody-trunk | prosody-0.12 | prosody-13.0, lua-sec, lua-basexx, lua-luaossl, lua-cjson, lua-inspect
+Replaces: juncto-tokens
+Description: Prosody configuration for Juncto
+ Juncto is a WebRTC JavaScript application that uses Juncto
+ Junctobridge to provide high quality, scalable video conferences.
+ .
+ It is a web interface to Juncto Junctobridge for audio and video
+ forwarding and relaying.
+ .
+ This package contains configuration for Prosody to be used with
+ Juncto.
+
+Package: juncto-tokens
+Architecture: all
+Depends: ${misc:Depends}, prosody-trunk | prosody-0.12 | prosody-13.0 | prosody (>= 0.12.0), juncto-prosody
+Description: Prosody token authentication plugin for Juncto
+
+Package: juncto-turnserver
+Architecture: all
+Pre-Depends: juncto-web-config
+Depends: ${misc:Depends}, juncto-prosody, coturn, dnsutils
+Description: Configures coturn to be used with Juncto

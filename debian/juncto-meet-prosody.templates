@@ -1,0 +1,24 @@
+Template: juncto-prosody/junctobridge-hostname
+Type: string
+_Description: The domain of the current installation (e.g. meet.juncto.com):
+ The value of the domain that is set in the Juncto Junctobridge installation.
+
+Template: juncto-junctobridge/junctobridge-hostname
+Type: string
+_Description: The domain of the current installation (e.g. meet.juncto.com):
+ The value of the domain that is set in the Juncto Junctobridge installation.
+
+Template: juncto-junctobridge/junctobridgesecret
+Type: password
+_Description: Juncto Junctobridge Component secret:
+ The secret used by Juncto Junctobridge to connect to xmpp server as component.
+
+Template: juncofo/juncofo-authpassword
+Type: password
+_Description: Juncofo user password:
+ The secret used to connect to xmpp server as juncofo user.
+
+Template: juncto-prosody/turn-secret
+Type: string
+_Description: The turn server secret
+ The secret used to connect to turnserver server.

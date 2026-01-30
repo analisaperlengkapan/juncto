@@ -1,0 +1,14 @@
+Template: juncto-tokens/appid
+Type: string
+_Description: The application ID to be used by token authentication plugin:
+  Application ID:
+
+Template: juncto-tokens/appsecret
+Type: password
+_Description: The application secret to be used by token authentication plugin:
+  Application secret:
+
+Template: juncto-prosody/prosody_config
+Type: string
+_Description: The location of Juncto Prosody config file
+  Juncto-meet Prosody config file location:
