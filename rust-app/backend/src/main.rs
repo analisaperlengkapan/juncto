@@ -6,20 +6,32 @@ use axum::{
 };
 use tower_http::services::{ServeDir, ServeFile};
 use std::net::SocketAddr;
+use tokio::sync::broadcast;
+use std::sync::Arc;
+use shared::ChatMessage;
+
+// AppState to hold the broadcast channel
+#[derive(Clone)]
+pub struct AppState {
+    pub tx: broadcast::Sender<ChatMessage>,
+}
 
 #[tokio::main]
 async fn main() {
+    // Initialize broadcast channel (capacity 100)
+    let (tx, _rx) = broadcast::channel(100);
+    let app_state = Arc::new(AppState { tx });
+
     // Define the router
-    // Serving "frontend/pkg"
-    // fallback_service handles everything not matched by specific routes.
-    // We configure ServeDir to serve files if they exist, and fallback to index.html if not (SPA behavior).
     let serve_dir = ServeDir::new("frontend/pkg")
         .not_found_service(ServeFile::new("frontend/pkg/index.html"));
 
     let app = Router::new()
         .route("/api/rooms", post(api::create_room))
         .route("/health", get(api::health_check))
-        .fallback_service(serve_dir);
+        .route("/ws/chat", get(api::chat_handler))
+        .fallback_service(serve_dir)
+        .with_state(app_state);
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

@@ -27,4 +27,23 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(page).toHaveURL(/\/room\/Rust%20Meeting/);
   // The component likely displays the decoded parameter
   await expect(page.getByText('Meeting Room: Rust Meeting')).toBeVisible();
+
+  // 5. Verify Chat Functionality
+  const chatInput = page.locator('.chat-container input[type="text"]');
+  const chatSendBtn = page.locator('.chat-container button');
+
+  await expect(chatInput).toBeVisible();
+
+  // Wait for connection
+  await expect(chatSendBtn).toBeEnabled();
+  await expect(chatSendBtn).toHaveText('Send');
+
+  await chatInput.fill('Hello from E2E');
+  await chatSendBtn.click();
+
+  // Verify message appears (User ID "Me" is hardcoded in chat.rs)
+  // Check for the content first as it's most unique
+  await expect(page.getByText('Hello from E2E')).toBeVisible();
+  // Check that the user ID is also present
+  await expect(page.locator('.messages')).toContainText('Me');
 });

@@ -1,4 +1,5 @@
 mod components;
+mod chat;
 
 use leptos::*;
 use leptos_router::*;

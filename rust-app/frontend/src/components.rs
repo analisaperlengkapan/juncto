@@ -1,5 +1,6 @@
 use leptos::*;
 use leptos_router::*;
+use crate::chat::Chat;
 
 #[component]
 pub fn WelcomePage() -> impl IntoView {
@@ -55,6 +56,7 @@ pub fn Room() -> impl IntoView {
                     </div>
                 </div>
             </div>
+            <Chat />
         </div>
     }
 }
