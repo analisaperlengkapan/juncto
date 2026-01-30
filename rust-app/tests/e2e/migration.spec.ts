@@ -23,6 +23,8 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await page.click('button');
 
   // 4. Verify Navigation to Room
-  await expect(page).toHaveURL(/\/room\/123/);
-  await expect(page.getByText('Meeting Room: 123')).toBeVisible();
+  // "Rust Meeting" gets encoded to "Rust%20Meeting"
+  await expect(page).toHaveURL(/\/room\/Rust%20Meeting/);
+  // The component likely displays the decoded parameter
+  await expect(page.getByText('Meeting Room: Rust Meeting')).toBeVisible();
 });

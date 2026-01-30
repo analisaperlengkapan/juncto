@@ -4,10 +4,13 @@ use leptos_router::*;
 #[component]
 pub fn WelcomePage() -> impl IntoView {
     let (room_name, set_room_name) = create_signal("My Meeting".to_string());
+    let navigate = use_navigate();
 
     let create_meeting = move |_| {
-        let navigate = use_navigate();
-        navigate("/room/123", Default::default());
+        let name = room_name.get();
+        // Simple sanitization/encoding for URL
+        let encoded_name = urlencoding::encode(&name);
+        navigate(&format!("/room/{}", encoded_name), Default::default());
     };
 
     view! {

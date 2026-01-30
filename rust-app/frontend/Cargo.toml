@@ -11,6 +11,7 @@ reqwest = { version = "0.11", features = ["json"] }
 shared = { path = "../shared" }
 wasm-bindgen = "0.2"
 console_error_panic_hook = "0.1"
+urlencoding = "2.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
