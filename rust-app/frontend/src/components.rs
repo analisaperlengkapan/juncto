@@ -62,6 +62,7 @@ pub fn Room() -> impl IntoView {
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (is_recording, set_is_recording) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
     let (last_reaction, set_last_reaction) = create_signal(None::<(String, String)>);
 
@@ -93,6 +94,7 @@ pub fn Room() -> impl IntoView {
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
+                                set_is_recording.set(config.is_recording);
                             },
                             ServerMessage::ParticipantUpdated(p) => {
                                 set_participants.update(|list| {
@@ -134,6 +136,15 @@ pub fn Room() -> impl IntoView {
     let toggle_lock = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRoomLock;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_recording = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleRecording;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -182,6 +193,11 @@ pub fn Room() -> impl IntoView {
                                 <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
                                     <div>
                                         <h2>"Meeting Room: " {room_id}</h2>
+                                        <Show when=move || is_recording.get()>
+                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
+                                                "REC"
+                                            </div>
+                                        </Show>
                                         <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
                                             <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
                                         </div>
@@ -191,7 +207,9 @@ pub fn Room() -> impl IntoView {
                             </div>
                             <Toolbox
                                 is_locked=is_locked
+                                is_recording=is_recording
                                 on_toggle_lock=toggle_lock
+                                on_toggle_recording=toggle_recording
                                 on_settings=Callback::new(move |_| set_show_settings.set(true))
                                 on_reaction=send_reaction
                             />

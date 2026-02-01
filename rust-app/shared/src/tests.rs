@@ -42,6 +42,11 @@ fn test_client_message_serialization() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 
+    let msg_rec = ClientMessage::ToggleRecording;
+    let json_rec = serde_json::to_string(&msg_rec).unwrap();
+    let deserialized_rec: ClientMessage = serde_json::from_str(&json_rec).unwrap();
+    assert_eq!(msg_rec, deserialized_rec);
+
     let msg_prof = ClientMessage::UpdateProfile("Bob".to_string());
     let json_prof = serde_json::to_string(&msg_prof).unwrap();
     let deserialized_prof: ClientMessage = serde_json::from_str(&json_prof).unwrap();
@@ -51,4 +56,13 @@ fn test_client_message_serialization() {
     let json_reaction = serde_json::to_string(&msg_reaction).unwrap();
     let deserialized_reaction: ClientMessage = serde_json::from_str(&json_reaction).unwrap();
     assert_eq!(msg_reaction, deserialized_reaction);
+}
+
+#[test]
+fn test_room_config_serialization() {
+    let config = RoomConfig::default();
+    assert_eq!(config.is_recording, false);
+    let json = serde_json::to_string(&config).unwrap();
+    let deserialized: RoomConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(config, deserialized);
 }

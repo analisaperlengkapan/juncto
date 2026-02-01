@@ -120,6 +120,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         let _ = tx.send(ServerMessage::RoomUpdated(new_config));
                     }
                 },
+                ClientMessage::ToggleRecording => {
+                    if my_id.is_some() {
+                        let new_config = {
+                            let mut config = room_config_mutex.lock().unwrap();
+                            config.is_recording = !config.is_recording;
+                            config.clone()
+                        };
+                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                    }
+                },
                 ClientMessage::Reaction(emoji) => {
                     if let Some(uid) = &my_id {
                         let _ = tx.send(ServerMessage::Reaction {

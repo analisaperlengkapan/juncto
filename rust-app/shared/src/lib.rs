@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,
+    pub is_recording: bool,
     pub max_participants: u32,
 }
 
@@ -12,6 +13,7 @@ impl Default for RoomConfig {
         Self {
             room_name: "Default Room".to_string(),
             is_locked: false,
+            is_recording: false,
             max_participants: 100,
         }
     }
@@ -43,6 +45,7 @@ pub enum ClientMessage {
     Join(String), // Display Name
     Chat(String), // Content
     ToggleRoomLock,
+    ToggleRecording,
     UpdateProfile(String), // New Name
     Reaction(String), // Emoji
 }

@@ -3,7 +3,9 @@ use leptos::*;
 #[component]
 pub fn Toolbox(
     is_locked: ReadSignal<bool>,
+    is_recording: ReadSignal<bool>,
     on_toggle_lock: Callback<()>,
+    on_toggle_recording: Callback<()>,
     on_settings: Callback<()>,
     on_reaction: Callback<String>,
 ) -> impl IntoView {
@@ -14,6 +16,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 {move || if is_locked.get() { "Unlock Room" } else { "Lock Room" }}
+            </button>
+            <button
+                on:click=move |_| on_toggle_recording.call(())
+                style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })
+            >
+                {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
             </button>
             <button
                 on:click=move |_| on_settings.call(())

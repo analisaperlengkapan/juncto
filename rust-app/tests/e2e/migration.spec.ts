@@ -91,4 +91,17 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Verify reaction appears in the overlay
   // Note: Animation lasts 2s, so we must be quick or just check existence
   await expect(page.locator('.reaction-layer')).toContainText('👍');
+
+  // 10. Verify Recording
+  const recordBtn = page.getByRole('button', { name: 'Start Recording' });
+  await expect(recordBtn).toBeVisible();
+  await recordBtn.click();
+
+  // Verify REC indicator
+  await expect(page.getByText('REC', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop Recording' })).toBeVisible();
+
+  // Stop Recording
+  await page.getByRole('button', { name: 'Stop Recording' }).click();
+  await expect(page.getByText('REC', { exact: true })).not.toBeVisible();
 });
