@@ -11,12 +11,14 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
 
+type KnockingMap = HashMap<String, (Participant, oneshot::Sender<bool>)>;
+
 // AppState to hold the broadcast channel and participants list
 #[derive(Clone)]
 pub struct AppState {
     pub tx: broadcast::Sender<ServerMessage>,
     pub participants: Arc<Mutex<HashMap<String, Participant>>>,
-    pub knocking_participants: Arc<Mutex<HashMap<String, (Participant, oneshot::Sender<bool>)>>>,
+    pub knocking_participants: Arc<Mutex<KnockingMap>>,
     pub room_config: Arc<Mutex<RoomConfig>>,
     pub polls: Arc<Mutex<HashMap<String, Poll>>>,
     pub whiteboard: Arc<Mutex<Vec<DrawAction>>>,

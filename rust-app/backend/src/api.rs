@@ -48,7 +48,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
 
     // Send loop
-    let mut send_task = tokio::spawn(async move {
+    let send_task = tokio::spawn(async move {
         while let Some(msg) = internal_rx.recv().await {
             if let Ok(json_msg) = serde_json::to_string(&msg) {
                 if sender.send(Message::Text(json_msg)).await.is_err() {
