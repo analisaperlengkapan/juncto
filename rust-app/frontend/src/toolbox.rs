@@ -7,6 +7,7 @@ pub fn Toolbox(
     on_toggle_lock: Callback<()>,
     on_toggle_recording: Callback<()>,
     on_settings: Callback<()>,
+    on_polls: Callback<()>,
     on_reaction: Callback<String>,
 ) -> impl IntoView {
     view! {
@@ -28,6 +29,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Settings"
+            </button>
+            <button
+                on:click=move |_| on_polls.call(())
+                style="padding: 8px 16px; background-color: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Polls"
             </button>
             <div class="reactions" style="display: flex; gap: 5px;">
                 <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>

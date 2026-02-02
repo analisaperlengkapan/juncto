@@ -40,8 +40,24 @@ pub struct Participant {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PollOption {
+    pub id: u32,
+    pub text: String,
+    pub votes: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Poll {
+    pub id: String,
+    pub question: String,
+    pub options: Vec<PollOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ClientMessage {
+    CreatePoll(Poll),
+    Vote { poll_id: String, option_id: u32 },
     Join(String), // Display Name
     Chat(String), // Content
     ToggleRoomLock,
@@ -60,6 +76,8 @@ pub enum ServerMessage {
     RoomUpdated(RoomConfig),
     ParticipantUpdated(Participant),
     Reaction { sender_id: String, emoji: String },
+    PollCreated(Poll),
+    PollUpdated(Poll),
 }
 
 #[cfg(test)]

@@ -6,7 +6,8 @@ use crate::toolbox::Toolbox;
 use crate::prejoin::PrejoinScreen;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
-use shared::{ChatMessage, Participant, ServerMessage, ClientMessage};
+use crate::polls::PollsDialog;
+use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -64,6 +65,8 @@ pub fn Room() -> impl IntoView {
     let (is_locked, set_is_locked) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
+    let (show_polls, set_show_polls) = create_signal(false);
+    let (polls, set_polls) = create_signal(Vec::<Poll>::new());
     let (last_reaction, set_last_reaction) = create_signal(None::<(String, String)>);
 
     // Initialize WebSocket
@@ -105,6 +108,16 @@ pub fn Room() -> impl IntoView {
                             },
                             ServerMessage::Reaction { sender_id, emoji } => {
                                 set_last_reaction.set(Some((sender_id, emoji)));
+                            },
+                            ServerMessage::PollCreated(poll) => {
+                                set_polls.update(|list| list.push(poll));
+                            },
+                            ServerMessage::PollUpdated(poll) => {
+                                set_polls.update(|list| {
+                                    if let Some(existing) = list.iter_mut().find(|x| x.id == poll.id) {
+                                        *existing = poll;
+                                    }
+                                });
                             }
                         }
                     }
@@ -169,6 +182,24 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let create_poll = Callback::new(move |poll: Poll| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::CreatePoll(poll);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let vote_poll = Callback::new(move |(poll_id, option_id): (String, u32)| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Vote { poll_id, option_id };
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let join_meeting = Callback::new(move |display_name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
@@ -211,6 +242,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_lock=toggle_lock
                                 on_toggle_recording=toggle_recording
                                 on_settings=Callback::new(move |_| set_show_settings.set(true))
+                                on_polls=Callback::new(move |_| set_show_polls.set(true))
                                 on_reaction=send_reaction
                             />
                         </div>
@@ -223,6 +255,13 @@ pub fn Room() -> impl IntoView {
                             show=show_settings
                             on_close=Callback::new(move |_| set_show_settings.set(false))
                             on_save_profile=save_profile
+                        />
+                        <PollsDialog
+                            show=show_polls
+                            polls=polls
+                            on_close=Callback::new(move |_| set_show_polls.set(false))
+                            on_create_poll=create_poll
+                            on_vote=vote_poll
                         />
                     </div>
                 }.into_view()

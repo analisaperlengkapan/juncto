@@ -104,4 +104,32 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Stop Recording
   await page.getByRole('button', { name: 'Stop Recording' }).click();
   await expect(page.getByText('REC', { exact: true })).not.toBeVisible();
+
+  // 11. Verify Polls
+  // Open Polls
+  await page.getByRole('button', { name: 'Polls' }).click();
+  await expect(page.getByRole('heading', { name: 'Polls' })).toBeVisible();
+
+  // Create Poll
+  await page.getByRole('button', { name: 'Create Poll' }).click(); // Click Tab
+
+  const pollForm = page.locator('.modal-content .tab-content');
+  await expect(pollForm).toBeVisible();
+
+  await pollForm.locator('input').nth(0).fill('Fav Color?'); // Question
+  await pollForm.locator('input').nth(1).fill('Red'); // Option 1
+  await pollForm.locator('input').nth(2).fill('Blue'); // Option 2
+
+  // Click the 'Create Poll' button inside the tab content (the submit button)
+  await pollForm.locator('button:has-text("Create Poll")').click();
+
+  // Verify Poll Created
+  await expect(page.getByText('Fav Color?')).toBeVisible();
+  await expect(page.getByText('0 votes')).toHaveCount(2);
+
+  // Vote
+  await page.locator('button:has-text("Vote")').first().click();
+
+  // Verify Vote Count Updated
+  await expect(page.getByText('1 votes')).toBeVisible();
 });

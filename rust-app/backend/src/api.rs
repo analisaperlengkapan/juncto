@@ -71,6 +71,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let tx = state.tx.clone();
     let participants_mutex = state.participants.clone();
     let room_config_mutex = state.room_config.clone();
+    let polls_mutex = state.polls.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -128,6 +129,42 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             config.clone()
                         };
                         let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                    }
+                },
+                ClientMessage::CreatePoll(mut poll) => {
+                    if my_id.is_some() {
+                        eprintln!("Received CreatePoll: {:?}", poll);
+                        // Assign ID if needed or trust client (for simple migration, assume client sends unique ID or we overwrite)
+                        if poll.id.is_empty() {
+                            poll.id = uuid::Uuid::new_v4().to_string();
+                        }
+
+                        {
+                            let mut polls = polls_mutex.lock().unwrap();
+                            polls.insert(poll.id.clone(), poll.clone());
+                        }
+                        let _ = tx.send(ServerMessage::PollCreated(poll));
+                    }
+                },
+                ClientMessage::Vote { poll_id, option_id } => {
+                    if my_id.is_some() {
+                        let updated_poll = {
+                            let mut polls = polls_mutex.lock().unwrap();
+                            if let Some(poll) = polls.get_mut(&poll_id) {
+                                for opt in &mut poll.options {
+                                    if opt.id == option_id {
+                                        opt.votes += 1;
+                                    }
+                                }
+                                Some(poll.clone())
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(poll) = updated_poll {
+                            let _ = tx.send(ServerMessage::PollUpdated(poll));
+                        }
                     }
                 },
                 ClientMessage::Reaction(emoji) => {

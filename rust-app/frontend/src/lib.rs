@@ -5,6 +5,7 @@ mod toolbox;
 mod prejoin;
 mod settings;
 mod reactions;
+mod polls;
 
 use leptos::*;
 use leptos_router::*;

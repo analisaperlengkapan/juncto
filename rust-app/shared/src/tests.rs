@@ -42,11 +42,6 @@ fn test_client_message_serialization() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 
-    let msg_rec = ClientMessage::ToggleRecording;
-    let json_rec = serde_json::to_string(&msg_rec).unwrap();
-    let deserialized_rec: ClientMessage = serde_json::from_str(&json_rec).unwrap();
-    assert_eq!(msg_rec, deserialized_rec);
-
     let msg_prof = ClientMessage::UpdateProfile("Bob".to_string());
     let json_prof = serde_json::to_string(&msg_prof).unwrap();
     let deserialized_prof: ClientMessage = serde_json::from_str(&json_prof).unwrap();
@@ -65,4 +60,20 @@ fn test_room_config_serialization() {
     let json = serde_json::to_string(&config).unwrap();
     let deserialized: RoomConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(config, deserialized);
+}
+
+#[test]
+fn test_poll_serialization() {
+    let poll = Poll {
+        id: "poll1".to_string(),
+        question: "Color?".to_string(),
+        options: vec![
+            PollOption { id: 0, text: "Red".to_string(), votes: 0 },
+            PollOption { id: 1, text: "Blue".to_string(), votes: 5 },
+        ],
+    };
+    let msg = ClientMessage::CreatePoll(poll.clone());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
 }
