@@ -78,6 +78,8 @@ pub fn Room() -> impl IntoView {
                                 is_locked=state.is_locked
                                 is_host=state.is_host
                                 is_lobby_enabled=state.is_lobby_enabled
+                                class="room-toolbox"
+                                style="position: relative; z-index: 20;" // Ensure toolbox is above whiteboard
                                 is_recording=state.is_recording
                                 on_toggle_lock=state.toggle_lock
                                 on_toggle_lobby=state.toggle_lobby
@@ -98,6 +100,7 @@ pub fn Room() -> impl IntoView {
                             on_send=state.send_message
                             on_typing=state.set_is_typing
                             is_connected=state.is_connected
+                            my_id=state.my_id
                         />
                         <SettingsDialog
                             show=state.show_settings

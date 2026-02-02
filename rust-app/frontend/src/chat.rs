@@ -11,6 +11,7 @@ pub fn Chat(
     on_send: Callback<String>,
     on_typing: Callback<bool>,
     is_connected: ReadSignal<bool>,
+    my_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let (input_value, set_input_value) = create_signal("".to_string());
     // Store timer handle in a ref to clear it if needed, or just let it fire.
@@ -59,9 +60,18 @@ pub fn Chat(
                         each=move || messages.get()
                         key=|msg| msg.timestamp
                         children=move |msg| {
+                            let parts = participants.get();
+                            let my = my_id.get();
+                            let sender_name = if Some(msg.user_id.clone()) == my {
+                                "Me".to_string()
+                            } else {
+                                parts.iter().find(|p| p.id == msg.user_id).map(|p| p.name.clone()).unwrap_or(msg.user_id.clone())
+                            };
+                            let style = if Some(msg.user_id.clone()) == my { "color: blue;" } else { "color: black;" };
+
                             view! {
-                                <li>
-                                    <strong>{msg.user_id}": "</strong>
+                                <li style=style>
+                                    <strong>{sender_name}": "</strong>
                                     <span>{msg.content}</span>
                                 </li>
                             }

@@ -94,12 +94,12 @@ pub fn Whiteboard(
     };
 
     view! {
-        <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9);">
+        <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 10;">
             <canvas
                 _ref=canvas_ref
-                width="640" // Matches video placeholder size for simplicity
-                height="360"
-                style="border: 1px solid black; cursor: crosshair;"
+                width="800"
+                height="600"
+                style="border: 1px solid black; cursor: crosshair; background: white;"
                 on:mousedown=on_mousedown
                 on:mouseup=on_mouseup
                 on:mouseleave=on_mouseup

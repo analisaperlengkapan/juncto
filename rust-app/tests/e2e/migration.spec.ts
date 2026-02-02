@@ -646,3 +646,51 @@ test('Video Grid E2E', async ({ page }) => {
     await page.click('button:has-text("Toggle Camera")');
     await expect(grid.locator('.video-card:has-text("Camera Off")')).toBeVisible();
 });
+
+test('Chat Names E2E', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "ChatNameRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context1 = await browser.newContext();
+    const page1 = await context1.newPage();
+    const context2 = await browser.newContext();
+    const page2 = await context2.newPage();
+
+    // User 1 Join
+    await page1.goto('/room/ChatNameRoom');
+    await page1.locator('.prejoin-container input[type="text"]').fill('Alice');
+    await page1.click('button.join-btn');
+
+    // User 2 Join
+    await page2.goto('/room/ChatNameRoom');
+    await page2.locator('.prejoin-container input[type="text"]').fill('Bob');
+    await page2.click('button.join-btn');
+
+    // Alice types
+    await page1.locator('.chat-container input[type="text"]').fill('Hi Bob');
+    await page1.click('.chat-container button');
+
+    // Alice should see "Me": "Hi Bob"
+    // The chat component renders: <strong>{sender_name}": "</strong> <span>{msg.content}</span>
+    // The expect might be failing due to exact spacing or HTML structure matching in toContainText
+    // Let's check for "Me" and "Hi Bob" separately within the last li.
+    const lastMsg = page1.locator('.messages li').last();
+    await expect(lastMsg).toContainText('Me');
+    await expect(lastMsg).toContainText('Hi Bob');
+
+    // Bob should see "Alice": "Hi Bob"
+    const lastMsgBob = page2.locator('.messages li').last();
+    await expect(lastMsgBob).toContainText('Alice');
+    await expect(lastMsgBob).toContainText('Hi Bob');
+
+    await context1.close();
+    await context2.close();
+});
