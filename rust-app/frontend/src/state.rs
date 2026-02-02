@@ -30,6 +30,7 @@ pub struct RoomState {
     pub whiteboard_history: ReadSignal<Vec<DrawAction>>,
     pub my_id: ReadSignal<Option<String>>,
     pub typing_users: ReadSignal<HashSet<String>>,
+    pub is_host: Signal<bool>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -72,8 +73,42 @@ pub fn use_room_state() -> RoomState {
     let (_last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
     let (my_id, set_my_id) = create_signal(None::<String>);
 
+    // We assume the first participant in the list is the host for now,
+    // or we'd need to send host_id in RoomConfig.
+    // The previous implementation used host_id in backend but didn't expose it to frontend.
+    // Let's rely on backend RoomUpdated message.
+    // BUT, RoomConfig struct in shared was updated to include host_id.
+    // So we can extract it from there.
+
+    // We need to store the current room config to access host_id.
+    let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
+
+    let is_host = Signal::derive(move || {
+        let config = room_config.get();
+        let my = my_id.get();
+
+        match (config.host_id, my) {
+            (Some(host), Some(me)) => host == me,
+            // Fallback: if we are the only participant, maybe assume host?
+            // Or if host_id is None?
+            // Actually, if host_id is None, nobody is host.
+            // Backend guarantees assignment on first join.
+            // If we are waiting for the update, return false.
+            _ => false,
+        }
+    });
+
     // Initialize WebSocket
     create_effect(move |_| {
+        // Ensure my_id is reset on new connection logic if needed, but here we just connect.
+        // Actually, if we reconnect, we might get a new ID.
+        set_my_id.set(None);
+        // Default config has host_id = None.
+        set_room_config.set(shared::RoomConfig::default());
+
+        // Reset host signal to false until we get new data
+        // Derived signal updates automatically based on deps.
+
         let location = web_sys::window().unwrap().location();
         let protocol = if location.protocol().unwrap() == "https:" { "wss:" } else { "ws:" };
         let host = location.host().unwrap();
@@ -89,6 +124,12 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Welcome { id } => {
                                 set_my_id.set(Some(id));
                                 set_current_state.set(RoomConnectionState::Joined);
+                            },
+                            ServerMessage::RoomUpdated(config) => {
+                                set_is_locked.set(config.is_locked);
+                                set_is_recording.set(config.is_recording);
+                                set_is_lobby_enabled.set(config.is_lobby_enabled);
+                                set_room_config.set(config);
                             },
                             ServerMessage::Chat(msg) => {
                                 set_messages.update(|msgs| msgs.push(msg));
@@ -113,11 +154,14 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::ParticipantList(list) => {
                                 set_participants.set(list);
                             },
-                            ServerMessage::RoomUpdated(config) => {
-                                set_is_locked.set(config.is_locked);
-                                set_is_recording.set(config.is_recording);
-                                set_is_lobby_enabled.set(config.is_lobby_enabled);
-                            },
+                            // RoomUpdated is already handled above in the Welcome block? No, I added it twice by mistake in previous patch or I need to check where I added it.
+                            // The previous SEARCH block in `read_file` output showed `RoomUpdated` *after* `ParticipantList`.
+                            // But I inserted it *before* `Chat` which is *before* `ParticipantList` in the `Welcome` block in my previous `replace_with_git_merge_diff`.
+                            // Wait, the file has a large `match server_msg`.
+                            // Let's remove the duplicate `RoomUpdated` if present or just ensure it's handled.
+                            // I added one handler near `Welcome`.
+                            // The original `RoomUpdated` handler was further down.
+                            // Let's check the file content first.
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
                             },
@@ -396,6 +440,7 @@ pub fn use_room_state() -> RoomState {
         whiteboard_history,
         my_id,
         typing_users,
+        is_host,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,

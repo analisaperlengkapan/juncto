@@ -1,6 +1,17 @@
 import { test, expect } from '@playwright/test';
 
 test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
+  // Clear room config to ensure clean state
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: "Rust Meeting",
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
   page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
   page.on('pageerror', err => console.log('BROWSER ERROR:', err));
 
@@ -56,11 +67,16 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   const participantsList = page.locator('.participants-list');
   await expect(participantsList).toBeVisible();
   // Should contain at least "User ..." because backend assigns random names starting with "User"
-  await expect(participantsList.locator('ul')).toContainText('User');
+  // Actually, E2E User joins, so it should be E2E User.
+  // Wait, backend assigns random name? In my implementation, I assign name from ClientMessage.
+  // BUT the first user is Host.
+  await expect(participantsList.locator('ul')).toContainText('E2E User');
 
   // 7. Verify Room Lock
+  // Wait for host status to be synced
+  // Because "E2E User" is the first one in this fresh room, they are the Host.
   const lockBtn = page.getByRole('button', { name: 'Lock Room' });
-  await expect(lockBtn).toBeVisible();
+  await expect(lockBtn).toBeVisible({ timeout: 10000 });
   await lockBtn.click();
 
   // Verify button text changes to "Unlock Room"
@@ -435,6 +451,57 @@ test('Kick Participant E2E', async ({ browser, request }) => {
 
   // Host list should not have Guest
   await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
+
+  await hostContext.close();
+  await guestContext.close();
+});
+
+test('Room Lock E2E', async ({ browser, request }) => {
+  const roomName = 'LockRoom';
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: roomName,
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
+  // Host
+  const hostContext = await browser.newContext();
+  const hostPage = await hostContext.newPage();
+  await hostPage.goto(`/room/${roomName}`);
+  await hostPage.locator('.prejoin-container input[type="text"]').fill('Host');
+  await hostPage.click('button.join-btn');
+  await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Guest
+  const guestContext = await browser.newContext();
+  const guestPage = await guestContext.newPage();
+  await guestPage.goto(`/room/${roomName}`);
+  await guestPage.locator('.prejoin-container input[type="text"]').fill('Guest');
+  await guestPage.click('button.join-btn');
+  await expect(guestPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // 1. Initial State: Unlocked
+  // Wait for host status propagation (RoomUpdated -> set_room_config -> is_host derived)
+  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible({ timeout: 10000 });
+  await expect(guestPage.getByText('Unlocked')).toBeVisible();
+  await expect(guestPage.getByRole('button', { name: 'Lock Room' })).not.toBeVisible();
+
+  // 2. Host Locks Room
+  await hostPage.getByRole('button', { name: 'Lock Room' }).click();
+  await expect(hostPage.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+
+  // 3. Guest sees Locked state
+  await expect(guestPage.getByText('Locked')).toBeVisible();
+  await expect(guestPage.getByRole('button', { name: 'Unlock Room' })).not.toBeVisible();
+
+  // 4. Host Unlocks Room
+  await hostPage.getByRole('button', { name: 'Unlock Room' }).click();
+  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+  await expect(guestPage.getByText('Unlocked')).toBeVisible();
 
   await hostContext.close();
   await guestContext.close();

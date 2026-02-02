@@ -43,17 +43,27 @@ pub async fn chat_handler(
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = socket.split();
 
+    // Channel for internal messages to self
+    let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
+
     // Send initial room config immediately so Prejoin screen knows status
+    // Note: This config likely has host_id = None if this is the first user connecting to a fresh backend state?
+    // No, if the user called `create_room` API, the room config is updated with the payload.
+    // BUT `create_room` payload (from frontend) has default host_id = None.
+    // The backend `create_room` handler updates `room_config` with payload.
+    // So here `current_config` has host_id = None.
+
     let current_config: RoomConfig = {
         let config = state.room_config.lock().unwrap();
         config.clone()
     };
-    if let Ok(json) = serde_json::to_string(&ServerMessage::RoomUpdated(current_config)) {
+    if let Ok(json) = serde_json::to_string(&ServerMessage::RoomUpdated(current_config.clone())) {
         let _ = sender.send(Message::Text(json)).await;
     }
 
-    // Channel for internal messages to self
-    let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
+    // Explicitly send RoomUpdated to self to trigger frontend state logic (like is_host)
+    // This is redundant if we sent it above, but harmless.
+    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config.clone()));
 
     // Send Chat History
     let history: Vec<shared::ChatMessage> = {
@@ -222,19 +232,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
 
                                     // Logic for direct join (no lobby)
-                                    let joined = {
+                                    let (joined, new_host_assigned) = {
                                         let mut participants = participants_mutex.lock().unwrap();
                                         if participants.len() >= max_participants as usize {
-                                            false
+                                            (false, false)
                                         } else {
                                             // Assign host if none exists
                                             let mut config = room_config_mutex.lock().unwrap();
-                                            if config.host_id.is_none() {
+                                            let assigned = if config.host_id.is_none() {
                                                 config.host_id = Some(id.clone());
-                                            }
+                                                true
+                                            } else {
+                                                false
+                                            };
 
                                             participants.insert(id.clone(), me.clone());
-                                            true
+                                            (true, assigned)
                                         }
                                     };
 
@@ -246,6 +259,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                     // Send Welcome with own ID
                                     let _ = internal_tx.send(ServerMessage::Welcome { id: id.clone() }).await;
+
+                                    // If we assigned a new host, broadcast the updated config
+                                    if new_host_assigned {
+                                        let new_config = {
+                                            room_config_mutex.lock().unwrap().clone()
+                                        };
+                                        // Send to everyone (broadcast)
+                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
+                                        // Send to self explicitly
+                                        let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config));
+                                    }
 
                                     // Subscribe to broadcast and forward to internal_tx
                                     let mut rx = tx.subscribe();

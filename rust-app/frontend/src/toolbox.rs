@@ -3,6 +3,7 @@ use leptos::*;
 #[component]
 pub fn Toolbox(
     is_locked: ReadSignal<bool>,
+    is_host: Signal<bool>,
     is_lobby_enabled: ReadSignal<bool>,
     is_recording: ReadSignal<bool>,
     on_toggle_lock: Callback<()>,
@@ -35,12 +36,18 @@ pub fn Toolbox(
             >
                 "Raise Hand"
             </button>
-            <button
-                on:click=move |_| on_toggle_lock.call(())
-                style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;"
-            >
-                {move || if is_locked.get() { "Unlock Room" } else { "Lock Room" }}
-            </button>
+            <Show when=move || is_host.get() fallback=move || view! {
+                <div style="padding: 8px 16px; background-color: #ccc; color: white; border-radius: 4px;">
+                    {move || if is_locked.get() { "Locked" } else { "Unlocked" }}
+                </div>
+            }>
+                <button
+                    on:click=move |_| on_toggle_lock.call(())
+                    style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                >
+                    {move || if is_locked.get() { "Unlock Room" } else { "Lock Room" }}
+                </button>
+            </Show>
             <button
                 on:click=move |_| on_toggle_lobby.call(())
                 style="padding: 8px 16px; background-color: #20c997; color: white; border: none; cursor: pointer; border-radius: 4px;"

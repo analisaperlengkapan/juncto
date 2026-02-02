@@ -62,6 +62,7 @@ pub fn Room() -> impl IntoView {
                             </div>
                             <Toolbox
                                 is_locked=state.is_locked
+                                is_host=state.is_host
                                 is_lobby_enabled=state.is_lobby_enabled
                                 is_recording=state.is_recording
                                 on_toggle_lock=state.toggle_lock
