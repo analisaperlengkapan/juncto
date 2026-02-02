@@ -241,3 +241,53 @@ test('Lobby Feature E2E', async ({ browser }) => {
   await hostContext.close();
   await guestContext.close();
 });
+
+test('Max Participants E2E', async ({ browser, request }) => {
+  // 1. Create Room via API with max_participants = 1
+  const createRes = await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: "FullRoom",
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 1
+    }
+  });
+  expect(createRes.status()).toBe(201);
+  const roomData = await createRes.json();
+  const roomName = roomData.config.room_name;
+
+  // 2. User 1 Joins
+  const user1Context = await browser.newContext();
+  const user1Page = await user1Context.newPage();
+
+  await user1Page.goto(`/room/${encodeURIComponent(roomName)}`);
+  await user1Page.locator('.prejoin-container input[type="text"]').fill('User1');
+  await user1Page.click('button.join-btn');
+  await expect(user1Page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // 3. User 2 Tries to Join (should fail or hang in prejoin or show alert)
+  const user2Context = await browser.newContext();
+  const user2Page = await user2Context.newPage();
+
+  // Handling alert:
+  user2Page.on('dialog', async dialog => {
+    expect(dialog.message()).toContain('Room is full');
+    await dialog.accept();
+  });
+
+  await user2Page.goto(`/room/${encodeURIComponent(roomName)}`);
+  await user2Page.locator('.prejoin-container input[type="text"]').fill('User2');
+  await user2Page.click('button.join-btn');
+
+  // Verify User 2 is NOT in the room
+  // Wait a bit to ensure it didn't transition
+  await user2Page.waitForTimeout(1000);
+  await expect(user2Page.getByText(`Meeting Room: ${roomName}`)).not.toBeVisible();
+
+  // Verify User 1 sees no User 2
+  await expect(user1Page.locator('.participants-list')).not.toContainText('User2');
+
+  await user1Context.close();
+  await user2Context.close();
+});

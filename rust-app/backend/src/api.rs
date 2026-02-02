@@ -13,7 +13,15 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
 
-pub async fn create_room(Json(payload): Json<RoomConfig>) -> impl IntoResponse {
+pub async fn create_room(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RoomConfig>
+) -> impl IntoResponse {
+    {
+        let mut config = state.room_config.lock().unwrap();
+        *config = payload.clone();
+    }
+
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
     let response = json!({
@@ -118,9 +126,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Check if room is locked or lobby is enabled
-                                    let (is_locked, is_lobby) = {
+                                    let (is_locked, is_lobby, max_participants) = {
                                         let config = room_config_mutex.lock().unwrap();
-                                        (config.is_locked, config.is_lobby_enabled)
+                                        (config.is_locked, config.is_lobby_enabled, config.max_participants)
                                     };
 
                                     if is_locked {
@@ -175,9 +183,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
 
                                     // Logic for direct join (no lobby)
-                                    {
+                                    let joined = {
                                         let mut participants = participants_mutex.lock().unwrap();
-                                        participants.insert(id.clone(), me.clone());
+                                        if participants.len() >= max_participants as usize {
+                                            false
+                                        } else {
+                                            participants.insert(id.clone(), me.clone());
+                                            true
+                                        }
+                                    };
+
+                                    if !joined {
+                                        let _ = internal_tx.send(ServerMessage::Error("Room is full".to_string())).await;
+                                        continue;
                                     }
                                     my_id = Some(id.clone());
 
@@ -386,9 +404,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         };
 
                         if let Some(me) = me_opt {
-                            {
+                            let joined = {
                                 let mut participants = participants_mutex.lock().unwrap();
-                                participants.insert(id.clone(), me.clone());
+                                let max_participants = room_config_mutex.lock().unwrap().max_participants;
+                                if participants.len() >= max_participants as usize {
+                                    false
+                                } else {
+                                    participants.insert(id.clone(), me.clone());
+                                    true
+                                }
+                            };
+
+                            if !joined {
+                                let _ = internal_tx.send(ServerMessage::Error("Room is full".to_string())).await;
+                                continue;
                             }
                             my_id = Some(id.clone());
 
@@ -494,9 +523,47 @@ mod tests {
     #[tokio::test]
     async fn test_create_room() {
         use shared::RoomConfig;
+        let (tx, _rx) = tokio::sync::broadcast::channel(100);
+        let app_state = Arc::new(AppState {
+            tx,
+            participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            knocking_participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            room_config: Arc::new(std::sync::Mutex::new(RoomConfig::default())),
+            polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
+        });
 
         let config = RoomConfig::default();
-        let response = create_room(Json(config)).await.into_response();
+        let response = create_room(State(app_state), Json(config)).await.into_response();
         assert_eq!(response.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn test_create_room_with_limit() {
+        use shared::RoomConfig;
+        let (tx, _rx) = tokio::sync::broadcast::channel(100);
+        let app_state = Arc::new(AppState {
+            tx,
+            participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            knocking_participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            room_config: Arc::new(std::sync::Mutex::new(RoomConfig::default())),
+            polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
+        });
+
+        let mut config = RoomConfig::default();
+        config.max_participants = 10;
+
+        let response = create_room(State(app_state.clone()), Json(config.clone())).await.into_response();
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+        assert_eq!(body_json["config"]["max_participants"], 10);
+
+        // Verify state was updated
+        let stored_config = app_state.room_config.lock().unwrap();
+        assert_eq!(stored_config.max_participants, 10);
     }
 }

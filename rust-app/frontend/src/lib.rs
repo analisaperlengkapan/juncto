@@ -1,8 +1,9 @@
-mod components;
+mod components_ui;
+mod pages;
+mod state;
 mod chat;
 mod participants;
 mod toolbox;
-mod prejoin;
 mod settings;
 mod reactions;
 mod polls;
@@ -10,7 +11,8 @@ mod whiteboard;
 
 use leptos::*;
 use leptos_router::*;
-use components::*;
+use pages::home::Home;
+use pages::room::Room;
 use wasm_bindgen::prelude::*;
 
 #[component]
@@ -19,7 +21,7 @@ fn App() -> impl IntoView {
         <Router>
             <main>
                 <Routes>
-                    <Route path="" view=WelcomePage/>
+                    <Route path="" view=Home/>
                     <Route path="/room/:id" view=Room/>
                 </Routes>
             </main>

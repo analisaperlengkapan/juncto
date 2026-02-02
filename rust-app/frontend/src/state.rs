@@ -1,65 +1,55 @@
 use leptos::*;
-use leptos_router::*;
-use crate::chat::Chat;
-use crate::participants::ParticipantsList;
-use crate::toolbox::Toolbox;
-use crate::prejoin::{PrejoinScreen, LobbyScreen};
-use crate::settings::SettingsDialog;
-use crate::reactions::ReactionDisplay;
-use crate::polls::PollsDialog;
-use crate::whiteboard::Whiteboard;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-#[derive(Clone, PartialEq)]
-enum RoomState {
+#[derive(Clone, PartialEq, Debug)]
+pub enum RoomConnectionState {
     Prejoin,
     Lobby,
     Joined,
 }
 
-#[component]
-pub fn WelcomePage() -> impl IntoView {
-    let (room_name, set_room_name) = create_signal("My Meeting".to_string());
-    let navigate = use_navigate();
-
-    let create_meeting = move |_| {
-        let name = room_name.get();
-        // Simple sanitization/encoding for URL
-        let encoded_name = urlencoding::encode(&name);
-        navigate(&format!("/room/{}", encoded_name), Default::default());
-    };
-
-    view! {
-        <div class="welcome-container" style="text-align: center; margin-top: 50px;">
-            <h1>"Welcome to Juncto (Rust Edition)"</h1>
-            <p>"Migration to Leptos + Axum complete."</p>
-            <input
-                type="text"
-                on:input=move |ev| set_room_name.set(event_target_value(&ev))
-                prop:value=room_name
-                style="padding: 10px; margin: 10px;"
-            />
-            <button
-                on:click=create_meeting
-                class="create-btn"
-                style="padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer;"
-            >
-                "Start Meeting"
-            </button>
-        </div>
-    }
+#[derive(Clone)]
+pub struct RoomState {
+    pub connection_state: ReadSignal<RoomConnectionState>,
+    pub messages: ReadSignal<Vec<ChatMessage>>,
+    pub participants: ReadSignal<Vec<Participant>>,
+    pub knocking_participants: ReadSignal<Vec<Participant>>,
+    pub is_connected: ReadSignal<bool>,
+    pub is_locked: ReadSignal<bool>,
+    pub is_lobby_enabled: ReadSignal<bool>,
+    pub is_recording: ReadSignal<bool>,
+    pub show_settings: ReadSignal<bool>,
+    pub show_polls: ReadSignal<bool>,
+    pub polls: ReadSignal<Vec<Poll>>,
+    pub last_reaction: ReadSignal<Option<(String, String, u64)>>,
+    pub show_whiteboard: ReadSignal<bool>,
+    pub whiteboard_history: ReadSignal<Vec<DrawAction>>,
+    pub my_id: ReadSignal<Option<String>>,
+    // Setters or Actions
+    pub set_show_settings: WriteSignal<bool>,
+    pub set_show_polls: WriteSignal<bool>,
+    pub set_show_whiteboard: WriteSignal<bool>,
+    pub send_message: Callback<String>,
+    pub toggle_lock: Callback<()>,
+    pub toggle_lobby: Callback<()>,
+    pub toggle_recording: Callback<()>,
+    pub grant_access: Callback<String>,
+    pub deny_access: Callback<String>,
+    pub join_meeting: Callback<String>,
+    pub save_profile: Callback<String>,
+    pub send_reaction: Callback<String>,
+    pub toggle_raise_hand: Callback<()>,
+    pub toggle_screen_share: Callback<()>,
+    pub create_poll: Callback<Poll>,
+    pub vote_poll: Callback<(String, u32)>,
+    pub send_draw: Callback<DrawAction>,
 }
 
-#[component]
-pub fn Room() -> impl IntoView {
-    let params = use_params_map();
-    let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
-
-    // State
-    let (current_state, set_current_state) = create_signal(RoomState::Prejoin);
+pub fn use_room_state() -> RoomState {
+    let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) = create_signal(Vec::<Participant>::new());
@@ -93,7 +83,7 @@ pub fn Room() -> impl IntoView {
                         match server_msg {
                             ServerMessage::Welcome { id } => {
                                 set_my_id.set(Some(id));
-                                set_current_state.set(RoomState::Joined);
+                                set_current_state.set(RoomConnectionState::Joined);
                             },
                             ServerMessage::Chat(msg) => {
                                 set_messages.update(|msgs| msgs.push(msg));
@@ -121,14 +111,14 @@ pub fn Room() -> impl IntoView {
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
                             },
                             ServerMessage::Knocking => {
-                                set_current_state.set(RoomState::Lobby);
+                                set_current_state.set(RoomConnectionState::Lobby);
                             },
                             ServerMessage::AccessGranted => {
-                                set_current_state.set(RoomState::Joined);
+                                set_current_state.set(RoomConnectionState::Joined);
                             },
                             ServerMessage::AccessDenied => {
                                 let _ = web_sys::window().unwrap().alert_with_message("Access Denied");
-                                set_current_state.set(RoomState::Prejoin);
+                                set_current_state.set(RoomConnectionState::Prejoin);
                             },
                             ServerMessage::KnockingParticipant(p) => {
                                 set_knocking_participants.update(|list| {
@@ -329,94 +319,54 @@ pub fn Room() -> impl IntoView {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
-                if socket.send_with_str(&json).is_ok() {
-                    // Don't set Joined yet, wait for Welcome or Knocking
-                    // If we don't get a response, we might be stuck in Prejoin but that's fine for now
-                    // Actually, for better UX we might want a loading state, but let's assume immediate response
-                    // To support existing flow where Join->Welcome happens fast:
-                    // If we receive Welcome, we go to Joined.
-                    // If we receive Knocking, we go to Lobby.
-                }
+                let _ = socket.send_with_str(&json);
             }
         }
     });
 
-    view! {
-        <div style="height: 100vh;">
-            {move || match current_state.get() {
-                RoomState::Prejoin => view! {
-                    <PrejoinScreen on_join=join_meeting />
-                }.into_view(),
-                RoomState::Lobby => view! {
-                    <LobbyScreen />
-                }.into_view(),
-                RoomState::Joined => view! {
-                    <div class="room-container" style="display: flex; height: 100vh;">
-                        <ParticipantsList
-                            participants=participants
-                            knocking_participants=knocking_participants
-                            on_allow=grant_access
-                            on_deny=deny_access
-                        />
-                        <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
-                            <div style="position: relative; flex: 1; width: 100%; height: 100%;">
-                                <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                                    <div>
-                                        <h2>"Meeting Room: " {room_id}</h2>
-                                        <Show when=move || is_recording.get()>
-                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
-                                                "REC"
-                                            </div>
-                                        </Show>
-                                        <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
-                                            <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <ReactionDisplay last_reaction=last_reaction />
-                                <Show when=move || show_whiteboard.get()>
-                                    <Whiteboard
-                                        on_draw=send_draw
-                                        history=whiteboard_history
-                                        my_id=my_id
-                                    />
-                                </Show>
-                            </div>
-                            <Toolbox
-                                is_locked=is_locked
-                                is_lobby_enabled=is_lobby_enabled
-                                is_recording=is_recording
-                                on_toggle_lock=toggle_lock
-                                on_toggle_lobby=toggle_lobby
-                                on_toggle_recording=toggle_recording
-                                on_settings=Callback::new(move |_| set_show_settings.set(true))
-                                on_polls=Callback::new(move |_| set_show_polls.set(true))
-                                on_raise_hand=toggle_raise_hand
-                                on_screen_share=toggle_screen_share
-                                on_whiteboard=Callback::new(move |_| set_show_whiteboard.update(|v| *v = !*v))
-                                on_reaction=send_reaction
-                            />
-                        </div>
-                        <Chat
-                            messages=messages
-                            on_send=send_message
-                            is_connected=is_connected
-                        />
-                        <SettingsDialog
-                            show=show_settings
-                            on_close=Callback::new(move |_| set_show_settings.set(false))
-                            on_save_profile=save_profile
-                        />
-                        <PollsDialog
-                            show=show_polls
-                            polls=polls
-                            on_close=Callback::new(move |_| set_show_polls.set(false))
-                            on_create_poll=create_poll
-                            on_vote=vote_poll
-                        />
-                    </div>
-                }.into_view()
-            }}
-        </div>
+    RoomState {
+        connection_state: current_state,
+        messages,
+        participants,
+        knocking_participants,
+        is_connected,
+        is_locked,
+        is_lobby_enabled,
+        is_recording,
+        show_settings,
+        show_polls,
+        polls,
+        last_reaction,
+        show_whiteboard,
+        whiteboard_history,
+        my_id,
+        set_show_settings,
+        set_show_polls,
+        set_show_whiteboard,
+        send_message,
+        toggle_lock,
+        toggle_lobby,
+        toggle_recording,
+        grant_access,
+        deny_access,
+        join_meeting,
+        save_profile,
+        send_reaction,
+        toggle_raise_hand,
+        toggle_screen_share,
+        create_poll,
+        vote_poll,
+        send_draw,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_room_connection_state_equality() {
+        assert_eq!(RoomConnectionState::Prejoin, RoomConnectionState::Prejoin);
+        assert_ne!(RoomConnectionState::Prejoin, RoomConnectionState::Joined);
     }
 }
