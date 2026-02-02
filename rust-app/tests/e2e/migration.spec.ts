@@ -795,3 +795,35 @@ test('Toast Notification E2E Retry', async ({ browser, request }) => {
 
     await context.close();
 });
+
+test('Feature Toasts E2E', async ({ page, request }) => {
+    // Join room
+    await page.goto('/');
+    await page.fill('input[type="text"]', 'ToastFeatureRoom');
+    await page.click('button:has-text("Start Meeting")');
+    await page.waitForURL(/\/room\//);
+    await page.locator('.prejoin-container input[type="text"]').fill('FeatureTester');
+    await page.click('button:has-text("Join Meeting")');
+
+    // Toggle Recording
+    await page.click('button:has-text("Start Recording")');
+    // Check Toast
+    await expect(page.locator('.toast')).toContainText('Recording Started');
+    await expect(page.locator('.toast')).toBeVisible();
+
+    // Wait for it to disappear or click dismiss? Let's toggle back.
+    // Wait for animation/timeout or just check next event.
+    // The test might be fast enough to see the first toast still there.
+
+    // Toggle Recording Off
+    await page.click('button:has-text("Stop Recording")');
+    // Check Toast
+    // Might be multiple toasts now
+    await expect(page.locator('.toast').last()).toContainText('Recording Stopped');
+
+    // Raise Hand
+    await page.click('button:has-text("Raise Hand")');
+    // Check Toast
+    // "FeatureTester raised their hand"
+    await expect(page.locator('.toast').last()).toContainText('FeatureTester raised their hand');
+});

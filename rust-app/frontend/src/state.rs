@@ -158,7 +158,18 @@ pub fn use_room_state() -> RoomState {
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
+
+                                // Check for recording status change
+                                let was_recording = is_recording.get_untracked();
+                                if config.is_recording != was_recording {
+                                    if config.is_recording {
+                                        add_toast("Recording Started".to_string(), ToastType::Info);
+                                    } else {
+                                        add_toast("Recording Stopped".to_string(), ToastType::Info);
+                                    }
+                                }
                                 set_is_recording.set(config.is_recording);
+
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
                                 set_room_config.set(config);
                             },
@@ -225,6 +236,10 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::ParticipantUpdated(p) => {
                                 set_participants.update(|list| {
                                     if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
+                                        // Check for hand raise
+                                        if p.is_hand_raised && !existing.is_hand_raised {
+                                            add_toast(format!("{} raised their hand", p.name), ToastType::Info);
+                                        }
                                         *existing = p;
                                     }
                                 });
