@@ -7,7 +7,8 @@ use crate::prejoin::PrejoinScreen;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
-use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll};
+use crate::whiteboard::Whiteboard;
+use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction};
 use web_sys::{MessageEvent, WebSocket};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -68,6 +69,9 @@ pub fn Room() -> impl IntoView {
     let (show_polls, set_show_polls) = create_signal(false);
     let (polls, set_polls) = create_signal(Vec::<Poll>::new());
     let (last_reaction, set_last_reaction) = create_signal(None::<(String, String)>);
+    let (show_whiteboard, set_show_whiteboard) = create_signal(false);
+    let (whiteboard_history, set_whiteboard_history) = create_signal(Vec::<DrawAction>::new());
+    let (last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -118,6 +122,13 @@ pub fn Room() -> impl IntoView {
                                         *existing = poll;
                                     }
                                 });
+                            },
+                            ServerMessage::Draw(action) => {
+                                set_last_draw_action.set(Some(action.clone()));
+                                set_whiteboard_history.update(|h| h.push(action));
+                            },
+                            ServerMessage::WhiteboardHistory(history) => {
+                                set_whiteboard_history.set(history);
                             }
                         }
                     }
@@ -218,6 +229,15 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let send_draw = Callback::new(move |action: DrawAction| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Draw(action);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let join_meeting = Callback::new(move |display_name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
@@ -253,6 +273,13 @@ pub fn Room() -> impl IntoView {
                                     </div>
                                 </div>
                                 <ReactionDisplay last_reaction=last_reaction />
+                                <Show when=move || show_whiteboard.get()>
+                                    <Whiteboard
+                                        on_draw=send_draw
+                                        incoming_action=last_draw_action
+                                        history=whiteboard_history
+                                    />
+                                </Show>
                             </div>
                             <Toolbox
                                 is_locked=is_locked
@@ -263,6 +290,7 @@ pub fn Room() -> impl IntoView {
                                 on_polls=Callback::new(move |_| set_show_polls.set(true))
                                 on_raise_hand=toggle_raise_hand
                                 on_screen_share=toggle_screen_share
+                                on_whiteboard=Callback::new(move |_| set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=send_reaction
                             />
                         </div>

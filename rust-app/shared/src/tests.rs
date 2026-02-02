@@ -94,3 +94,19 @@ fn test_poll_serialization() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 }
+
+#[test]
+fn test_draw_serialization() {
+    let draw = DrawAction {
+        color: "#000000".to_string(),
+        start_x: 10.0,
+        start_y: 20.0,
+        end_x: 30.0,
+        end_y: 40.0,
+        width: 2.0,
+    };
+    let msg = ClientMessage::Draw(draw.clone());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}

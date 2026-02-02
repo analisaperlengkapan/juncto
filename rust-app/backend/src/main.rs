@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use shared::{ServerMessage, Participant, RoomConfig, Poll};
+use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
 
 // AppState to hold the broadcast channel and participants list
 #[derive(Clone)]
@@ -18,6 +18,7 @@ pub struct AppState {
     pub participants: Arc<Mutex<HashMap<String, Participant>>>,
     pub room_config: Arc<Mutex<RoomConfig>>,
     pub polls: Arc<Mutex<HashMap<String, Poll>>>,
+    pub whiteboard: Arc<Mutex<Vec<DrawAction>>>,
 }
 
 #[tokio::main]
@@ -30,8 +31,10 @@ async fn main() {
     let room_config = Arc::new(Mutex::new(RoomConfig::default()));
     // Initialize polls
     let polls = Arc::new(Mutex::new(HashMap::new()));
+    // Initialize whiteboard
+    let whiteboard = Arc::new(Mutex::new(Vec::new()));
 
-    let app_state = Arc::new(AppState { tx, participants, room_config, polls });
+    let app_state = Arc::new(AppState { tx, participants, room_config, polls, whiteboard });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")

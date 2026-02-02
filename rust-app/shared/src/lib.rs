@@ -27,6 +27,16 @@ pub struct UserIdentity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DrawAction {
+    pub color: String,
+    pub start_x: f64,
+    pub start_y: f64,
+    pub end_x: f64,
+    pub end_y: f64,
+    pub width: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatMessage {
     pub user_id: String,
     pub content: String,
@@ -68,6 +78,7 @@ pub enum ClientMessage {
     Reaction(String), // Emoji
     ToggleRaiseHand,
     ToggleScreenShare,
+    Draw(DrawAction),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -82,6 +93,8 @@ pub enum ServerMessage {
     Reaction { sender_id: String, emoji: String },
     PollCreated(Poll),
     PollUpdated(Poll),
+    Draw(DrawAction),
+    WhiteboardHistory(Vec<DrawAction>),
 }
 
 #[cfg(test)]

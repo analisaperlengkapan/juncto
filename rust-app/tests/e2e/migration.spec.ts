@@ -158,4 +158,25 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // Verify screen icon in participants list
   await expect(page.locator('.participants-list li').filter({ hasText: 'Updated Name' })).toContainText('🖥️');
+
+  // 14. Verify Whiteboard
+  const wbBtn = page.getByRole('button', { name: 'Whiteboard' });
+  await expect(wbBtn).toBeVisible();
+  await wbBtn.click();
+
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+
+  // Simulate drawing
+  const box = await canvas.boundingBox();
+  if (box) {
+      await page.mouse.move(box.x + 10, box.y + 10);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 50, box.y + 50);
+      await page.mouse.up();
+  }
+
+  // Close Whiteboard
+  await wbBtn.click();
+  await expect(canvas).not.toBeVisible();
 });

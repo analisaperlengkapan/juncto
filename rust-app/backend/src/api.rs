@@ -72,6 +72,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let participants_mutex = state.participants.clone();
     let room_config_mutex = state.room_config.clone();
     let polls_mutex = state.polls.clone();
+    let whiteboard_mutex = state.whiteboard.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -105,6 +106,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         participants.values().cloned().collect()
                     };
                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
+
+                    // Send whiteboard history
+                    let history: Vec<shared::DrawAction> = {
+                        let wb = whiteboard_mutex.lock().unwrap();
+                        wb.clone()
+                    };
+                    if !history.is_empty() {
+                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
+                    }
                 },
                 ClientMessage::Chat(content) => {
                     if let Some(uid) = &my_id {
@@ -169,6 +179,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         if let Some(poll) = updated_poll {
                             let _ = tx.send(ServerMessage::PollUpdated(poll));
                         }
+                    }
+                },
+                ClientMessage::Draw(action) => {
+                    if my_id.is_some() {
+                        {
+                            let mut wb = whiteboard_mutex.lock().unwrap();
+                            wb.push(action.clone());
+                        }
+                        let _ = tx.send(ServerMessage::Draw(action));
                     }
                 },
                 ClientMessage::Reaction(emoji) => {

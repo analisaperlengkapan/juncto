@@ -10,6 +10,7 @@ pub fn Toolbox(
     on_polls: Callback<()>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
+    on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
 ) -> impl IntoView {
     view! {
@@ -19,6 +20,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Share Screen"
+            </button>
+            <button
+                on:click=move |_| on_whiteboard.call(())
+                style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Whiteboard"
             </button>
             <button
                 on:click=move |_| on_raise_hand.call(())

@@ -6,6 +6,7 @@ mod prejoin;
 mod settings;
 mod reactions;
 mod polls;
+mod whiteboard;
 
 use leptos::*;
 use leptos_router::*;
