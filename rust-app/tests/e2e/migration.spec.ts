@@ -583,3 +583,35 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   await hostContext.close();
   await guestContext.close();
 });
+
+test('Device Settings E2E', async ({ page }) => {
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', exception => console.log(`PAGE ERROR: "${exception}"`));
+
+    // Join room
+    await page.goto('/');
+    await page.fill('input[type="text"]', 'Device Test Room');
+    await page.click('button:has-text("Start Meeting")');
+    await page.waitForURL(/\/room\//);
+    await page.locator('.prejoin-container input[type="text"]').fill('Tester');
+    await page.click('button:has-text("Join Meeting")');
+
+    // Open Settings
+    await page.click('button:has-text("Settings")');
+    await page.click('button:has-text("Devices")');
+
+    // Check for Camera and Mic selectors
+    await expect(page.locator('label:has-text("Camera")')).toBeVisible();
+    await expect(page.locator('label:has-text("Microphone")')).toBeVisible();
+
+    // Check for video preview
+    const video = page.locator('div.preview video');
+    await expect(video).toBeVisible();
+
+    // With fake devices, we should have options
+    // Wait for enumeration (simple wait or retry assertion)
+    await expect(async () => {
+        const camOptions = await page.locator('select').first().locator('option').count();
+        expect(camOptions).toBeGreaterThan(0);
+    }).toPass();
+});

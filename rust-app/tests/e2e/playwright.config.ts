@@ -4,6 +4,12 @@ export default defineConfig({
   testDir: './',
   use: {
     baseURL: 'http://localhost:3000',
+    launchOptions: {
+      args: [
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream',
+      ],
+    },
   },
   webServer: {
     // Build frontend first, then run backend

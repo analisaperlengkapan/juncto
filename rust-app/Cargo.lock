@@ -522,6 +522,7 @@ dependencies = [
  "shared",
  "urlencoding",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
