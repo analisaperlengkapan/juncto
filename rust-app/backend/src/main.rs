@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
 
-type KnockingMap = HashMap<String, (Participant, oneshot::Sender<bool>)>;
+type KnockingMap = HashMap<String, (Participant, Option<oneshot::Sender<bool>>)>;
 
 // AppState to hold the broadcast channel and participants list
 #[derive(Clone)]
