@@ -460,11 +460,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         let _ = tx.send(ServerMessage::ParticipantLeft(id));
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
-        {
+        let removed = {
             let mut knocking = knocking_mutex.lock().unwrap();
-            knocking.remove(&kid);
+            knocking.remove(&kid).is_some()
+        };
+        if removed {
+            let _ = tx.send(ServerMessage::KnockingParticipantLeft(kid));
         }
-        let _ = tx.send(ServerMessage::KnockingParticipantLeft(kid));
     }
 }
 
