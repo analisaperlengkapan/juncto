@@ -38,13 +38,16 @@ pub fn Whiteboard(
         let actions = history.get();
         let len = actions.len();
         let start = last_len.unwrap_or(0);
+        let is_initial_load = last_len.is_none();
 
         for i in start..len {
             if let Some(action) = actions.get(i) {
-                // Filter local echo
-                if let Some(id) = my_id.get() {
-                    if action.sender_id == id {
-                        continue;
+                // Filter local echo only for live updates, not initial load
+                if !is_initial_load {
+                    if let Some(id) = my_id.get() {
+                        if action.sender_id == id {
+                            continue;
+                        }
                     }
                 }
                 draw_on_canvas(action);
