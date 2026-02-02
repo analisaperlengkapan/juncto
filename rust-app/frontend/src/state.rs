@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use crate::media::{get_user_media, get_display_media};
+use crate::components_ui::toast::{ToastMessage, ToastType};
+use gloo_timers::callback::Timeout;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
@@ -36,6 +38,7 @@ pub struct RoomState {
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
     pub local_stream: ReadSignal<Option<MediaStream>>,
     pub local_screen_stream: ReadSignal<Option<MediaStream>>,
+    pub toasts: ReadSignal<Vec<ToastMessage>>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -59,6 +62,7 @@ pub struct RoomState {
     pub create_breakout_room: Callback<String>,
     pub join_breakout_room: Callback<Option<String>>,
     pub toggle_camera: Callback<()>,
+    pub dismiss_toast: Callback<u64>,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -84,6 +88,7 @@ pub fn use_room_state() -> RoomState {
     let (my_id, set_my_id) = create_signal(None::<String>);
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
+    let (toasts, set_toasts) = create_signal(Vec::<ToastMessage>::new());
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -108,6 +113,20 @@ pub fn use_room_state() -> RoomState {
             // If we are waiting for the update, return false.
             _ => false,
         }
+    });
+
+    let add_toast = move |msg: String, type_: ToastType| {
+        let id = js_sys::Date::now() as u64;
+        set_toasts.update(|t| t.push(ToastMessage { id, message: msg, type_ }));
+
+        // Auto dismiss
+        Timeout::new(3000, move || {
+            set_toasts.update(|t| t.retain(|x| x.id != id));
+        }).forget();
+    };
+
+    let dismiss_toast = Callback::new(move |id: u64| {
+        set_toasts.update(|t| t.retain(|x| x.id != id));
     });
 
     // Initialize WebSocket
@@ -181,13 +200,13 @@ pub fn use_room_state() -> RoomState {
                                 set_current_state.set(RoomConnectionState::Joined);
                             },
                             ServerMessage::AccessDenied => {
-                                let _ = web_sys::window().unwrap().alert_with_message("Access Denied");
+                                add_toast("Access Denied".to_string(), ToastType::Error);
                                 set_current_state.set(RoomConnectionState::Prejoin);
                             },
                             ServerMessage::Kicked(target_id) => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
-                                        let _ = web_sys::window().unwrap().alert_with_message("You have been kicked from the room.");
+                                        add_toast("You have been kicked from the room.".to_string(), ToastType::Error);
                                         set_current_state.set(RoomConnectionState::Prejoin);
                                         // Close socket?
                                         // The effect cleanup will close it if we navigate away, but here we just change state.
@@ -251,8 +270,7 @@ pub fn use_room_state() -> RoomState {
                                 set_whiteboard_history.set(history);
                             },
                             ServerMessage::Error(err) => {
-                                // For now, just alert. In a real app, use a toast or modal.
-                                let _ = web_sys::window().unwrap().alert_with_message(&err);
+                                add_toast(err, ToastType::Error);
                             }
                         }
                     }
@@ -538,6 +556,7 @@ pub fn use_room_state() -> RoomState {
         breakout_rooms,
         local_stream,
         local_screen_stream,
+        toasts,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,
@@ -560,6 +579,7 @@ pub fn use_room_state() -> RoomState {
         create_breakout_room,
         join_breakout_room,
         toggle_camera,
+        dismiss_toast,
     }
 }
 

@@ -7,6 +7,7 @@ use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::video_grid::VideoGrid;
+use crate::components_ui::toast::ToastContainer;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -22,6 +23,10 @@ pub fn Room() -> impl IntoView {
 
     view! {
         <div style="height: 100vh;">
+            <ToastContainer
+                toasts=state.toasts
+                on_dismiss=state.dismiss_toast
+            />
             {move || match state.connection_state.get() {
                 RoomConnectionState::Prejoin => view! {
                     <PrejoinScreen on_join=state.join_meeting />

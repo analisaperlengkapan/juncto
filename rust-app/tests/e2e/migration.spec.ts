@@ -718,3 +718,80 @@ test('Screen Share E2E', async ({ page }) => {
     // Check if "My Screen" card disappears
     await expect(page.locator('.video-card:has-text("My Screen")')).not.toBeVisible();
 });
+
+test('Toast Notification E2E', async ({ browser, request }) => {
+    // Scenario: User tries to join a full room.
+    // We expect a Toast with "Room is full" instead of an alert.
+
+    const roomName = 'FullRoomToast';
+    // 1. Create Room via API with max_participants = 1
+    const createRes = await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: roomName,
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 1
+        }
+    });
+    expect(createRes.status()).toBe(201);
+
+    const context = await browser.newContext();
+    const page1 = await context.newPage(); // Occupy the spot
+    await page1.goto('/room/FullRoomToast');
+    await page1.locator('.prejoin-container input[type="text"]').fill('Occupant');
+    await page1.click('button.join-btn');
+    await expect(page1.getByText('Meeting Room: FullRoomToast')).toBeVisible();
+
+    const page2 = await context.newPage(); // Try to join
+    await page2.goto('/room/FullRoomToast');
+    await page2.locator('.prejoin-container input[type="text"]').fill('Latecomer');
+
+    // We do NOT expect a dialog/alert anymore.
+    // Instead we check for .toast element.
+    await page2.click('button.join-btn');
+
+    // Wait for Toast
+    await expect(page2.locator('.toast')).toBeVisible();
+    await expect(page2.locator('.toast')).toContainText('Room is full');
+
+    await context.close();
+});
+
+// Retry toast test with increased timeout or wait logic
+test('Toast Notification E2E Retry', async ({ browser, request }) => {
+    const roomName = 'FullRoomToastRetry';
+    const createRes = await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: roomName,
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 1
+        }
+    });
+    expect(createRes.status()).toBe(201);
+
+    const context = await browser.newContext();
+    const page1 = await context.newPage();
+    await page1.goto('/room/FullRoomToastRetry');
+    await page1.locator('.prejoin-container input[type="text"]').fill('Occupant');
+    await page1.click('button.join-btn');
+    await expect(page1.getByText('Meeting Room: FullRoomToastRetry')).toBeVisible();
+
+    const page2 = await context.newPage();
+    await page2.goto('/room/FullRoomToastRetry');
+    await page2.locator('.prejoin-container input[type="text"]').fill('Latecomer');
+
+    // Listen for console logs to debug
+    page2.on('console', msg => console.log('PAGE 2 LOG:', msg.text()));
+
+    await page2.click('button.join-btn');
+
+    // Wait specifically for the toast container or toast
+    // Increase timeout
+    await expect(page2.locator('.toast')).toBeVisible({ timeout: 10000 });
+    await expect(page2.locator('.toast')).toContainText('Room is full');
+
+    await context.close();
+});
