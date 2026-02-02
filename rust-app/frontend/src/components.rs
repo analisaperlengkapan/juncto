@@ -3,7 +3,7 @@ use leptos_router::*;
 use crate::chat::Chat;
 use crate::participants::ParticipantsList;
 use crate::toolbox::Toolbox;
-use crate::prejoin::PrejoinScreen;
+use crate::prejoin::{PrejoinScreen, LobbyScreen};
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -16,6 +16,7 @@ use wasm_bindgen::JsCast;
 #[derive(Clone, PartialEq)]
 enum RoomState {
     Prejoin,
+    Lobby,
     Joined,
 }
 
@@ -61,9 +62,11 @@ pub fn Room() -> impl IntoView {
     let (current_state, set_current_state) = create_signal(RoomState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
+    let (knocking_participants, set_knocking_participants) = create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
     let (show_polls, set_show_polls) = create_signal(false);
@@ -88,11 +91,15 @@ pub fn Room() -> impl IntoView {
                     let txt: String = txt.into();
                     if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
                         match server_msg {
-                            ServerMessage::Welcome { id } => set_my_id.set(Some(id)),
+                            ServerMessage::Welcome { id } => {
+                                set_my_id.set(Some(id));
+                                set_current_state.set(RoomState::Joined);
+                            },
                             ServerMessage::Chat(msg) => {
                                 set_messages.update(|msgs| msgs.push(msg));
                             },
                             ServerMessage::ParticipantJoined(p) => {
+                                set_knocking_participants.update(|list| list.retain(|x| x.id != p.id));
                                 set_participants.update(|list| {
                                     if !list.iter().any(|x| x.id == p.id) {
                                         list.push(p);
@@ -108,6 +115,20 @@ pub fn Room() -> impl IntoView {
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
                                 set_is_recording.set(config.is_recording);
+                                set_is_lobby_enabled.set(config.is_lobby_enabled);
+                            },
+                            ServerMessage::Knocking => {
+                                set_current_state.set(RoomState::Lobby);
+                            },
+                            ServerMessage::AccessGranted => {
+                                set_current_state.set(RoomState::Joined);
+                            },
+                            ServerMessage::AccessDenied => {
+                                let _ = web_sys::window().unwrap().alert_with_message("Access Denied");
+                                set_current_state.set(RoomState::Prejoin);
+                            },
+                            ServerMessage::KnockingParticipant(p) => {
+                                set_knocking_participants.update(|list| list.push(p));
                             },
                             ServerMessage::ParticipantUpdated(p) => {
                                 set_participants.update(|list| {
@@ -196,6 +217,35 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let toggle_lobby = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleLobby;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let grant_access = Callback::new(move |id: String| {
+        set_knocking_participants.update(|list| list.retain(|p| p.id != id));
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::GrantAccess(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let deny_access = Callback::new(move |id: String| {
+        set_knocking_participants.update(|list| list.retain(|p| p.id != id));
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::DenyAccess(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let toggle_recording = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRecording;
@@ -273,7 +323,12 @@ pub fn Room() -> impl IntoView {
             let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
                 if socket.send_with_str(&json).is_ok() {
-                    set_current_state.set(RoomState::Joined);
+                    // Don't set Joined yet, wait for Welcome or Knocking
+                    // If we don't get a response, we might be stuck in Prejoin but that's fine for now
+                    // Actually, for better UX we might want a loading state, but let's assume immediate response
+                    // To support existing flow where Join->Welcome happens fast:
+                    // If we receive Welcome, we go to Joined.
+                    // If we receive Knocking, we go to Lobby.
                 }
             }
         }
@@ -285,9 +340,17 @@ pub fn Room() -> impl IntoView {
                 RoomState::Prejoin => view! {
                     <PrejoinScreen on_join=join_meeting />
                 }.into_view(),
+                RoomState::Lobby => view! {
+                    <LobbyScreen />
+                }.into_view(),
                 RoomState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
-                        <ParticipantsList participants=participants />
+                        <ParticipantsList
+                            participants=participants
+                            knocking_participants=knocking_participants
+                            on_allow=grant_access
+                            on_deny=deny_access
+                        />
                         <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">
                                 <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
@@ -314,8 +377,10 @@ pub fn Room() -> impl IntoView {
                             </div>
                             <Toolbox
                                 is_locked=is_locked
+                                is_lobby_enabled=is_lobby_enabled
                                 is_recording=is_recording
                                 on_toggle_lock=toggle_lock
+                                on_toggle_lobby=toggle_lobby
                                 on_toggle_recording=toggle_recording
                                 on_settings=Callback::new(move |_| set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| set_show_polls.set(true))

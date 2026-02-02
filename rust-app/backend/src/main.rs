@@ -6,7 +6,7 @@ use axum::{
 };
 use tower_http::services::{ServeDir, ServeFile};
 use std::net::SocketAddr;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
@@ -16,6 +16,7 @@ use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
 pub struct AppState {
     pub tx: broadcast::Sender<ServerMessage>,
     pub participants: Arc<Mutex<HashMap<String, Participant>>>,
+    pub knocking_participants: Arc<Mutex<HashMap<String, (Participant, oneshot::Sender<bool>)>>>,
     pub room_config: Arc<Mutex<RoomConfig>>,
     pub polls: Arc<Mutex<HashMap<String, Poll>>>,
     pub whiteboard: Arc<Mutex<Vec<DrawAction>>>,
@@ -27,6 +28,8 @@ async fn main() {
     let (tx, _rx) = broadcast::channel(100);
     // Initialize participants list
     let participants = Arc::new(Mutex::new(HashMap::new()));
+    // Initialize knocking participants list
+    let knocking_participants = Arc::new(Mutex::new(HashMap::new()));
     // Initialize room config
     let room_config = Arc::new(Mutex::new(RoomConfig::default()));
     // Initialize polls
@@ -34,7 +37,7 @@ async fn main() {
     // Initialize whiteboard
     let whiteboard = Arc::new(Mutex::new(Vec::new()));
 
-    let app_state = Arc::new(AppState { tx, participants, room_config, polls, whiteboard });
+    let app_state = Arc::new(AppState { tx, participants, knocking_participants, room_config, polls, whiteboard });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")

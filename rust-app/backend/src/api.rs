@@ -44,27 +44,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         let _ = sender.send(Message::Text(json)).await;
     }
 
-    // Subscribe to broadcast channel
-    let mut rx = state.tx.subscribe();
-
     // Channel for internal messages to self
     let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
 
     // Send loop
-    let send_task = tokio::spawn(async move {
-        loop {
-            let msg = tokio::select! {
-                res = rx.recv() => {
-                    match res {
-                        Ok(msg) => msg,
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    }
-                },
-                Some(msg) = internal_rx.recv() => msg,
-                else => break,
-            };
-
+    let mut send_task = tokio::spawn(async move {
+        while let Some(msg) = internal_rx.recv().await {
             if let Ok(json_msg) = serde_json::to_string(&msg) {
                 if sender.send(Message::Text(json_msg)).await.is_err() {
                     break;
@@ -76,23 +61,57 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Receive loop
     let tx = state.tx.clone();
     let participants_mutex = state.participants.clone();
+    let knocking_mutex = state.knocking_participants.clone();
     let room_config_mutex = state.room_config.clone();
     let polls_mutex = state.polls.clone();
     let whiteboard_mutex = state.whiteboard.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
+    let mut broadcast_task: Option<tokio::task::JoinHandle<()>> = None;
 
     while let Some(Ok(Message::Text(text))) = receiver.next().await {
         if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
             match client_msg {
+                ClientMessage::ToggleLobby => {
+                    if my_id.is_some() {
+                        let new_config = {
+                            let mut config = room_config_mutex.lock().unwrap();
+                            config.is_lobby_enabled = !config.is_lobby_enabled;
+                            config.clone()
+                        };
+                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                    }
+                },
+                ClientMessage::GrantAccess(target_id) => {
+                    if my_id.is_some() {
+                        let sender_opt = {
+                            let mut knocking = knocking_mutex.lock().unwrap();
+                            knocking.remove(&target_id).map(|(_, s)| s)
+                        };
+                        if let Some(s) = sender_opt {
+                            let _ = s.send(true);
+                        }
+                    }
+                },
+                ClientMessage::DenyAccess(target_id) => {
+                    if my_id.is_some() {
+                        let sender_opt = {
+                            let mut knocking = knocking_mutex.lock().unwrap();
+                            knocking.remove(&target_id).map(|(_, s)| s)
+                        };
+                        if let Some(s) = sender_opt {
+                            let _ = s.send(false);
+                        }
+                    }
+                },
                 ClientMessage::Join(name) => {
                     if my_id.is_some() { continue; } // Already joined
 
-                    // Check if room is locked
-                    let is_locked = {
+                    // Check if room is locked or lobby is enabled
+                    let (is_locked, is_lobby) = {
                         let config = room_config_mutex.lock().unwrap();
-                        config.is_locked
+                        (config.is_locked, config.is_lobby_enabled)
                     };
 
                     if is_locked {
@@ -108,6 +127,32 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         is_sharing_screen: false,
                     };
 
+                    if is_lobby {
+                        let (s, r) = tokio::sync::oneshot::channel();
+                        {
+                            let mut knocking = knocking_mutex.lock().unwrap();
+                            knocking.insert(id.clone(), (me.clone(), s));
+                        }
+                        let _ = internal_tx.send(ServerMessage::Knocking).await;
+                        let _ = tx.send(ServerMessage::KnockingParticipant(me.clone()));
+
+                        // Wait for approval
+                        match tokio::time::timeout(std::time::Duration::from_secs(120), r).await {
+                            Ok(Ok(true)) => {
+                                let _ = internal_tx.send(ServerMessage::AccessGranted).await;
+                            },
+                            _ => {
+                                // Timeout or Denied or Sender Dropped
+                                {
+                                    let mut knocking = knocking_mutex.lock().unwrap();
+                                    knocking.remove(&id);
+                                }
+                                let _ = internal_tx.send(ServerMessage::AccessDenied).await;
+                                continue;
+                            }
+                        }
+                    }
+
                     {
                         let mut participants = participants_mutex.lock().unwrap();
                         participants.insert(id.clone(), me.clone());
@@ -116,6 +161,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                     // Send Welcome with own ID
                     let _ = internal_tx.send(ServerMessage::Welcome { id: id.clone() }).await;
+
+                    // Subscribe to broadcast and forward to internal_tx
+                    let mut rx = tx.subscribe();
+                    let forward_tx = internal_tx.clone();
+                    broadcast_task = Some(tokio::spawn(async move {
+                        loop {
+                            match rx.recv().await {
+                                Ok(msg) => {
+                                    if forward_tx.send(msg).await.is_err() { break; }
+                                },
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                            }
+                        }
+                    }));
 
                     // Broadcast Join
                     let _ = tx.send(ServerMessage::ParticipantJoined(me));
@@ -126,6 +186,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         participants.values().cloned().collect()
                     };
                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
+
+                    // Send current knocking participants to self (if any left)
+                    let knocking_list: Vec<Participant> = {
+                        let knocking = knocking_mutex.lock().unwrap();
+                        knocking.values().map(|(p, _)| p.clone()).collect()
+                    };
+                    for p in knocking_list {
+                         let _ = internal_tx.send(ServerMessage::KnockingParticipant(p)).await;
+                    }
 
                     // Send whiteboard history
                     let history: Vec<shared::DrawAction> = {
@@ -282,6 +351,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     send_task.abort();
 
     // Cleanup
+    if let Some(t) = broadcast_task { t.abort(); }
+    send_task.abort();
+
     if let Some(id) = my_id {
         {
             let mut participants = participants_mutex.lock().unwrap();
@@ -310,5 +382,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_create_room() {
+        use shared::RoomConfig;
+
+        let config = RoomConfig::default();
+        let response = create_room(Json(config)).await.into_response();
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 }

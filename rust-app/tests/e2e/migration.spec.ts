@@ -179,4 +179,65 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Close Whiteboard
   await wbBtn.click();
   await expect(canvas).not.toBeVisible();
+
+  // Unlock the room to reset state for next test
+  await page.getByRole('button', { name: 'Unlock Room' }).click();
+  await expect(page.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+});
+
+test('Lobby Feature E2E', async ({ browser }) => {
+  // Scenario:
+  // 1. Host creates room, enables Lobby.
+  // 2. Guest attempts to join, sees Waiting Screen.
+  // 3. Host sees Guest knocking, grants access.
+  // 4. Guest enters room.
+
+  // Host context
+  const hostContext = await browser.newContext();
+  const hostPage = await hostContext.newPage();
+
+  // Guest context
+  const guestContext = await browser.newContext();
+  const guestPage = await guestContext.newPage();
+
+  const roomName = 'LobbyTestRoom';
+
+  // --- HOST ---
+  await hostPage.goto('/');
+  await hostPage.locator('input[type="text"]').fill(roomName);
+  await hostPage.click('button.create-btn');
+
+  await hostPage.locator('.prejoin-container input[type="text"]').fill('Host');
+  await hostPage.click('button.join-btn');
+  await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Enable Lobby
+  await hostPage.getByRole('button', { name: 'Enable Lobby' }).click();
+  await expect(hostPage.getByRole('button', { name: 'Disable Lobby' })).toBeVisible();
+
+  // --- GUEST ---
+  // Need to get the room URL (encoded)
+  const roomUrl = hostPage.url();
+  await guestPage.goto(roomUrl);
+  await guestPage.locator('.prejoin-container input[type="text"]').fill('Guest');
+  await guestPage.click('button.join-btn');
+
+  // Verify Guest sees Lobby/Waiting Screen
+  await expect(guestPage.getByText('Waiting for host...')).toBeVisible();
+
+  // --- HOST ---
+  // Verify Host sees Guest knocking
+  await expect(hostPage.locator('.knocking-list')).toBeVisible();
+  await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
+
+  // Host allows Guest
+  await hostPage.getByRole('button', { name: 'Allow' }).click();
+
+  // --- GUEST ---
+  // Verify Guest enters room
+  await expect(guestPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Cleanup
+  await hostContext.close();
+  await guestContext.close();
 });
