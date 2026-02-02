@@ -68,10 +68,11 @@ pub fn Room() -> impl IntoView {
     let (show_settings, set_show_settings) = create_signal(false);
     let (show_polls, set_show_polls) = create_signal(false);
     let (polls, set_polls) = create_signal(Vec::<Poll>::new());
-    let (last_reaction, set_last_reaction) = create_signal(None::<(String, String)>);
+    let (last_reaction, set_last_reaction) = create_signal(None::<(String, String, u64)>);
     let (show_whiteboard, set_show_whiteboard) = create_signal(false);
     let (whiteboard_history, set_whiteboard_history) = create_signal(Vec::<DrawAction>::new());
-    let (last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
+    let (_last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
+    let (my_id, set_my_id) = create_signal(None::<String>);
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -87,11 +88,16 @@ pub fn Room() -> impl IntoView {
                     let txt: String = txt.into();
                     if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
                         match server_msg {
+                            ServerMessage::Welcome { id } => set_my_id.set(Some(id)),
                             ServerMessage::Chat(msg) => {
                                 set_messages.update(|msgs| msgs.push(msg));
                             },
                             ServerMessage::ParticipantJoined(p) => {
-                                set_participants.update(|list| list.push(p));
+                                set_participants.update(|list| {
+                                    if !list.iter().any(|x| x.id == p.id) {
+                                        list.push(p);
+                                    }
+                                });
                             },
                             ServerMessage::ParticipantLeft(id) => {
                                 set_participants.update(|list| list.retain(|p| p.id != id));
@@ -111,7 +117,7 @@ pub fn Room() -> impl IntoView {
                                 });
                             },
                             ServerMessage::Reaction { sender_id, emoji } => {
-                                set_last_reaction.set(Some((sender_id, emoji)));
+                                set_last_reaction.set(Some((sender_id, emoji, js_sys::Date::now() as u64)));
                             },
                             ServerMessage::PollCreated(poll) => {
                                 set_polls.update(|list| list.push(poll));
@@ -144,7 +150,27 @@ pub fn Room() -> impl IntoView {
             socket.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
             onopen_callback.forget();
 
+            // Handle connection close
+            let onclose_callback = Closure::<dyn FnMut()>::new(move || {
+                set_is_connected.set(false);
+            });
+            socket.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+            onclose_callback.forget();
+
+            // Handle error
+            let onerror_callback = Closure::<dyn FnMut()>::new(move || {
+                set_is_connected.set(false);
+            });
+            socket.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
+            onerror_callback.forget();
+
             set_ws.set(Some(socket));
+        }
+    });
+
+    on_cleanup(move || {
+        if let Some(socket) = ws.get() {
+            let _ = socket.close();
         }
     });
 
@@ -242,9 +268,10 @@ pub fn Room() -> impl IntoView {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
+                if socket.send_with_str(&json).is_ok() {
+                    set_current_state.set(RoomState::Joined);
+                }
             }
-            set_current_state.set(RoomState::Joined);
         }
     });
 
@@ -276,8 +303,8 @@ pub fn Room() -> impl IntoView {
                                 <Show when=move || show_whiteboard.get()>
                                     <Whiteboard
                                         on_draw=send_draw
-                                        incoming_action=last_draw_action
                                         history=whiteboard_history
+                                        my_id=my_id
                                     />
                                 </Show>
                             </div>

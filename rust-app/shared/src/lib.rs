@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
@@ -34,6 +35,8 @@ pub struct DrawAction {
     pub end_x: f64,
     pub end_y: f64,
     pub width: f64,
+    #[serde(default)] // For backward compatibility if needed, though we are migrating fresh
+    pub sender_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +66,8 @@ pub struct Poll {
     pub id: String,
     pub question: String,
     pub options: Vec<PollOption>,
+    #[serde(default)]
+    pub voters: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -95,6 +100,7 @@ pub enum ServerMessage {
     PollUpdated(Poll),
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
+    Welcome { id: String },
 }
 
 #[cfg(test)]

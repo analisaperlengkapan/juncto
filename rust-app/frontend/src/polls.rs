@@ -29,6 +29,7 @@ pub fn PollsDialog(
                     PollOption { id: 0, text: o1, votes: 0 },
                     PollOption { id: 1, text: o2, votes: 0 },
                 ],
+                voters: std::collections::HashSet::new(),
             };
             on_create_poll.call(poll);
             // Reset and switch to list

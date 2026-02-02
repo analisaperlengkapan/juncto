@@ -6,9 +6,8 @@ use wasm_bindgen::JsCast;
 #[component]
 pub fn Whiteboard(
     on_draw: Callback<DrawAction>,
-    // Signal for incoming actions to draw
-    incoming_action: ReadSignal<Option<DrawAction>>,
     history: ReadSignal<Vec<DrawAction>>,
+    my_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let canvas_ref = create_node_ref::<Canvas>();
     let (is_drawing, set_is_drawing) = create_signal(false);
@@ -34,19 +33,24 @@ pub fn Whiteboard(
         }
     };
 
-    // React to incoming actions
-    create_effect(move |_| {
-        if let Some(action) = incoming_action.get() {
-            draw_on_canvas(&action);
-        }
-    });
-
-    // React to history (initial load)
-    create_effect(move |_| {
+    // React to history (both initial load and updates)
+    create_effect(move |last_len: Option<usize>| {
         let actions = history.get();
-        for action in actions {
-            draw_on_canvas(&action);
+        let len = actions.len();
+        let start = last_len.unwrap_or(0);
+
+        for i in start..len {
+            if let Some(action) = actions.get(i) {
+                // Filter local echo
+                if let Some(id) = my_id.get() {
+                    if action.sender_id == id {
+                        continue;
+                    }
+                }
+                draw_on_canvas(action);
+            }
         }
+        len
     });
 
     let on_mousedown = move |ev: web_sys::MouseEvent| {
@@ -72,6 +76,7 @@ pub fn Whiteboard(
                     start_y,
                     end_x,
                     end_y,
+                    sender_id: my_id.get().unwrap_or_default(),
                 };
 
                 // Draw locally immediately

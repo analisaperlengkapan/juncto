@@ -54,7 +54,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let send_task = tokio::spawn(async move {
         loop {
             let msg = tokio::select! {
-                Ok(msg) = rx.recv() => msg,
+                res = rx.recv() => {
+                    match res {
+                        Ok(msg) => msg,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                },
                 Some(msg) = internal_rx.recv() => msg,
                 else => break,
             };
@@ -96,6 +102,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         participants.insert(id.clone(), me.clone());
                     }
                     my_id = Some(id.clone());
+
+                    // Send Welcome with own ID
+                    let _ = internal_tx.send(ServerMessage::Welcome { id: id.clone() }).await;
 
                     // Broadcast Join
                     let _ = tx.send(ServerMessage::ParticipantJoined(me));
@@ -161,16 +170,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     }
                 },
                 ClientMessage::Vote { poll_id, option_id } => {
-                    if my_id.is_some() {
+                    if let Some(uid) = &my_id {
                         let updated_poll = {
                             let mut polls = polls_mutex.lock().unwrap();
                             if let Some(poll) = polls.get_mut(&poll_id) {
-                                for opt in &mut poll.options {
-                                    if opt.id == option_id {
-                                        opt.votes += 1;
+                                if poll.voters.contains(uid) {
+                                    None
+                                } else {
+                                    poll.voters.insert(uid.clone());
+                                    for opt in &mut poll.options {
+                                        if opt.id == option_id {
+                                            opt.votes += 1;
+                                        }
                                     }
+                                    Some(poll.clone())
                                 }
-                                Some(poll.clone())
                             } else {
                                 None
                             }
@@ -181,8 +195,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         }
                     }
                 },
-                ClientMessage::Draw(action) => {
-                    if my_id.is_some() {
+                ClientMessage::Draw(mut action) => {
+                    if let Some(uid) = &my_id {
+                        action.sender_id = uid.clone();
                         {
                             let mut wb = whiteboard_mutex.lock().unwrap();
                             wb.push(action.clone());

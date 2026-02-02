@@ -9,13 +9,13 @@ struct ActiveReaction {
 
 #[component]
 pub fn ReactionDisplay(
-    // Signal that updates when a new reaction arrives. Tuple: (sender_id, emoji)
-    last_reaction: ReadSignal<Option<(String, String)>>,
+    // Signal that updates when a new reaction arrives. Tuple: (sender_id, emoji, timestamp)
+    last_reaction: ReadSignal<Option<(String, String, u64)>>,
 ) -> impl IntoView {
     let (reactions, set_reactions) = create_signal(Vec::<ActiveReaction>::new());
 
     create_effect(move |_| {
-        if let Some((_, emoji)) = last_reaction.get() {
+        if let Some((_, emoji, _)) = last_reaction.get() {
             // Spawn a new floating emoji
             let id = js_sys::Date::now() as u64 + (js_sys::Math::random() * 1000.0) as u64;
             let left = 10.0 + (js_sys::Math::random() * 80.0); // Random horizontal position 10-90%

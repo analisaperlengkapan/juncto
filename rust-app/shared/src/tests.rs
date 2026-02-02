@@ -88,6 +88,7 @@ fn test_poll_serialization() {
             PollOption { id: 0, text: "Red".to_string(), votes: 0 },
             PollOption { id: 1, text: "Blue".to_string(), votes: 5 },
         ],
+        voters: std::collections::HashSet::new(),
     };
     let msg = ClientMessage::CreatePoll(poll.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -104,6 +105,7 @@ fn test_draw_serialization() {
         end_x: 30.0,
         end_y: 40.0,
         width: 2.0,
+        sender_id: "user1".to_string(),
     };
     let msg = ClientMessage::Draw(draw.clone());
     let json = serde_json::to_string(&msg).unwrap();
