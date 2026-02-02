@@ -598,7 +598,7 @@ mod tests {
         let (tx, _rx) = tokio::sync::broadcast::channel(100);
         let history = Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let app_state = Arc::new(AppState {
+        let _app_state = Arc::new(AppState {
             tx,
             participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             knocking_participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
@@ -627,7 +627,7 @@ mod tests {
     #[tokio::test]
     async fn test_typing_broadcast() {
         let (tx, mut rx) = tokio::sync::broadcast::channel(100);
-        let history = Arc::new(std::sync::Mutex::new(Vec::<shared::ChatMessage>::new()));
+        let _history = Arc::new(std::sync::Mutex::new(Vec::<shared::ChatMessage>::new()));
 
         // We just need to check if a PeerTyping message can be sent through the channel
         // Real logic relies on handle_socket which is hard to unit test without full ws

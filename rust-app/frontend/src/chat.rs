@@ -34,9 +34,9 @@ pub fn Chat(
             // Schedule stop typing
             // Note: In a real app we would cancel previous timer.
             // Here we just send false after 3s. If user types again, we send true again.
-            let on_typing_clone = on_typing.clone();
+            let on_typing = on_typing;
             Timeout::new(3000, move || {
-                on_typing_clone.call(false);
+                on_typing.call(false);
             }).forget();
         }
     };
