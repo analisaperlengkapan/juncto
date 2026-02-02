@@ -76,7 +76,10 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <Chat
                             messages=state.messages
+                            typing_users=state.typing_users
+                            participants=state.participants
                             on_send=state.send_message
+                            on_typing=state.set_is_typing
                             is_connected=state.is_connected
                         />
                         <SettingsDialog

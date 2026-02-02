@@ -398,6 +398,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                         }
                                     }
+                                },
+                                ClientMessage::Typing(is_typing) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::PeerTyping {
+                                            user_id: uid.clone(),
+                                            is_typing,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -614,5 +622,31 @@ mod tests {
         let h = history.lock().unwrap();
         assert_eq!(h.len(), 1);
         assert_eq!(h[0].content, "Hello");
+    }
+
+    #[tokio::test]
+    async fn test_typing_broadcast() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel(100);
+        let history = Arc::new(std::sync::Mutex::new(Vec::<shared::ChatMessage>::new()));
+
+        // We just need to check if a PeerTyping message can be sent through the channel
+        // Real logic relies on handle_socket which is hard to unit test without full ws
+        // But we can verify the enum structure works.
+
+        let msg = shared::ServerMessage::PeerTyping {
+            user_id: "user1".to_string(),
+            is_typing: true,
+        };
+
+        assert!(tx.send(msg).is_ok());
+
+        let received = rx.recv().await.unwrap();
+        match received {
+            shared::ServerMessage::PeerTyping { user_id, is_typing } => {
+                assert_eq!(user_id, "user1");
+                assert_eq!(is_typing, true);
+            },
+            _ => panic!("Wrong message type"),
+        }
     }
 }

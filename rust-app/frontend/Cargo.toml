@@ -15,6 +15,7 @@ console_error_panic_hook = "0.1"
 urlencoding = "2.1"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "Location", "Window", "MouseEvent", "HtmlCanvasElement", "CanvasRenderingContext2d"] }
+gloo-timers = "0.3.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

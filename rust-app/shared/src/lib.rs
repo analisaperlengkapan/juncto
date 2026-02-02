@@ -89,12 +89,14 @@ pub enum ClientMessage {
     GrantAccess(String),
     DenyAccess(String),
     Draw(DrawAction),
+    Typing(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ServerMessage {
     Chat(ChatMessage),
+    PeerTyping { user_id: String, is_typing: bool },
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),

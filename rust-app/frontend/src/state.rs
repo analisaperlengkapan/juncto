@@ -1,6 +1,7 @@
 use leptos::*;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction};
 use web_sys::{MessageEvent, WebSocket};
+use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -28,6 +29,7 @@ pub struct RoomState {
     pub show_whiteboard: ReadSignal<bool>,
     pub whiteboard_history: ReadSignal<Vec<DrawAction>>,
     pub my_id: ReadSignal<Option<String>>,
+    pub typing_users: ReadSignal<HashSet<String>>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -46,11 +48,13 @@ pub struct RoomState {
     pub create_poll: Callback<Poll>,
     pub vote_poll: Callback<(String, u32)>,
     pub send_draw: Callback<DrawAction>,
+    pub set_is_typing: Callback<bool>,
 }
 
 pub fn use_room_state() -> RoomState {
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
+    let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) = create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
@@ -139,6 +143,23 @@ pub fn use_room_state() -> RoomState {
                             },
                             ServerMessage::Reaction { sender_id, emoji } => {
                                 set_last_reaction.set(Some((sender_id, emoji, js_sys::Date::now() as u64)));
+                            },
+                            ServerMessage::PeerTyping { user_id, is_typing } => {
+                                set_typing_users.update(|users| {
+                                    // Map ID to Name if possible, or just use ID for now.
+                                    // Better: store ID in set, and lookup name in `Chat` component.
+                                    // Ideally `typing_users` should be `HashSet<String>` (IDs).
+                                    // And we need access to `participants` map to get names.
+                                    // For now, let's just stick to ID logic, but we might want to expose a helper or just let Chat handle it.
+                                    // The current `Chat` implementation iterates `typing_users` and displays them.
+                                    // If we want names, we need to pass `participants` to `Chat` too.
+
+                                    if is_typing {
+                                        users.insert(user_id);
+                                    } else {
+                                        users.remove(&user_id);
+                                    }
+                                });
                             },
                             ServerMessage::PollCreated(poll) => {
                                 set_polls.update(|list| list.push(poll));
@@ -327,6 +348,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let set_is_typing = Callback::new(move |is_typing: bool| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Typing(is_typing);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     RoomState {
         connection_state: current_state,
         messages,
@@ -343,6 +373,7 @@ pub fn use_room_state() -> RoomState {
         show_whiteboard,
         whiteboard_history,
         my_id,
+        typing_users,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,
@@ -360,6 +391,7 @@ pub fn use_room_state() -> RoomState {
         create_poll,
         vote_poll,
         send_draw,
+        set_is_typing,
     }
 }
 

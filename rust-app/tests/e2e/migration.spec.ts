@@ -337,3 +337,53 @@ test('Chat History E2E', async ({ browser, request }) => {
   await context1.close();
   await context2.close();
 });
+
+test('Typing Indicator E2E', async ({ browser, request }) => {
+  const roomName = 'TypingRoom';
+  // Reset config
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: roomName,
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
+  const context1 = await browser.newContext();
+  const page1 = await context1.newPage();
+  const context2 = await browser.newContext();
+  const page2 = await context2.newPage();
+
+  // User 1 Join
+  await page1.goto(`/room/${roomName}`);
+  await page1.locator('.prejoin-container input[type="text"]').fill('User1');
+  await page1.click('button.join-btn');
+  await expect(page1.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // User 2 Join
+  await page2.goto(`/room/${roomName}`);
+  await page2.locator('.prejoin-container input[type="text"]').fill('User2');
+  await page2.click('button.join-btn');
+  await expect(page2.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // User 1 types
+  const chatInput1 = page1.locator('.chat-container input[type="text"]');
+  await chatInput1.type('Some text'); // 'type' simulates keystrokes
+
+  // User 2 should see indicator
+  // The typing indicator should appear. We check for the suffix because the name logic is complex.
+  // Wait explicitly to ensure the websocket message propagates
+  await expect(page2.locator('.typing-indicator')).toContainText('is typing...', { timeout: 10000 });
+
+  // User 1 stops typing (wait 4s for timeout > 3000ms)
+  // Or force stop by sending message
+  await page1.click('.chat-container button'); // Send
+
+  // User 2 should NOT see indicator
+  await expect(page2.locator('.typing-indicator')).not.toContainText('is typing...');
+
+  await context1.close();
+  await context2.close();
+});
