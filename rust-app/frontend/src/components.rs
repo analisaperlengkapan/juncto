@@ -106,6 +106,9 @@ pub fn Room() -> impl IntoView {
                                     }
                                 });
                             },
+                            ServerMessage::KnockingParticipantLeft(id) => {
+                                set_knocking_participants.update(|list| list.retain(|x| x.id != id));
+                            },
                             ServerMessage::ParticipantLeft(id) => {
                                 set_participants.update(|list| list.retain(|p| p.id != id));
                             },

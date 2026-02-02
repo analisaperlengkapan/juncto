@@ -99,6 +99,7 @@ pub enum ServerMessage {
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
     KnockingParticipant(Participant),
+    KnockingParticipantLeft(String), // ID
     RoomUpdated(RoomConfig),
     ParticipantUpdated(Participant),
     Reaction { sender_id: String, emoji: String },

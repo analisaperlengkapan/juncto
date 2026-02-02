@@ -147,6 +147,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     let mut knocking = knocking_mutex.lock().unwrap();
                                     knocking.remove(&id);
                                 }
+                                let _ = tx.send(ServerMessage::KnockingParticipantLeft(id.clone()));
                                 let _ = internal_tx.send(ServerMessage::AccessDenied).await;
                                 continue;
                             }
