@@ -6,6 +6,7 @@ pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,
     pub is_recording: bool,
+    pub is_lobby_enabled: bool,
     pub max_participants: u32,
 }
 
@@ -15,6 +16,7 @@ impl Default for RoomConfig {
             room_name: "Default Room".to_string(),
             is_locked: false,
             is_recording: false,
+            is_lobby_enabled: false,
             max_participants: 100,
         }
     }
@@ -83,6 +85,9 @@ pub enum ClientMessage {
     Reaction(String), // Emoji
     ToggleRaiseHand,
     ToggleScreenShare,
+    ToggleLobby,
+    GrantAccess(String),
+    DenyAccess(String),
     Draw(DrawAction),
 }
 
@@ -93,6 +98,8 @@ pub enum ServerMessage {
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
+    KnockingParticipant(Participant),
+    KnockingParticipantLeft(String), // ID
     RoomUpdated(RoomConfig),
     ParticipantUpdated(Participant),
     Reaction { sender_id: String, emoji: String },
@@ -101,6 +108,9 @@ pub enum ServerMessage {
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
     Welcome { id: String },
+    Knocking,
+    AccessGranted,
+    AccessDenied,
     Error(String),
 }
 
