@@ -506,3 +506,80 @@ test('Room Lock E2E', async ({ browser, request }) => {
   await hostContext.close();
   await guestContext.close();
 });
+
+test('Breakout Rooms E2E', async ({ browser, request }) => {
+  const roomName = 'BreakoutMain';
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: roomName,
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
+  const hostContext = await browser.newContext();
+  const hostPage = await hostContext.newPage();
+  const guestContext = await browser.newContext();
+  const guestPage = await guestContext.newPage();
+
+  // Both join main room
+  await hostPage.goto(`/room/${roomName}`);
+  await hostPage.locator('.prejoin-container input[type="text"]').fill('Host');
+  await hostPage.click('button.join-btn');
+  await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  await guestPage.goto(`/room/${roomName}`);
+  await guestPage.locator('.prejoin-container input[type="text"]').fill('Guest');
+  await guestPage.click('button.join-btn');
+  await expect(guestPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Host creates breakout room
+  await hostPage.locator('input[placeholder="New Room Name"]').fill('Team A');
+  await hostPage.getByRole('button', { name: 'Create' }).click();
+
+  // Both should see new room listed
+  await expect(hostPage.getByText('Team A')).toBeVisible();
+  await expect(guestPage.getByText('Team A')).toBeVisible();
+
+  // Host joins breakout room
+  // Find the 'Join' button specifically for 'Team A'
+  // Simplified: assuming only one room created
+  await hostPage.getByRole('button', { name: 'Join' }).click();
+
+  // Host UI should update
+  await expect(hostPage.getByText('(In Breakout Room)')).toBeVisible();
+  await expect(hostPage.getByText('Team A')).toBeVisible();
+
+  // Guest stays in Main
+  await expect(guestPage.getByText('(In Breakout Room)')).not.toBeVisible();
+
+  // Host chats in Breakout
+  await hostPage.locator('.chat-container input[type="text"]').fill('Secret Message');
+  await hostPage.click('.chat-container button'); // Send
+
+  // Guest should NOT see it
+  await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message');
+
+  // Guest chats in Main
+  await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
+  await guestPage.click('.chat-container button'); // Send
+
+  // Host should NOT see it (in real app they might, but current logic filters strict room match)
+  await expect(hostPage.locator('.chat-container')).not.toContainText('Main Message');
+
+  // Host returns to Main
+  await hostPage.getByRole('button', { name: 'Return to Main' }).click();
+  await expect(hostPage.getByText('(In Breakout Room)')).not.toBeVisible();
+
+  // Now Host should see/receive messages in main (if we resent or typed new ones)
+  // Let's type a new one
+  await hostPage.locator('.chat-container input[type="text"]').fill('Back in Main');
+  await hostPage.click('.chat-container button'); // Send
+
+  await expect(guestPage.locator('.chat-container')).toContainText('Back in Main');
+
+  await hostContext.close();
+  await guestContext.close();
+});

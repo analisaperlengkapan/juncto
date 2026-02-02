@@ -98,11 +98,25 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let polls_mutex = state.polls.clone();
     let whiteboard_mutex = state.whiteboard.clone();
     let chat_history_mutex = state.chat_history.clone();
+    let breakout_rooms_mutex = state.breakout_rooms.clone();
+    let participant_locations_mutex = state.participant_locations.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
     let mut knocking_id: Option<String> = None;
+    // Track my current room locally for quick access
+    let mut my_room_id: Option<String> = None;
     let mut broadcast_task: Option<tokio::task::JoinHandle<()>> = None;
+
+    // Send initial breakout rooms list
+    let rooms: Vec<shared::BreakoutRoom> = {
+        let rooms = breakout_rooms_mutex.lock().unwrap();
+        rooms.values().cloned().collect()
+    };
+    if !rooms.is_empty() {
+        // Send via internal_tx to avoid "borrow of moved value: sender"
+        let _ = internal_tx.send(ServerMessage::BreakoutRoomsList(rooms)).await;
+    }
 
     loop {
         tokio::select! {
@@ -271,14 +285,51 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
                                     }
 
-                                    // Subscribe to broadcast and forward to internal_tx
+                                    // Register initial location (Main Room)
+                                    {
+                                        let mut locations = participant_locations_mutex.lock().unwrap();
+                                        locations.insert(id.clone(), None);
+                                    }
+
+                                    // Subscribe to broadcast and forward to internal_tx with filtering
                                     let mut rx = tx.subscribe();
                                     let forward_tx = internal_tx.clone();
+                                    // We need to access participant_locations in the task to filter?
+                                    // Or simply check the message content against current local state?
+                                    // The broadcast task runs concurrently. It doesn't share `my_room_id` variable easily unless we use an Arc<Mutex> or message passing.
+                                    // BUT, we can just forward everything to `internal_tx` (which goes to `handle_socket`'s send loop).
+                                    // Wait, `handle_socket` has a `send_task` loop that reads from `internal_rx` and sends to websocket.
+                                    // If we filter THERE, we have access to `my_room_id`.
+                                    // BUT `internal_rx` receives `ServerMessage`.
+                                    // Let's modify the `send_task` or the `broadcast_task`.
+                                    // Modifying `send_task` is harder because it consumes `internal_rx`.
+                                    // `broadcast_task` sends to `internal_tx`.
+                                    // If we use `state.participant_locations` in `broadcast_task`, we can filter.
+
+                                    let my_id_clone = id.clone();
+                                    let locations_clone = participant_locations_mutex.clone();
+
                                     broadcast_task = Some(tokio::spawn(async move {
                                         loop {
                                             match rx.recv().await {
                                                 Ok(msg) => {
-                                                    if forward_tx.send(msg).await.is_err() { break; }
+                                                    // Filter based on room
+                                                    let should_send = match &msg {
+                                                        ServerMessage::Chat { room_id, .. } |
+                                                        ServerMessage::PeerTyping { room_id, .. } => {
+                                                            let my_loc = {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                locs.get(&my_id_clone).cloned().flatten()
+                                                            };
+                                                            // If message room_id matches my location
+                                                            *room_id == my_loc
+                                                        },
+                                                        // Global messages
+                                                        _ => true,
+                                                    };
+
+                                                    if should_send
+                                                        && forward_tx.send(msg).await.is_err() { break; }
                                                 },
                                                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                                                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -321,11 +372,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             content,
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
                                         };
-                                        {
+                                        // Only save history for Main Room (None) for now, or handle per-room history.
+                                        // Simplified: No history for breakout rooms.
+                                        if my_room_id.is_none() {
                                             let mut history = chat_history_mutex.lock().unwrap();
                                             history.push(chat_msg.clone());
                                         }
-                                        let _ = tx.send(ServerMessage::Chat(chat_msg));
+                                        let _ = tx.send(ServerMessage::Chat {
+                                            message: chat_msg,
+                                            room_id: my_room_id.clone()
+                                        });
                                     }
                                 },
                                 ClientMessage::ToggleRoomLock => {
@@ -461,7 +517,39 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = tx.send(ServerMessage::PeerTyping {
                                             user_id: uid.clone(),
                                             is_typing,
+                                            room_id: my_room_id.clone(),
                                         });
+                                    }
+                                },
+                                ClientMessage::CreateBreakoutRoom(name) => {
+                                    if my_id.is_some() {
+                                        let id = uuid::Uuid::new_v4().to_string();
+                                        let room = shared::BreakoutRoom {
+                                            id: id.clone(),
+                                            name,
+                                        };
+                                        {
+                                            let mut rooms = breakout_rooms_mutex.lock().unwrap();
+                                            rooms.insert(id, room);
+                                        }
+                                        // Broadcast new list
+                                        let all_rooms: Vec<shared::BreakoutRoom> = {
+                                            let rooms = breakout_rooms_mutex.lock().unwrap();
+                                            rooms.values().cloned().collect()
+                                        };
+                                        let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
+                                    }
+                                },
+                                ClientMessage::JoinBreakoutRoom(room_id) => {
+                                    if let Some(uid) = &my_id {
+                                        // Update location
+                                        {
+                                            let mut locations = participant_locations_mutex.lock().unwrap();
+                                            locations.insert(uid.clone(), room_id.clone());
+                                        }
+                                        my_room_id = room_id;
+                                        // We don't explicitly notify others of movement in this simplified version,
+                                        // but filtering will now apply.
                                     }
                                 }
                             }
@@ -613,6 +701,8 @@ mod tests {
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
+            breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         let config = RoomConfig::default();
@@ -632,10 +722,14 @@ mod tests {
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
+            breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
-        let mut config = RoomConfig::default();
-        config.max_participants = 10;
+        let config = RoomConfig {
+            max_participants: 10,
+            ..Default::default()
+        };
 
         let response = create_room(State(app_state.clone()), Json(config.clone())).await.into_response();
         assert_eq!(response.status(), StatusCode::CREATED);
@@ -663,6 +757,8 @@ mod tests {
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
             chat_history: history.clone(),
+            breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         // Simulate adding a message (like the websocket handler would)
@@ -693,15 +789,16 @@ mod tests {
         let msg = shared::ServerMessage::PeerTyping {
             user_id: "user1".to_string(),
             is_typing: true,
+            room_id: None,
         };
 
         assert!(tx.send(msg).is_ok());
 
         let received = rx.recv().await.unwrap();
         match received {
-            shared::ServerMessage::PeerTyping { user_id, is_typing } => {
+            shared::ServerMessage::PeerTyping { user_id, is_typing, room_id: _ } => {
                 assert_eq!(user_id, "user1");
-                assert_eq!(is_typing, true);
+                assert!(is_typing);
             },
             _ => panic!("Wrong message type"),
         }
@@ -749,5 +846,38 @@ mod tests {
         // Verify removal
         let p = participants.lock().unwrap();
         assert!(!p.contains_key("target_456"));
+    }
+
+    #[tokio::test]
+    async fn test_breakout_room_creation() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel(100);
+        let rooms = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+
+        // Simulate "CreateBreakoutRoom"
+        let room_name = "Team A".to_string();
+        let id = "room_1".to_string();
+        let room = shared::BreakoutRoom {
+            id: id.clone(),
+            name: room_name.clone(),
+        };
+
+        {
+            let mut r = rooms.lock().unwrap();
+            r.insert(id.clone(), room);
+        }
+
+        let all_rooms: Vec<shared::BreakoutRoom> = {
+            let r = rooms.lock().unwrap();
+            r.values().cloned().collect()
+        };
+        let _ = tx.send(shared::ServerMessage::BreakoutRoomsList(all_rooms));
+
+        // Check message
+        if let Ok(shared::ServerMessage::BreakoutRoomsList(list)) = rx.recv().await {
+            assert_eq!(list.len(), 1);
+            assert_eq!(list[0].name, "Team A");
+        } else {
+            panic!("Wrong message");
+        }
     }
 }

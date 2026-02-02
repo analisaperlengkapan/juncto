@@ -1,6 +1,4 @@
 use super::*;
-use serde_json;
-
 #[test]
 fn test_chat_message_serialization() {
     let msg = ChatMessage {
@@ -73,7 +71,7 @@ fn test_client_message_serialization() {
 #[test]
 fn test_room_config_serialization() {
     let config = RoomConfig::default();
-    assert_eq!(config.is_recording, false);
+    assert!(!config.is_recording);
     let json = serde_json::to_string(&config).unwrap();
     let deserialized: RoomConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(config, deserialized);

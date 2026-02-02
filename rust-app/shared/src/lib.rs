@@ -91,16 +91,25 @@ pub enum ClientMessage {
     GrantAccess(String),
     DenyAccess(String),
     KickParticipant(String), // Target ID
+    CreateBreakoutRoom(String), // Room Name
+    JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
     Typing(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BreakoutRoom {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ServerMessage {
-    Chat(ChatMessage),
-    PeerTyping { user_id: String, is_typing: bool },
+    Chat { message: ChatMessage, room_id: Option<String> },
+    PeerTyping { user_id: String, is_typing: bool, room_id: Option<String> },
     Kicked(String), // Target ID
+    BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),

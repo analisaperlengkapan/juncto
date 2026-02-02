@@ -5,6 +5,7 @@ use crate::participants::ParticipantsList;
 use crate::toolbox::Toolbox;
 use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::lobby::LobbyScreen;
+use crate::components_ui::breakout::BreakoutRooms;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -37,10 +38,20 @@ pub fn Room() -> impl IntoView {
                             on_kick=state.kick_participant
                         />
                         <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
+                            <BreakoutRooms
+                                breakout_rooms=state.breakout_rooms
+                                current_room_id=state.current_room_id
+                                is_host=state.is_host
+                                on_create=state.create_breakout_room
+                                on_join=state.join_breakout_room
+                            />
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">
                                 <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
                                     <div>
                                         <h2>"Meeting Room: " {room_id}</h2>
+                                        <Show when=move || state.current_room_id.get().is_some()>
+                                            <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
+                                        </Show>
                                         <Show when=move || state.is_recording.get()>
                                             <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
                                                 "REC"

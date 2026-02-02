@@ -31,6 +31,8 @@ pub struct RoomState {
     pub my_id: ReadSignal<Option<String>>,
     pub typing_users: ReadSignal<HashSet<String>>,
     pub is_host: Signal<bool>,
+    pub current_room_id: ReadSignal<Option<String>>,
+    pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -51,12 +53,16 @@ pub struct RoomState {
     pub vote_poll: Callback<(String, u32)>,
     pub send_draw: Callback<DrawAction>,
     pub set_is_typing: Callback<bool>,
+    pub create_breakout_room: Callback<String>,
+    pub join_breakout_room: Callback<Option<String>>,
 }
 
 pub fn use_room_state() -> RoomState {
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
+    let (breakout_rooms, set_breakout_rooms) = create_signal(Vec::<shared::BreakoutRoom>::new());
+    let (current_room_id, set_current_room_id) = create_signal(None::<String>);
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) = create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
@@ -131,8 +137,8 @@ pub fn use_room_state() -> RoomState {
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
                                 set_room_config.set(config);
                             },
-                            ServerMessage::Chat(msg) => {
-                                set_messages.update(|msgs| msgs.push(msg));
+                            ServerMessage::Chat { message, .. } => {
+                                set_messages.update(|msgs| msgs.push(message));
                             },
                             ServerMessage::ChatHistory(history) => {
                                 set_messages.set(history);
@@ -201,7 +207,7 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Reaction { sender_id, emoji } => {
                                 set_last_reaction.set(Some((sender_id, emoji, js_sys::Date::now() as u64)));
                             },
-                            ServerMessage::PeerTyping { user_id, is_typing } => {
+                            ServerMessage::PeerTyping { user_id, is_typing, .. } => {
                                 set_typing_users.update(|users| {
                                     // Map ID to Name if possible, or just use ID for now.
                                     // Better: store ID in set, and lookup name in `Chat` component.
@@ -217,6 +223,9 @@ pub fn use_room_state() -> RoomState {
                                         users.remove(&user_id);
                                     }
                                 });
+                            },
+                            ServerMessage::BreakoutRoomsList(rooms) => {
+                                set_breakout_rooms.set(rooms);
                             },
                             ServerMessage::PollCreated(poll) => {
                                 set_polls.update(|list| list.push(poll));
@@ -414,6 +423,28 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let create_breakout_room = Callback::new(move |name: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::CreateBreakoutRoom(name);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let join_breakout_room = Callback::new(move |room_id: Option<String>| {
+        set_current_room_id.set(room_id.clone());
+        // Clear messages when switching rooms? Maybe.
+        set_messages.set(Vec::new());
+
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::JoinBreakoutRoom(room_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let kick_participant = Callback::new(move |id: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::KickParticipant(id);
@@ -441,6 +472,8 @@ pub fn use_room_state() -> RoomState {
         my_id,
         typing_users,
         is_host,
+        current_room_id,
+        breakout_rooms,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,
@@ -460,6 +493,8 @@ pub fn use_room_state() -> RoomState {
         vote_poll,
         send_draw,
         set_is_typing,
+        create_breakout_room,
+        join_breakout_room,
     }
 }
 
