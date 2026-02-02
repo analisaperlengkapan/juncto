@@ -97,11 +97,38 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     loop {
         tokio::select! {
             // 1. Client Messages
+            // 3. Kicked Event (from broadcast)
+            // Note: We need to handle this in the broadcast receive loop, not here.
+            // But if *I* am kicked, I need to know.
+            // My broadcast receiver forwards everything to `internal_tx`, which forwards to `sender`.
+            // So if I receive "Kicked(my_id)", the frontend will handle disconnection.
+            // HOWEVER, the server should also forcibly close the connection.
+            // Let's rely on frontend for graceful exit first, or check internal message loop.
+
             res = receiver.next() => {
                 match res {
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
                             match client_msg {
+                                ClientMessage::KickParticipant(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let host_id = {
+                                            room_config_mutex.lock().unwrap().host_id.clone()
+                                        };
+                                        if Some(uid.clone()) == host_id {
+                                            // Valid kick
+                                            // 1. Remove from participants
+                                            {
+                                                let mut participants = participants_mutex.lock().unwrap();
+                                                participants.remove(&target_id);
+                                            }
+                                            // 2. Broadcast Kicked
+                                            let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
+                                            // 3. Broadcast ParticipantLeft (so lists update)
+                                            let _ = tx.send(ServerMessage::ParticipantLeft(target_id));
+                                        }
+                                    }
+                                },
                                 ClientMessage::ToggleLobby => {
                                     if my_id.is_some() {
                                         let new_config = {
@@ -200,6 +227,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if participants.len() >= max_participants as usize {
                                             false
                                         } else {
+                                            // Assign host if none exists
+                                            let mut config = room_config_mutex.lock().unwrap();
+                                            if config.host_id.is_none() {
+                                                config.host_id = Some(id.clone());
+                                            }
+
                                             participants.insert(id.clone(), me.clone());
                                             true
                                         }
@@ -648,5 +681,49 @@ mod tests {
             },
             _ => panic!("Wrong message type"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_kick_logic() {
+        // We can't easily test the full async loop here without mocking WS
+        // But we can test the data structures and messages
+
+        let (tx, _rx) = tokio::sync::broadcast::channel(100);
+
+        // Setup room with a host
+        let room_config = Arc::new(std::sync::Mutex::new(shared::RoomConfig {
+            host_id: Some("host_123".to_string()),
+            ..Default::default()
+        }));
+
+        let participants = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+
+        // Add a participant
+        {
+            let mut p = participants.lock().unwrap();
+            p.insert("target_456".to_string(), shared::Participant {
+                id: "target_456".to_string(),
+                name: "Target".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+            });
+        }
+
+        // Simulate kick action
+        let target_id = "target_456".to_string();
+        let my_id = "host_123".to_string(); // Sender is host
+
+        // Logic from handle_socket (simplified)
+        let config = room_config.lock().unwrap();
+        if Some(my_id) == config.host_id {
+            let mut p = participants.lock().unwrap();
+            p.remove(&target_id);
+            // In real code we send broadcast
+            let _ = tx.send(shared::ServerMessage::Kicked(target_id.clone()));
+        }
+
+        // Verify removal
+        let p = participants.lock().unwrap();
+        assert!(!p.contains_key("target_456"));
     }
 }

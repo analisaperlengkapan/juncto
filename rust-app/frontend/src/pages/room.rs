@@ -34,6 +34,7 @@ pub fn Room() -> impl IntoView {
                             knocking_participants=state.knocking_participants
                             on_allow=state.grant_access
                             on_deny=state.deny_access
+                            on_kick=state.kick_participant
                         />
                         <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">

@@ -387,3 +387,55 @@ test('Typing Indicator E2E', async ({ browser, request }) => {
   await context1.close();
   await context2.close();
 });
+
+test('Kick Participant E2E', async ({ browser, request }) => {
+  const roomName = 'KickRoom';
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: roomName,
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
+  // Host
+  const hostContext = await browser.newContext();
+  const hostPage = await hostContext.newPage();
+  await hostPage.goto(`/room/${roomName}`);
+  await hostPage.locator('.prejoin-container input[type="text"]').fill('Host');
+  await hostPage.click('button.join-btn');
+  await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Guest
+  const guestContext = await browser.newContext();
+  const guestPage = await guestContext.newPage();
+  await guestPage.goto(`/room/${roomName}`);
+  await guestPage.locator('.prejoin-container input[type="text"]').fill('Guest');
+  await guestPage.click('button.join-btn');
+  await expect(guestPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+  // Host should see "Kick" button for Guest
+  // Note: Guest item text contains "Guest"
+  const guestItem = hostPage.locator('.participants-list li').filter({ hasText: 'Guest' });
+  await expect(guestItem.getByRole('button', { name: 'Kick' })).toBeVisible();
+
+  // Handle alert on guest page
+  guestPage.on('dialog', async dialog => {
+    expect(dialog.message()).toContain('kicked');
+    await dialog.accept();
+  });
+
+  // Host Kicks Guest
+  await guestItem.getByRole('button', { name: 'Kick' }).click();
+
+  // Guest should be redirected to Prejoin
+  await expect(guestPage.getByText('Ready to join?')).toBeVisible();
+
+  // Host list should not have Guest
+  await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
+
+  await hostContext.close();
+  await guestContext.close();
+});

@@ -7,6 +7,7 @@ pub fn ParticipantsList(
     knocking_participants: ReadSignal<Vec<Participant>>,
     on_allow: Callback<String>,
     on_deny: Callback<String>,
+    on_kick: Callback<String>,
 ) -> impl IntoView {
     view! {
         <div class="participants-list" style="width: 200px; background: #eee; padding: 20px; height: 100%;">
@@ -51,20 +52,28 @@ pub fn ParticipantsList(
                     each=move || participants.get()
                     key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen)
                     children=move |p| {
+                        let id_kick = p.id.clone();
                         view! {
-                            <li style="display: flex; justify-content: space-between;">
+                            <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <span>{p.name}</span>
-                                <div>
+                                <div style="display: flex; align-items: center;">
                                     {if p.is_sharing_screen {
                                         view! { <span style="margin-right: 5px;">"🖥️"</span> }.into_view()
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
                                     {if p.is_hand_raised {
-                                        view! { <span>"✋"</span> }.into_view()
+                                        view! { <span style="margin-right: 5px;">"✋"</span> }.into_view()
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
+                                    <button
+                                        on:click=move |_| on_kick.call(id_kick.clone())
+                                        style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                        title="Kick Participant"
+                                    >
+                                        "Kick"
+                                    </button>
                                 </div>
                             </li>
                         }

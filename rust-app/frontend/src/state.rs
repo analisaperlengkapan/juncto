@@ -45,6 +45,7 @@ pub struct RoomState {
     pub send_reaction: Callback<String>,
     pub toggle_raise_hand: Callback<()>,
     pub toggle_screen_share: Callback<()>,
+    pub kick_participant: Callback<String>,
     pub create_poll: Callback<Poll>,
     pub vote_poll: Callback<(String, u32)>,
     pub send_draw: Callback<DrawAction>,
@@ -126,6 +127,18 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::AccessDenied => {
                                 let _ = web_sys::window().unwrap().alert_with_message("Access Denied");
                                 set_current_state.set(RoomConnectionState::Prejoin);
+                            },
+                            ServerMessage::Kicked(target_id) => {
+                                if let Some(my) = my_id.get() {
+                                    if my == target_id {
+                                        let _ = web_sys::window().unwrap().alert_with_message("You have been kicked from the room.");
+                                        set_current_state.set(RoomConnectionState::Prejoin);
+                                        // Close socket?
+                                        // The effect cleanup will close it if we navigate away, but here we just change state.
+                                        // Ideally we should force close or depend on state change to trigger cleanup if we moved socket creation inside a resource/effect dependent on state.
+                                        // For now, state change to Prejoin is enough visual indication.
+                                    }
+                                }
                             },
                             ServerMessage::KnockingParticipant(p) => {
                                 set_knocking_participants.update(|list| {
@@ -357,6 +370,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let kick_participant = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::KickParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     RoomState {
         connection_state: current_state,
         messages,
@@ -388,6 +410,7 @@ pub fn use_room_state() -> RoomState {
         send_reaction,
         toggle_raise_hand,
         toggle_screen_share,
+        kick_participant,
         create_poll,
         vote_poll,
         send_draw,

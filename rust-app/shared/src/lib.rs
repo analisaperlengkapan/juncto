@@ -8,6 +8,7 @@ pub struct RoomConfig {
     pub is_recording: bool,
     pub is_lobby_enabled: bool,
     pub max_participants: u32,
+    pub host_id: Option<String>,
 }
 
 impl Default for RoomConfig {
@@ -18,6 +19,7 @@ impl Default for RoomConfig {
             is_recording: false,
             is_lobby_enabled: false,
             max_participants: 100,
+            host_id: None,
         }
     }
 }
@@ -88,6 +90,7 @@ pub enum ClientMessage {
     ToggleLobby,
     GrantAccess(String),
     DenyAccess(String),
+    KickParticipant(String), // Target ID
     Draw(DrawAction),
     Typing(bool),
 }
@@ -97,6 +100,7 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     Chat(ChatMessage),
     PeerTyping { user_id: String, is_typing: bool },
+    Kicked(String), // Target ID
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
