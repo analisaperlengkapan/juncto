@@ -128,7 +128,11 @@ pub fn Room() -> impl IntoView {
                                 set_current_state.set(RoomState::Prejoin);
                             },
                             ServerMessage::KnockingParticipant(p) => {
-                                set_knocking_participants.update(|list| list.push(p));
+                                set_knocking_participants.update(|list| {
+                                    if !list.iter().any(|x| x.id == p.id) {
+                                        list.push(p);
+                                    }
+                                });
                             },
                             ServerMessage::ParticipantUpdated(p) => {
                                 set_participants.update(|list| {

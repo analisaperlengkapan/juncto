@@ -352,7 +352,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     // Cleanup
     if let Some(t) = broadcast_task { t.abort(); }
-    send_task.abort();
 
     if let Some(id) = my_id {
         {
