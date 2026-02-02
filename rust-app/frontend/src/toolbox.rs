@@ -15,9 +15,16 @@ pub fn Toolbox(
     on_screen_share: Callback<()>,
     on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
+    on_toggle_camera: Callback<()>,
 ) -> impl IntoView {
     view! {
         <div class="toolbox" style="padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px;">
+            <button
+                on:click=move |_| on_toggle_camera.call(())
+                style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Toggle Camera"
+            </button>
             <button
                 on:click=move |_| on_screen_share.call(())
                 style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"

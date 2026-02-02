@@ -6,6 +6,7 @@ use crate::toolbox::Toolbox;
 use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::breakout::BreakoutRooms;
+use crate::components_ui::video_grid::VideoGrid;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -57,9 +58,11 @@ pub fn Room() -> impl IntoView {
                                                 "REC"
                                             </div>
                                         </Show>
-                                        <div class="video-placeholder" style="width: 640px; height: 360px; background: black; border: 2px solid #555;">
-                                            <p style="text-align: center; margin-top: 160px;">"Video Stream Placeholder"</p>
-                                        </div>
+                                        <VideoGrid
+                                            participants=state.participants
+                                            local_stream=state.local_stream
+                                            my_id=state.my_id
+                                        />
                                     </div>
                                 </div>
                                 <ReactionDisplay last_reaction=state.last_reaction />
@@ -85,6 +88,7 @@ pub fn Room() -> impl IntoView {
                                 on_screen_share=state.toggle_screen_share
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
+                                on_toggle_camera=state.toggle_camera
                             />
                         </div>
                         <Chat

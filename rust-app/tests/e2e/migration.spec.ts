@@ -615,3 +615,34 @@ test('Device Settings E2E', async ({ page }) => {
         expect(camOptions).toBeGreaterThan(0);
     }).toPass();
 });
+
+test('Video Grid E2E', async ({ page }) => {
+    // Join room
+    await page.goto('/');
+    await page.fill('input[type="text"]', 'Video Room');
+    await page.click('button:has-text("Start Meeting")');
+    await page.waitForURL(/\/room\//);
+    await page.locator('.prejoin-container input[type="text"]').fill('Viewer');
+    await page.click('button:has-text("Join Meeting")');
+
+    // Check Video Grid exists
+    const grid = page.locator('.video-grid');
+    await expect(grid).toBeVisible();
+
+    // Check Local Video card exists ("Me")
+    await expect(grid.locator('.video-card:has-text("Me")')).toBeVisible();
+
+    // Check camera toggle logic
+    // Initially off
+    await expect(grid.locator('.video-card:has-text("Camera Off")')).toBeVisible();
+
+    // Toggle On
+    await page.click('button:has-text("Toggle Camera")');
+    // "Camera Off" should disappear, video element should be visible
+    await expect(grid.locator('.video-card:has-text("Camera Off")')).not.toBeVisible();
+    await expect(grid.locator('video')).toBeVisible();
+
+    // Toggle Off
+    await page.click('button:has-text("Toggle Camera")');
+    await expect(grid.locator('.video-card:has-text("Camera Off")')).toBeVisible();
+});
