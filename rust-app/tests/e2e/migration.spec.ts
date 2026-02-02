@@ -291,3 +291,49 @@ test('Max Participants E2E', async ({ browser, request }) => {
   await user1Context.close();
   await user2Context.close();
 });
+
+test('Chat History E2E', async ({ browser, request }) => {
+  // Reset config to allow multiple participants
+  await request.post('http://localhost:3000/api/rooms', {
+    data: {
+      room_name: "HistoryRoom",
+      is_locked: false,
+      is_recording: false,
+      is_lobby_enabled: false,
+      max_participants: 100
+    }
+  });
+
+  // 1. User 1 creates room and chats
+  const context1 = await browser.newContext();
+  const page1 = await context1.newPage();
+
+  await page1.goto('/room/HistoryRoom');
+  await page1.locator('.prejoin-container input[type="text"]').fill('Chatter1');
+  await page1.click('button.join-btn');
+
+  await expect(page1.getByText('Meeting Room: HistoryRoom')).toBeVisible();
+
+  const chatInput1 = page1.locator('.chat-container input[type="text"]');
+  await chatInput1.fill('Message before join');
+  await page1.click('.chat-container button');
+  await expect(page1.getByText('Message before join')).toBeVisible();
+
+  // 2. User 2 joins and should see the message
+  const context2 = await browser.newContext();
+  const page2 = await context2.newPage();
+
+  // Use same room URL
+  const roomUrl = page1.url();
+  await page2.goto(roomUrl);
+  await page2.locator('.prejoin-container input[type="text"]').fill('Chatter2');
+  await page2.click('button.join-btn');
+
+  await expect(page2.getByText('Meeting Room: HistoryRoom')).toBeVisible();
+
+  // Verify Chat History
+  await expect(page2.locator('.chat-container')).toContainText('Message before join');
+
+  await context1.close();
+  await context2.close();
+});

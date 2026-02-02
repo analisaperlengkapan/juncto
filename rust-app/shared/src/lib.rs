@@ -107,6 +107,7 @@ pub enum ServerMessage {
     PollUpdated(Poll),
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
+    ChatHistory(Vec<ChatMessage>),
     Welcome { id: String },
     Knocking,
     AccessGranted,

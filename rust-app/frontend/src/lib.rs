@@ -1,6 +1,7 @@
 mod components_ui;
 mod pages;
 mod state;
+mod utils;
 mod chat;
 mod participants;
 mod toolbox;

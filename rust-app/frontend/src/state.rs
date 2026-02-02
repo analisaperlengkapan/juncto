@@ -88,6 +88,9 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Chat(msg) => {
                                 set_messages.update(|msgs| msgs.push(msg));
                             },
+                            ServerMessage::ChatHistory(history) => {
+                                set_messages.set(history);
+                            },
                             ServerMessage::ParticipantJoined(p) => {
                                 set_knocking_participants.update(|list| list.retain(|x| x.id != p.id));
                                 set_participants.update(|list| {

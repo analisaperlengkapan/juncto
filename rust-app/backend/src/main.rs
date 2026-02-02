@@ -22,6 +22,7 @@ pub struct AppState {
     pub room_config: Arc<Mutex<RoomConfig>>,
     pub polls: Arc<Mutex<HashMap<String, Poll>>>,
     pub whiteboard: Arc<Mutex<Vec<DrawAction>>>,
+    pub chat_history: Arc<Mutex<Vec<shared::ChatMessage>>>,
 }
 
 #[tokio::main]
@@ -38,8 +39,10 @@ async fn main() {
     let polls = Arc::new(Mutex::new(HashMap::new()));
     // Initialize whiteboard
     let whiteboard = Arc::new(Mutex::new(Vec::new()));
+    // Initialize chat history
+    let chat_history = Arc::new(Mutex::new(Vec::new()));
 
-    let app_state = Arc::new(AppState { tx, participants, knocking_participants, room_config, polls, whiteboard });
+    let app_state = Arc::new(AppState { tx, participants, knocking_participants, room_config, polls, whiteboard, chat_history });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")

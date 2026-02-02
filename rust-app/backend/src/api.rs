@@ -55,6 +55,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Channel for internal messages to self
     let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
 
+    // Send Chat History
+    let history: Vec<shared::ChatMessage> = {
+        let history = state.chat_history.lock().unwrap();
+        history.clone()
+    };
+    if !history.is_empty() {
+        if let Ok(json) = serde_json::to_string(&ServerMessage::ChatHistory(history)) {
+            let _ = sender.send(Message::Text(json)).await;
+        }
+    }
+
     // Channel for control messages from async tasks to the loop
     let (control_tx, mut control_rx) = tokio::sync::mpsc::channel::<bool>(1); // true = granted, false = denied
 
@@ -76,6 +87,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let room_config_mutex = state.room_config.clone();
     let polls_mutex = state.polls.clone();
     let whiteboard_mutex = state.whiteboard.clone();
+    let chat_history_mutex = state.chat_history.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -252,6 +264,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             content,
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
                                         };
+                                        {
+                                            let mut history = chat_history_mutex.lock().unwrap();
+                                            history.push(chat_msg.clone());
+                                        }
                                         let _ = tx.send(ServerMessage::Chat(chat_msg));
                                     }
                                 },
@@ -531,6 +547,7 @@ mod tests {
             room_config: Arc::new(std::sync::Mutex::new(RoomConfig::default())),
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
+            chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
         });
 
         let config = RoomConfig::default();
@@ -549,6 +566,7 @@ mod tests {
             room_config: Arc::new(std::sync::Mutex::new(RoomConfig::default())),
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
+            chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
         });
 
         let mut config = RoomConfig::default();
@@ -565,5 +583,36 @@ mod tests {
         // Verify state was updated
         let stored_config = app_state.room_config.lock().unwrap();
         assert_eq!(stored_config.max_participants, 10);
+    }
+
+    #[tokio::test]
+    async fn test_chat_history() {
+        let (tx, _rx) = tokio::sync::broadcast::channel(100);
+        let history = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+        let app_state = Arc::new(AppState {
+            tx,
+            participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            knocking_participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            room_config: Arc::new(std::sync::Mutex::new(shared::RoomConfig::default())),
+            polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
+            chat_history: history.clone(),
+        });
+
+        // Simulate adding a message (like the websocket handler would)
+        {
+            let mut h = history.lock().unwrap();
+            h.push(shared::ChatMessage {
+                user_id: "user1".to_string(),
+                content: "Hello".to_string(),
+                timestamp: 1234567890,
+            });
+        }
+
+        // Verify history contains the message
+        let h = history.lock().unwrap();
+        assert_eq!(h.len(), 1);
+        assert_eq!(h[0].content, "Hello");
     }
 }

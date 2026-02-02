@@ -1,5 +1,6 @@
 use leptos::*;
 use leptos_router::*;
+use crate::utils::create_room_url;
 
 #[component]
 pub fn Home() -> impl IntoView {
@@ -8,9 +9,8 @@ pub fn Home() -> impl IntoView {
 
     let create_meeting = move |_| {
         let name = room_name.get();
-        // Simple sanitization/encoding for URL
-        let encoded_name = urlencoding::encode(&name);
-        navigate(&format!("/room/{}", encoded_name), Default::default());
+        let url = create_room_url(&name);
+        navigate(&url, Default::default());
     };
 
     view! {
