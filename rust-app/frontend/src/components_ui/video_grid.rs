@@ -6,9 +6,11 @@ use web_sys::MediaStream;
 pub fn VideoGrid(
     participants: ReadSignal<Vec<Participant>>,
     local_stream: ReadSignal<Option<MediaStream>>,
+    local_screen_stream: ReadSignal<Option<MediaStream>>,
     my_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
+    let screen_ref = create_node_ref::<html::Video>();
 
     create_effect(move |_| {
         if let Some(stream) = local_stream.get() {
@@ -19,8 +21,33 @@ pub fn VideoGrid(
         }
     });
 
+    create_effect(move |_| {
+        if let Some(stream) = local_screen_stream.get() {
+            if let Some(video_el) = screen_ref.get() {
+                video_el.set_src_object(Some(&stream));
+                let _ = video_el.play();
+            }
+        }
+    });
+
     view! {
         <div class="video-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+            // Local Screen Share
+            <Show when=move || local_screen_stream.get().is_some()>
+                <div class="video-card" style="width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;">
+                    <video
+                        _ref=screen_ref
+                        autoplay
+                        playsinline
+                        muted
+                        style="width: 100%; height: 100%; object-fit: contain;"
+                    />
+                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
+                        "My Screen"
+                    </div>
+                </div>
+            </Show>
+
             // Local User Video
             <div class="video-card" style="width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;">
                 <Show when=move || local_stream.get().is_some() fallback=move || view! {

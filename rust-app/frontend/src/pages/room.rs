@@ -61,6 +61,7 @@ pub fn Room() -> impl IntoView {
                                         <VideoGrid
                                             participants=state.participants
                                             local_stream=state.local_stream
+                                            local_screen_stream=state.local_screen_stream
                                             my_id=state.my_id
                                         />
                                     </div>

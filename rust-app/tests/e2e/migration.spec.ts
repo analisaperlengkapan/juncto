@@ -694,3 +694,27 @@ test('Chat Names E2E', async ({ browser, request }) => {
     await context1.close();
     await context2.close();
 });
+
+test('Screen Share E2E', async ({ page }) => {
+    // Join room
+    await page.goto('/');
+    await page.fill('input[type="text"]', 'Screen Share Room');
+    await page.click('button:has-text("Start Meeting")');
+    await page.waitForURL(/\/room\//);
+    await page.locator('.prejoin-container input[type="text"]').fill('Presenter');
+    await page.click('button:has-text("Join Meeting")');
+
+    // Click Share Screen
+    // Note: With --use-fake-ui-for-media-stream, this should auto-accept
+    await page.click('button:has-text("Share Screen")');
+
+    // Check if "My Screen" card appears
+    await expect(page.locator('.video-card:has-text("My Screen")')).toBeVisible();
+    await expect(page.locator('.video-card:has-text("My Screen") video')).toBeVisible();
+
+    // Stop Sharing (click again)
+    await page.click('button:has-text("Share Screen")');
+
+    // Check if "My Screen" card disappears
+    await expect(page.locator('.video-card:has-text("My Screen")')).not.toBeVisible();
+});

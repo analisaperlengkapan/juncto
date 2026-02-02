@@ -4,7 +4,7 @@ use web_sys::{MessageEvent, WebSocket, MediaStream};
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::media::get_user_media;
+use crate::media::{get_user_media, get_display_media};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
@@ -35,6 +35,7 @@ pub struct RoomState {
     pub current_room_id: ReadSignal<Option<String>>,
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
     pub local_stream: ReadSignal<Option<MediaStream>>,
+    pub local_screen_stream: ReadSignal<Option<MediaStream>>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -82,6 +83,7 @@ pub fn use_room_state() -> RoomState {
     let (_last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
     let (my_id, set_my_id) = create_signal(None::<String>);
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
+    let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -374,11 +376,44 @@ pub fn use_room_state() -> RoomState {
     });
 
     let toggle_screen_share = Callback::new(move |_: ()| {
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::ToggleScreenShare;
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
+        if local_screen_stream.get().is_some() {
+            // Stop sharing
+            if let Some(stream) = local_screen_stream.get() {
+                let tracks = stream.get_tracks();
+                for i in 0..tracks.length() {
+                    if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.stop();
+                    }
+                }
             }
+            set_local_screen_stream.set(None);
+
+            // Notify server stopped
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::ToggleScreenShare;
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
+            }
+        } else {
+            // Start sharing
+            spawn_local(async move {
+                match get_display_media().await {
+                    Ok(stream) => {
+                        set_local_screen_stream.set(Some(stream));
+                        // Notify server started
+                        if let Some(socket) = ws.get() {
+                            let msg = ClientMessage::ToggleScreenShare;
+                            if let Ok(json) = serde_json::to_string(&msg) {
+                                let _ = socket.send_with_str(&json);
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                    }
+                }
+            });
         }
     });
 
@@ -502,6 +537,7 @@ pub fn use_room_state() -> RoomState {
         current_room_id,
         breakout_rooms,
         local_stream,
+        local_screen_stream,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,
