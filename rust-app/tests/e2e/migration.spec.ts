@@ -150,4 +150,12 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await handBtn.click();
   // Verify hand icon removed (might need short wait or check lack of text)
   await expect(page.locator('.participants-list li').filter({ hasText: 'Updated Name' })).not.toContainText('✋');
+
+  // 13. Verify Screen Share
+  const screenBtn = page.getByRole('button', { name: 'Share Screen' });
+  await expect(screenBtn).toBeVisible();
+  await screenBtn.click();
+
+  // Verify screen icon in participants list
+  await expect(page.locator('.participants-list li').filter({ hasText: 'Updated Name' })).toContainText('🖥️');
 });

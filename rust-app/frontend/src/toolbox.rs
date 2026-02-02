@@ -9,10 +9,17 @@ pub fn Toolbox(
     on_settings: Callback<()>,
     on_polls: Callback<()>,
     on_raise_hand: Callback<()>,
+    on_screen_share: Callback<()>,
     on_reaction: Callback<String>,
 ) -> impl IntoView {
     view! {
         <div class="toolbox" style="padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px;">
+            <button
+                on:click=move |_| on_screen_share.call(())
+                style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Share Screen"
+            </button>
             <button
                 on:click=move |_| on_raise_hand.call(())
                 style="padding: 8px 16px; background-color: #ffc107; color: black; border: none; cursor: pointer; border-radius: 4px;"

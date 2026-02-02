@@ -38,6 +38,7 @@ pub struct Participant {
     pub id: String,
     pub name: String,
     pub is_hand_raised: bool,
+    pub is_sharing_screen: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -66,6 +67,7 @@ pub enum ClientMessage {
     UpdateProfile(String), // New Name
     Reaction(String), // Emoji
     ToggleRaiseHand,
+    ToggleScreenShare,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

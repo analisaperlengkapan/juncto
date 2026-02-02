@@ -19,6 +19,7 @@ fn test_server_message_serialization() {
         id: "123".to_string(),
         name: "Alice".to_string(),
         is_hand_raised: false,
+        is_sharing_screen: false,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -62,6 +63,11 @@ fn test_client_message_serialization() {
     let json_hand = serde_json::to_string(&msg_hand).unwrap();
     let deserialized_hand: ClientMessage = serde_json::from_str(&json_hand).unwrap();
     assert_eq!(msg_hand, deserialized_hand);
+
+    let msg_screen = ClientMessage::ToggleScreenShare;
+    let json_screen = serde_json::to_string(&msg_screen).unwrap();
+    let deserialized_screen: ClientMessage = serde_json::from_str(&json_screen).unwrap();
+    assert_eq!(msg_screen, deserialized_screen);
 }
 
 #[test]

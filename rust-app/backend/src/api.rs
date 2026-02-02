@@ -87,6 +87,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         id: id.clone(),
                         name,
                         is_hand_raised: false,
+                        is_sharing_screen: false,
                     };
 
                     {
@@ -184,6 +185,23 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             let mut participants = participants_mutex.lock().unwrap();
                             if let Some(p) = participants.get_mut(uid) {
                                 p.name = new_name.clone();
+                                Some(p.clone())
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(p) = updated_participant {
+                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                        }
+                    }
+                },
+                ClientMessage::ToggleScreenShare => {
+                    if let Some(uid) = &my_id {
+                        let updated_participant = {
+                            let mut participants = participants_mutex.lock().unwrap();
+                            if let Some(p) = participants.get_mut(uid) {
+                                p.is_sharing_screen = !p.is_sharing_screen;
                                 Some(p.clone())
                             } else {
                                 None
