@@ -182,6 +182,15 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let toggle_raise_hand = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleRaiseHand;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let create_poll = Callback::new(move |poll: Poll| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::CreatePoll(poll);
@@ -243,6 +252,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=toggle_recording
                                 on_settings=Callback::new(move |_| set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| set_show_polls.set(true))
+                                on_raise_hand=toggle_raise_hand
                                 on_reaction=send_reaction
                             />
                         </div>

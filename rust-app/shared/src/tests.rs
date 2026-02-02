@@ -18,6 +18,7 @@ fn test_server_message_serialization() {
     let p = Participant {
         id: "123".to_string(),
         name: "Alice".to_string(),
+        is_hand_raised: false,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -42,6 +43,11 @@ fn test_client_message_serialization() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 
+    let msg_rec = ClientMessage::ToggleRecording;
+    let json_rec = serde_json::to_string(&msg_rec).unwrap();
+    let deserialized_rec: ClientMessage = serde_json::from_str(&json_rec).unwrap();
+    assert_eq!(msg_rec, deserialized_rec);
+
     let msg_prof = ClientMessage::UpdateProfile("Bob".to_string());
     let json_prof = serde_json::to_string(&msg_prof).unwrap();
     let deserialized_prof: ClientMessage = serde_json::from_str(&json_prof).unwrap();
@@ -51,6 +57,11 @@ fn test_client_message_serialization() {
     let json_reaction = serde_json::to_string(&msg_reaction).unwrap();
     let deserialized_reaction: ClientMessage = serde_json::from_str(&json_reaction).unwrap();
     assert_eq!(msg_reaction, deserialized_reaction);
+
+    let msg_hand = ClientMessage::ToggleRaiseHand;
+    let json_hand = serde_json::to_string(&msg_hand).unwrap();
+    let deserialized_hand: ClientMessage = serde_json::from_str(&json_hand).unwrap();
+    assert_eq!(msg_hand, deserialized_hand);
 }
 
 #[test]

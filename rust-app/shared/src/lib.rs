@@ -37,6 +37,7 @@ pub struct ChatMessage {
 pub struct Participant {
     pub id: String,
     pub name: String,
+    pub is_hand_raised: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -64,6 +65,7 @@ pub enum ClientMessage {
     ToggleRecording,
     UpdateProfile(String), // New Name
     Reaction(String), // Emoji
+    ToggleRaiseHand,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

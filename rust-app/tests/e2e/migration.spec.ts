@@ -132,4 +132,22 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // Verify Vote Count Updated
   await expect(page.getByText('1 votes')).toBeVisible();
+
+  // Close Polls Dialog
+  await page.locator('.modal-header button').click(); // Close button "×"
+  await expect(page.getByRole('heading', { name: 'Polls' })).not.toBeVisible();
+
+  // 12. Verify Raise Hand
+  const handBtn = page.getByRole('button', { name: 'Raise Hand' });
+  await expect(handBtn).toBeVisible();
+  await handBtn.click();
+
+  // Verify hand icon in participants list
+  // Ideally, find the list item for "E2E User" or "User ..." and check for hand emoji
+  await expect(page.locator('.participants-list li').filter({ hasText: 'Updated Name' })).toContainText('✋');
+
+  // Lower hand
+  await handBtn.click();
+  // Verify hand icon removed (might need short wait or check lack of text)
+  await expect(page.locator('.participants-list li').filter({ hasText: 'Updated Name' })).not.toContainText('✋');
 });

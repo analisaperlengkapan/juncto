@@ -83,7 +83,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     if my_id.is_some() { continue; } // Already joined
 
                     let id = uuid::Uuid::new_v4().to_string();
-                    let me = Participant { id: id.clone(), name };
+                    let me = Participant {
+                        id: id.clone(),
+                        name,
+                        is_hand_raised: false,
+                    };
 
                     {
                         let mut participants = participants_mutex.lock().unwrap();
@@ -133,7 +137,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                 },
                 ClientMessage::CreatePoll(mut poll) => {
                     if my_id.is_some() {
-                        eprintln!("Received CreatePoll: {:?}", poll);
                         // Assign ID if needed or trust client (for simple migration, assume client sends unique ID or we overwrite)
                         if poll.id.is_empty() {
                             poll.id = uuid::Uuid::new_v4().to_string();
@@ -181,6 +184,23 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             let mut participants = participants_mutex.lock().unwrap();
                             if let Some(p) = participants.get_mut(uid) {
                                 p.name = new_name.clone();
+                                Some(p.clone())
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(p) = updated_participant {
+                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                        }
+                    }
+                },
+                ClientMessage::ToggleRaiseHand => {
+                    if let Some(uid) = &my_id {
+                        let updated_participant = {
+                            let mut participants = participants_mutex.lock().unwrap();
+                            if let Some(p) = participants.get_mut(uid) {
+                                p.is_hand_raised = !p.is_hand_raised;
                                 Some(p.clone())
                             } else {
                                 None
