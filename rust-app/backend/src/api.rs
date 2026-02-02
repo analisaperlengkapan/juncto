@@ -160,11 +160,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 },
                                                 _ => {
                                                     // Timeout or Denied or Sender Dropped
-                                                    {
+                                    let removed = {
                                                         let mut knocking = knocking_mutex_clone.lock().unwrap();
-                                                        knocking.remove(&id_clone);
+                                        knocking.remove(&id_clone).is_some()
+                                    };
+                                    if removed {
+                                        let _ = tx_clone.send(ServerMessage::KnockingParticipantLeft(id_clone));
                                                     }
-                                                    let _ = tx_clone.send(ServerMessage::KnockingParticipantLeft(id_clone));
                                                     let _ = control_tx_clone.send(false).await;
                                                 }
                                             }
