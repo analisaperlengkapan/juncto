@@ -63,7 +63,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     // Explicitly send RoomUpdated to self to trigger frontend state logic (like is_host)
     // This is redundant if we sent it above, but harmless.
-    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config.clone()));
+    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config.clone())).await;
 
     // Send Chat History
     let history: Vec<shared::ChatMessage> = {
@@ -268,7 +268,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         // Send to everyone (broadcast)
                                         let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
                                         // Send to self explicitly
-                                        let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config));
+                                        let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
                                     }
 
                                     // Subscribe to broadcast and forward to internal_tx
