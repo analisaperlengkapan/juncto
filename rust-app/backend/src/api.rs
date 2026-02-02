@@ -115,7 +115,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::Join(name) => {
-                                    if my_id.is_some() { continue; } // Already joined
+                                    if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Check if room is locked or lobby is enabled
                                     let (is_locked, is_lobby) = {
