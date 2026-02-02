@@ -101,6 +101,7 @@ pub enum ServerMessage {
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
     Welcome { id: String },
+    Error(String),
 }
 
 #[cfg(test)]

@@ -89,6 +89,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                 ClientMessage::Join(name) => {
                     if my_id.is_some() { continue; } // Already joined
 
+                    // Check if room is locked
+                    let is_locked = {
+                        let config = room_config_mutex.lock().unwrap();
+                        config.is_locked
+                    };
+
+                    if is_locked {
+                        let _ = internal_tx.send(ServerMessage::Error("Room is locked".to_string())).await;
+                        continue;
+                    }
+
                     let id = uuid::Uuid::new_v4().to_string();
                     let me = Participant {
                         id: id.clone(),

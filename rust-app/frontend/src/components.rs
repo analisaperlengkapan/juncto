@@ -135,6 +135,10 @@ pub fn Room() -> impl IntoView {
                             },
                             ServerMessage::WhiteboardHistory(history) => {
                                 set_whiteboard_history.set(history);
+                            },
+                            ServerMessage::Error(err) => {
+                                // For now, just alert. In a real app, use a toast or modal.
+                                let _ = web_sys::window().unwrap().alert_with_message(&err);
                             }
                         }
                     }
