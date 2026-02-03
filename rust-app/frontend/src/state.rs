@@ -27,6 +27,7 @@ pub struct RoomState {
     pub is_recording: ReadSignal<bool>,
     pub show_settings: ReadSignal<bool>,
     pub show_polls: ReadSignal<bool>,
+    pub show_shortcuts: ReadSignal<bool>,
     pub polls: ReadSignal<Vec<Poll>>,
     pub last_reaction: ReadSignal<Option<(String, String, u64)>>,
     pub show_whiteboard: ReadSignal<bool>,
@@ -44,6 +45,7 @@ pub struct RoomState {
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
+    pub set_show_shortcuts: WriteSignal<bool>,
     pub set_show_whiteboard: WriteSignal<bool>,
     pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
     pub toggle_lock: Callback<()>,
@@ -84,6 +86,7 @@ pub fn use_room_state() -> RoomState {
     let (is_recording, set_is_recording) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
     let (show_polls, set_show_polls) = create_signal(false);
+    let (show_shortcuts, set_show_shortcuts) = create_signal(false);
     let (polls, set_polls) = create_signal(Vec::<Poll>::new());
     let (last_reaction, set_last_reaction) = create_signal(None::<(String, String, u64)>);
     let (show_whiteboard, set_show_whiteboard) = create_signal(false);
@@ -595,6 +598,7 @@ pub fn use_room_state() -> RoomState {
         is_recording,
         show_settings,
         show_polls,
+        show_shortcuts,
         polls,
         last_reaction,
         show_whiteboard,
@@ -611,6 +615,7 @@ pub fn use_room_state() -> RoomState {
         is_muted,
         set_show_settings,
         set_show_polls,
+        set_show_shortcuts,
         set_show_whiteboard,
         send_message,
         toggle_lock,

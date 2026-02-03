@@ -12,6 +12,7 @@ use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
 use crate::whiteboard::Whiteboard;
+use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
 use crate::state::{use_room_state, RoomConnectionState};
 use gloo_timers::callback::Interval;
 
@@ -59,6 +60,12 @@ pub fn Room() -> impl IntoView {
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
+                        <KeyboardShortcuts
+                            on_toggle_mic=state.toggle_mic
+                            on_toggle_camera=state.toggle_camera
+                            on_raise_hand=state.toggle_raise_hand
+                            on_screen_share=state.toggle_screen_share
+                        />
                         <ParticipantsList
                             participants=state.participants
                             knocking_participants=state.knocking_participants
@@ -123,6 +130,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
+                                on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
@@ -154,6 +162,10 @@ pub fn Room() -> impl IntoView {
                             on_close=Callback::new(move |_| state.set_show_polls.set(false))
                             on_create_poll=state.create_poll
                             on_vote=state.vote_poll
+                        />
+                        <ShortcutsDialog
+                            show=state.show_shortcuts
+                            on_close=Callback::new(move |_| state.set_show_shortcuts.set(false))
                         />
                     </div>
                 }.into_view()

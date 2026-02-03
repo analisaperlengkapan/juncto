@@ -10,6 +10,7 @@ mod reactions;
 mod polls;
 mod whiteboard;
 mod media;
+mod shortcuts;
 
 use leptos::*;
 use leptos_router::*;
