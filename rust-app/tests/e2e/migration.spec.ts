@@ -1272,3 +1272,34 @@ test('Microphone Toggle E2E', async ({ page, request }) => {
     await unmuteBtn.click();
     await expect(page.getByRole('button', { name: 'Mute' })).toBeVisible();
 });
+
+test('Meeting Timer E2E', async ({ page, request }) => {
+    // Join room
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "TimerRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    await page.goto('/room/TimerRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('TimerUser');
+    await page.click('button.join-btn');
+
+    await expect(page.getByText('Meeting Room: TimerRoom')).toBeVisible();
+
+    const timer = page.locator('.meeting-timer');
+    await expect(timer).toBeVisible();
+    await expect(timer).toHaveText('00:00:00');
+
+    // Wait for at least 1 second (allow some buffer)
+    await page.waitForTimeout(1500);
+
+    // Should have incremented
+    const text = await timer.innerText();
+    expect(text).not.toBe('00:00:00');
+    expect(text).toMatch(/00:00:0\d/); // 01, 02...
+});

@@ -13,6 +13,7 @@ use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
 use crate::whiteboard::Whiteboard;
 use crate::state::{use_room_state, RoomConnectionState};
+use gloo_timers::callback::Interval;
 
 #[component]
 pub fn Room() -> impl IntoView {
@@ -23,9 +24,25 @@ pub fn Room() -> impl IntoView {
     let navigate = use_navigate();
 
     let leave_room = Callback::new(move |_| {
-        // Here we might want to notify server of explicit leave, but WebSocket closure handles it.
         navigate("/", Default::default());
     });
+
+    // Meeting Timer
+    let (elapsed_time, set_elapsed_time) = create_signal(0u32);
+    create_effect(move |_| {
+        let handle = Interval::new(1000, move || {
+            set_elapsed_time.update(|t| *t += 1);
+        });
+        on_cleanup(move || drop(handle));
+    });
+
+    let format_time = move || {
+        let t = elapsed_time.get();
+        let h = t / 3600;
+        let m = (t % 3600) / 60;
+        let s = t % 60;
+        format!("{:02}:{:02}:{:02}", h, m, s)
+    };
 
     view! {
         <div style="height: 100vh;">
@@ -61,7 +78,12 @@ pub fn Room() -> impl IntoView {
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">
                                 <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
                                     <div>
-                                        <h2>"Meeting Room: " {room_id}</h2>
+                                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                            <h2>"Meeting Room: " {room_id}</h2>
+                                            <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
+                                                {format_time}
+                                            </span>
+                                        </div>
                                         <Show when=move || state.current_room_id.get().is_some()>
                                             <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
                                         </Show>
