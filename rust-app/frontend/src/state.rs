@@ -40,6 +40,7 @@ pub struct RoomState {
     pub local_stream: ReadSignal<Option<MediaStream>>,
     pub local_screen_stream: ReadSignal<Option<MediaStream>>,
     pub toasts: ReadSignal<Vec<ToastMessage>>,
+    pub is_muted: ReadSignal<bool>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -63,6 +64,7 @@ pub struct RoomState {
     pub create_breakout_room: Callback<String>,
     pub join_breakout_room: Callback<Option<String>>,
     pub toggle_camera: Callback<()>,
+    pub toggle_mic: Callback<()>,
     pub dismiss_toast: Callback<u64>,
 }
 
@@ -90,6 +92,7 @@ pub fn use_room_state() -> RoomState {
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
     let (toasts, set_toasts) = create_signal(Vec::<ToastMessage>::new());
+    let (is_muted, set_is_muted) = create_signal(false);
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -549,6 +552,20 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_mic = Callback::new(move |_: ()| {
+        let new_state = !is_muted.get();
+        set_is_muted.set(new_state);
+
+        if let Some(stream) = local_stream.get() {
+            let audio_tracks = stream.get_audio_tracks();
+            for i in 0..audio_tracks.length() {
+                if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.set_enabled(!new_state); // enabled = !muted
+                }
+            }
+        }
+    });
+
     RoomState {
         connection_state: current_state,
         messages,
@@ -573,6 +590,7 @@ pub fn use_room_state() -> RoomState {
         local_stream,
         local_screen_stream,
         toasts,
+        is_muted,
         set_show_settings,
         set_show_polls,
         set_show_whiteboard,
@@ -595,6 +613,7 @@ pub fn use_room_state() -> RoomState {
         create_breakout_room,
         join_breakout_room,
         toggle_camera,
+        toggle_mic,
         dismiss_toast,
     }
 }

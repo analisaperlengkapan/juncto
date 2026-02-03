@@ -1238,3 +1238,37 @@ test('Leave Room E2E', async ({ page, request }) => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText('Welcome to Juncto')).toBeVisible();
 });
+
+test('Microphone Toggle E2E', async ({ page, request }) => {
+    // Join room
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "MicRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    await page.goto('/room/MicRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('Speaker');
+    await page.click('button.join-btn');
+
+    // Check Mute Button (initially Mute, green)
+    const muteBtn = page.getByRole('button', { name: 'Mute' });
+    await expect(muteBtn).toBeVisible();
+    await expect(muteBtn).toHaveCSS('background-color', 'rgb(40, 167, 69)'); // #28a745
+
+    // Click Mute
+    await muteBtn.click();
+
+    // Should change to Unmute (red)
+    const unmuteBtn = page.getByRole('button', { name: 'Unmute' });
+    await expect(unmuteBtn).toBeVisible();
+    await expect(unmuteBtn).toHaveCSS('background-color', 'rgb(220, 53, 69)'); // #dc3545
+
+    // Click Unmute
+    await unmuteBtn.click();
+    await expect(page.getByRole('button', { name: 'Mute' })).toBeVisible();
+});

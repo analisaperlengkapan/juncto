@@ -104,6 +104,8 @@ pub fn Room() -> impl IntoView {
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
                                 on_toggle_camera=state.toggle_camera
+                                on_toggle_mic=state.toggle_mic
+                                is_muted=state.is_muted
                                 on_leave=leave_room
                             />
                         </div>

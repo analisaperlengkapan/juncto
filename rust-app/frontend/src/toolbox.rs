@@ -16,6 +16,8 @@ pub fn Toolbox(
     on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
     on_toggle_camera: Callback<()>,
+    on_toggle_mic: Callback<()>,
+    is_muted: ReadSignal<bool>,
     on_leave: Callback<()>,
     #[prop(optional)]
     class: &'static str,
@@ -35,6 +37,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Toggle Camera"
+            </button>
+            <button
+                on:click=move |_| on_toggle_mic.call(())
+                style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_muted.get() { "#dc3545" } else { "#28a745" })
+            >
+                {move || if is_muted.get() { "Unmute" } else { "Mute" }}
             </button>
             <button
                 on:click=move |_| on_screen_share.call(())
