@@ -11,6 +11,7 @@ pub fn VideoGrid(
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
+    let (layout, set_layout) = create_signal("grid"); // "grid" or "spotlight"
 
     create_effect(move |_| {
         if let Some(stream) = local_stream.get() {
@@ -31,10 +32,31 @@ pub fn VideoGrid(
     });
 
     view! {
-        <div class="video-grid" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto;">
+        <div class="video-grid-container" style="display: flex; flex-direction: column; width: 100%; height: 100%; position: relative;">
+            <div class="layout-controls" style="position: absolute; top: 10px; right: 10px; z-index: 100;">
+                <button
+                    on:click=move |_| set_layout.update(|l| *l = if *l == "grid" { "spotlight" } else { "grid" })
+                    style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
+                >
+                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
+                </button>
+            </div>
+
+            <div
+                class=move || format!("video-grid {}", layout.get())
+                style=move || if layout.get() == "grid" {
+                    "display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 20px; box-sizing: border-box; overflow-y: auto; height: 100%; align-items: center;"
+                } else {
+                    "display: flex; flex-direction: column; gap: 10px; padding: 20px; box-sizing: border-box; overflow-y: auto; height: 100%;"
+                }
+            >
             // Local Screen Share
             <Show when=move || local_screen_stream.get().is_some()>
-                <div class="video-card" style="width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;">
+                <div class="video-card screen-share" style=move || if layout.get() == "spotlight" {
+                    "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
+                } else {
+                    "width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
+                }>
                     <video
                         _ref=screen_ref
                         autoplay
@@ -49,7 +71,13 @@ pub fn VideoGrid(
             </Show>
 
             // Local User Video
-            <div class="video-card" style="width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;">
+            <div class="video-card local-video" style=move || if layout.get() == "spotlight" && local_screen_stream.get().is_none() {
+                 // If spotlight and no screen share, make local video big (or first remote)
+                 // For simplicity, just making local big if it's the only priority content
+                 "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
+            } else {
+                 "width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
+            }>
                 <Show when=move || local_stream.get().is_some() fallback=move || view! {
                     <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white;">
                         "Camera Off"
@@ -68,7 +96,7 @@ pub fn VideoGrid(
                 </div>
             </div>
 
-            // Remote Participants
+            // Remote Participants (in spotlight, these might be smaller or in a row, but here we just stack/wrap)
             <For
                 each=move || participants.get()
                 key=|p| p.id.clone()
@@ -105,6 +133,7 @@ pub fn VideoGrid(
                     }
                 }
             />
+            </div>
         </div>
     }
 }

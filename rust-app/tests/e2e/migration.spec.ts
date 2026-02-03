@@ -969,3 +969,40 @@ test('Participant Sorting E2E Explicit', async ({ browser, request }) => {
     await context1.close();
     await context2.close();
 });
+
+test('Layout Switching E2E', async ({ page, request }) => {
+    // Join room
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "LayoutRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    await page.goto('/room/LayoutRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('Viewer');
+    await page.click('button.join-btn');
+
+    // Check Toggle Button
+    const toggleBtn = page.getByRole('button', { name: 'Switch to Spotlight' });
+    await expect(toggleBtn).toBeVisible();
+
+    // Verify initial grid layout class or style
+    await expect(page.locator('.video-grid')).toHaveClass(/grid/);
+
+    // Switch to Spotlight
+    await toggleBtn.click();
+
+    // Verify button text changes
+    await expect(page.getByRole('button', { name: 'Switch to Grid' })).toBeVisible();
+
+    // Verify layout class change
+    await expect(page.locator('.video-grid')).toHaveClass(/spotlight/);
+
+    // Switch back
+    await page.getByRole('button', { name: 'Switch to Grid' }).click();
+    await expect(page.getByRole('button', { name: 'Switch to Spotlight' })).toBeVisible();
+});
