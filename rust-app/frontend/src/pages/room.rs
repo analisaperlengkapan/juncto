@@ -20,6 +20,12 @@ pub fn Room() -> impl IntoView {
     let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
 
     let state = use_room_state();
+    let navigate = use_navigate();
+
+    let leave_room = Callback::new(move |_| {
+        // Here we might want to notify server of explicit leave, but WebSocket closure handles it.
+        navigate("/", Default::default());
+    });
 
     view! {
         <div style="height: 100vh;">
@@ -98,6 +104,7 @@ pub fn Room() -> impl IntoView {
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
                                 on_toggle_camera=state.toggle_camera
+                                on_leave=leave_room
                             />
                         </div>
                         <Chat

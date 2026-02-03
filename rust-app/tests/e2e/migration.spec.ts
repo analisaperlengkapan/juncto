@@ -1212,3 +1212,29 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await g1Context.close();
     await g2Context.close();
 });
+
+test('Leave Room E2E', async ({ page, request }) => {
+    // Join room
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "LeaveRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    await page.goto('/room/LeaveRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('Leaver');
+    await page.click('button.join-btn');
+
+    await expect(page.getByText('Meeting Room: LeaveRoom')).toBeVisible();
+
+    // Click Leave
+    await page.click('button:has-text("Leave")');
+
+    // Should return to home
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText('Welcome to Juncto')).toBeVisible();
+});
