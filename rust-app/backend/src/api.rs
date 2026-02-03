@@ -22,6 +22,36 @@ pub async fn create_room(
         *config = payload.clone();
     }
 
+    // Clear state for new room (since we have a single global room instance)
+    {
+        let mut p = state.participants.lock().unwrap();
+        p.clear();
+    }
+    {
+        let mut k = state.knocking_participants.lock().unwrap();
+        k.clear();
+    }
+    {
+        let mut polls = state.polls.lock().unwrap();
+        polls.clear();
+    }
+    {
+        let mut wb = state.whiteboard.lock().unwrap();
+        wb.clear();
+    }
+    {
+        let mut ch = state.chat_history.lock().unwrap();
+        ch.clear();
+    }
+    {
+        let mut br = state.breakout_rooms.lock().unwrap();
+        br.clear();
+    }
+    {
+        let mut pl = state.participant_locations.lock().unwrap();
+        pl.clear();
+    }
+
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
     let response = json!({
