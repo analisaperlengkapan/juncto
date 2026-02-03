@@ -247,7 +247,7 @@ test('Lobby Feature E2E', async ({ browser }) => {
   await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
 
   // Host allows Guest
-  await hostPage.getByRole('button', { name: 'Allow' }).click();
+  await hostPage.getByRole('button', { name: 'Allow', exact: true }).click();
 
   // --- GUEST ---
   // Verify Guest enters room
