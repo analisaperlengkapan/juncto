@@ -216,7 +216,7 @@ test('Lobby Feature E2E', async ({ browser }) => {
   const guestContext = await browser.newContext();
   const guestPage = await guestContext.newPage();
 
-  const roomName = 'LobbyTestRoom';
+  const roomName = `LobbyTestRoom_${Date.now()}`;
 
   // --- HOST ---
   await hostPage.goto('/');

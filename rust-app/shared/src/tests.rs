@@ -67,6 +67,11 @@ fn test_client_message_serialization() {
     let json_screen = serde_json::to_string(&msg_screen).unwrap();
     let deserialized_screen: ClientMessage = serde_json::from_str(&json_screen).unwrap();
     assert_eq!(msg_screen, deserialized_screen);
+
+    let msg_end = ClientMessage::EndMeeting;
+    let json_end = serde_json::to_string(&msg_end).unwrap();
+    let deserialized_end: ClientMessage = serde_json::from_str(&json_end).unwrap();
+    assert_eq!(msg_end, deserialized_end);
 }
 
 #[test]

@@ -129,6 +129,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
                                 on_leave=leave_room
+                                on_end_meeting=state.end_meeting
                             />
                         </div>
                         <Chat

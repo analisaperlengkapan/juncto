@@ -19,6 +19,7 @@ pub fn Toolbox(
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
     on_leave: Callback<()>,
+    on_end_meeting: Callback<()>,
     #[prop(optional)]
     class: &'static str,
     #[prop(optional)]
@@ -32,6 +33,14 @@ pub fn Toolbox(
             >
                 "Leave"
             </button>
+            <Show when=move || is_host.get() fallback=|| ()>
+                <button
+                    on:click=move |_| on_end_meeting.call(())
+                    style="padding: 8px 16px; background-color: #8b0000; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
+                >
+                    "End Meeting"
+                </button>
+            </Show>
             <button
                 on:click=move |_| on_toggle_camera.call(())
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"

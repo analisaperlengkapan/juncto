@@ -183,6 +183,32 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::EndMeeting => {
+                                    if let Some(uid) = &my_id {
+                                        let host_id = {
+                                            room_config_mutex.lock().unwrap().host_id.clone()
+                                        };
+                                        if Some(uid.clone()) == host_id {
+                                            // Valid end meeting
+                                            // Broadcast RoomEnded
+                                            let _ = tx.send(ServerMessage::RoomEnded);
+
+                                            // Clear state?
+                                            // If we clear state, new joins will find empty room.
+                                            // This effectively "resets" the room.
+                                            // But current connections receiving RoomEnded should disconnect.
+                                            {
+                                                let mut p = participants_mutex.lock().unwrap();
+                                                p.clear();
+                                            }
+                                            // Reset host?
+                                            {
+                                                let mut c = room_config_mutex.lock().unwrap();
+                                                c.host_id = None;
+                                            }
+                                        }
+                                    }
+                                },
                                 ClientMessage::ToggleLobby => {
                                     if my_id.is_some() {
                                         let new_config = {
@@ -699,10 +725,33 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     if let Some(t) = broadcast_task { t.abort(); }
 
     if let Some(id) = my_id {
-        {
+        // Handle Host Leaving / Reassignment
+        let new_host_assigned = {
             let mut participants = participants_mutex.lock().unwrap();
             participants.remove(&id);
+
+            let mut config = room_config_mutex.lock().unwrap();
+            if config.host_id == Some(id.clone()) {
+                // Host left, assign new host if any participants remain
+                if let Some(new_host) = participants.keys().next() {
+                    config.host_id = Some(new_host.clone());
+                    true
+                } else {
+                    config.host_id = None;
+                    false
+                }
+            } else {
+                false
+            }
+        };
+
+        if new_host_assigned {
+            let new_config = {
+                room_config_mutex.lock().unwrap().clone()
+            };
+            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
         }
+
         let _ = tx.send(ServerMessage::ParticipantLeft(id));
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking

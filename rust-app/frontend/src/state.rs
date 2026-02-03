@@ -66,6 +66,7 @@ pub struct RoomState {
     pub toggle_camera: Callback<()>,
     pub toggle_mic: Callback<()>,
     pub dismiss_toast: Callback<u64>,
+    pub end_meeting: Callback<()>,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -228,6 +229,12 @@ pub fn use_room_state() -> RoomState {
                                         // For now, state change to Prejoin is enough visual indication.
                                     }
                                 }
+                            },
+                            ServerMessage::RoomEnded => {
+                                add_toast("The meeting has ended by the host.".to_string(), ToastType::Info);
+                                set_current_state.set(RoomConnectionState::Prejoin);
+                                set_participants.set(Vec::new());
+                                set_is_connected.set(false);
                             },
                             ServerMessage::KnockingParticipant(p) => {
                                 set_knocking_participants.update(|list| {
@@ -529,6 +536,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let end_meeting = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::EndMeeting;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let toggle_camera = Callback::new(move |_: ()| {
         if local_stream.get().is_some() {
             // Turn off
@@ -615,6 +631,7 @@ pub fn use_room_state() -> RoomState {
         toggle_camera,
         toggle_mic,
         dismiss_toast,
+        end_meeting,
     }
 }
 

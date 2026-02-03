@@ -92,6 +92,7 @@ pub enum ClientMessage {
     GrantAccess(String),
     DenyAccess(String),
     KickParticipant(String), // Target ID
+    EndMeeting,
     CreateBreakoutRoom(String), // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
@@ -128,6 +129,7 @@ pub enum ServerMessage {
     Knocking,
     AccessGranted,
     AccessDenied,
+    RoomEnded,
     Error(String),
 }
 
