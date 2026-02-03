@@ -209,7 +209,7 @@ pub fn Chat(
                                                 let src = format!("data:{};base64,{}", att.mime_type, att.content_base64);
                                                 view! {
                                                     <div>
-                                                        <img src=src style="max_width: 200px; max_height: 200px; display: block; margin-top: 5px;" />
+                                                        <img src=src style="max-width: 200px; max-height: 200px; display: block; margin-top: 5px;" />
                                                     </div>
                                                 }.into_view()
                                             } else {
