@@ -14,7 +14,19 @@ pub fn ParticipantsList(
         <div class="participants-list" style="width: 200px; background: #eee; padding: 20px; height: 100%;">
             <Show when=move || !knocking_participants.get().is_empty()>
                 <div class="knocking-list" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ccc;">
-                    <h3>"Waiting Room"</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="margin: 0;">"Waiting Room"</h3>
+                        <button
+                            on:click=move |_| {
+                                for p in knocking_participants.get() {
+                                    on_allow.call(p.id);
+                                }
+                            }
+                            style="background: #007bff; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
+                        >
+                            "Allow All"
+                        </button>
+                    </div>
                     <ul>
                         <For
                             each=move || knocking_participants.get()

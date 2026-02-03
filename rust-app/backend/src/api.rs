@@ -219,9 +219,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Check if room is locked or lobby is enabled
-                                    let (is_locked, is_lobby, max_participants) = {
+                                    let (is_locked, is_lobby, max_participants, host_exists) = {
                                         let config = room_config_mutex.lock().unwrap();
-                                        (config.is_locked, config.is_lobby_enabled, config.max_participants)
+                                        (config.is_locked, config.is_lobby_enabled, config.max_participants, config.host_id.is_some())
                                     };
 
                                     if is_locked {
@@ -237,7 +237,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_sharing_screen: false,
                                     };
 
-                                    if is_lobby {
+                                    // If lobby is enabled, ONLY enforce it if a host already exists.
+                                    // If no host exists, the first user becomes host and bypasses lobby.
+                                    if is_lobby && host_exists {
                                         let (s, r) = tokio::sync::oneshot::channel();
                                         {
                                             let mut knocking = knocking_mutex.lock().unwrap();

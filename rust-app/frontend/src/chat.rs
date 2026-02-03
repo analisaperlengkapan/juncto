@@ -109,8 +109,15 @@ pub fn Chat(
                                 ""
                             };
 
+                            // Format timestamp HH:MM
+                            let date = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(msg.timestamp as f64));
+                            let hours = date.get_hours();
+                            let minutes = date.get_minutes();
+                            let time_str = format!("{:02}:{:02}", hours, minutes);
+
                             view! {
                                 <li style=style>
+                                    <small style="color: #999; margin-right: 5px;">"[" {time_str} "] "</small>
                                     <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>
                                     <span>{msg.content}</span>

@@ -1132,3 +1132,83 @@ test('Poll Visuals E2E', async ({ browser, request }) => {
 
     await context.close();
 });
+
+test('Chat Timestamp E2E', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "TimeRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto('/room/TimeRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('TimeUser');
+    await page.click('button.join-btn');
+
+    await page.locator('.chat-container input[type="text"]').fill('Time Check');
+    await page.click('.chat-container button');
+
+    // Check for timestamp format [HH:MM]
+    await expect(page.locator('.messages li').last()).toContainText(/\[\d{2}:\d{2}\]/);
+
+    await context.close();
+});
+
+test('Allow All Lobby E2E', async ({ browser, request }) => {
+    const roomName = 'LobbyAllowAll';
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: roomName,
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: true, // LOBBY ENABLED
+            max_participants: 100
+        }
+    });
+
+    const hostContext = await browser.newContext();
+    const hostPage = await hostContext.newPage();
+    await hostPage.goto(`/room/${roomName}`);
+    await hostPage.locator('.prejoin-container input[type="text"]').fill('Host');
+    await hostPage.click('button.join-btn');
+
+    // Wait for Host to join
+    await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+    // Guest 1
+    const g1Context = await browser.newContext();
+    const g1Page = await g1Context.newPage();
+    await g1Page.goto(`/room/${roomName}`);
+    await g1Page.locator('.prejoin-container input[type="text"]').fill('G1');
+    await g1Page.click('button.join-btn');
+
+    // Guest 2
+    const g2Context = await browser.newContext();
+    const g2Page = await g2Context.newPage();
+    await g2Page.goto(`/room/${roomName}`);
+    await g2Page.locator('.prejoin-container input[type="text"]').fill('G2');
+    await g2Page.click('button.join-btn');
+
+    // Verify Host sees 2 guests in waiting room
+    await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
+
+    // Click Allow All
+    await hostPage.getByRole('button', { name: 'Allow All' }).click();
+
+    // Verify guests enter room
+    await expect(g1Page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+    await expect(g2Page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
+
+    // Verify waiting list empty
+    await expect(hostPage.locator('.knocking-list')).not.toBeVisible();
+
+    await hostContext.close();
+    await g1Context.close();
+    await g2Context.close();
+});
