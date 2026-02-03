@@ -456,16 +456,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::CreatePoll(mut poll) => {
-                                    if my_id.is_some() {
-                                        if poll.id.is_empty() {
-                                            poll.id = uuid::Uuid::new_v4().to_string();
-                                        }
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            if poll.id.is_empty() {
+                                                poll.id = uuid::Uuid::new_v4().to_string();
+                                            }
 
-                                        {
-                                            let mut polls = polls_mutex.lock().unwrap();
-                                            polls.insert(poll.id.clone(), poll.clone());
+                                            {
+                                                let mut polls = polls_mutex.lock().unwrap();
+                                                polls.insert(poll.id.clone(), poll.clone());
+                                            }
+                                            let _ = tx.send(ServerMessage::PollCreated(poll));
                                         }
-                                        let _ = tx.send(ServerMessage::PollCreated(poll));
                                     }
                                 },
                                 ClientMessage::Vote { poll_id, option_id } => {
@@ -573,21 +578,26 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::CreateBreakoutRoom(name) => {
-                                    if my_id.is_some() {
-                                        let id = uuid::Uuid::new_v4().to_string();
-                                        let room = shared::BreakoutRoom {
-                                            id: id.clone(),
-                                            name,
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        {
-                                            let mut rooms = breakout_rooms_mutex.lock().unwrap();
-                                            rooms.insert(id, room);
+                                        if is_host {
+                                            let id = uuid::Uuid::new_v4().to_string();
+                                            let room = shared::BreakoutRoom {
+                                                id: id.clone(),
+                                                name,
+                                            };
+                                            {
+                                                let mut rooms = breakout_rooms_mutex.lock().unwrap();
+                                                rooms.insert(id, room);
+                                            }
+                                            let all_rooms: Vec<shared::BreakoutRoom> = {
+                                                let rooms = breakout_rooms_mutex.lock().unwrap();
+                                                rooms.values().cloned().collect()
+                                            };
+                                            let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
                                         }
-                                        let all_rooms: Vec<shared::BreakoutRoom> = {
-                                            let rooms = breakout_rooms_mutex.lock().unwrap();
-                                            rooms.values().cloned().collect()
-                                        };
-                                        let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
                                     }
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
@@ -596,7 +606,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let mut locations = participant_locations_mutex.lock().unwrap();
                                             locations.insert(uid.clone(), room_id.clone());
                                         }
-                                        my_room_id = room_id;
+                                        my_room_id = room_id.clone();
+
+                                        // If joining Main Room (None), resend global chat history
+                                        if my_room_id.is_none() {
+                                            let history: Vec<shared::ChatMessage> = {
+                                                let history = chat_history_mutex.lock().unwrap();
+                                                history.clone()
+                                            };
+                                            if !history.is_empty() {
+                                                let _ = tx.send(ServerMessage::ChatHistory(history));
+                                            }
+                                        }
                                     }
                                 }
                             }
