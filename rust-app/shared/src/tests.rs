@@ -1,11 +1,10 @@
 use super::*;
-use serde_json;
-
 #[test]
 fn test_chat_message_serialization() {
     let msg = ChatMessage {
         user_id: "user1".to_string(),
         content: "Hello Rust".to_string(),
+        recipient_id: None,
         timestamp: 1627840000,
     };
     let json = serde_json::to_string(&msg).unwrap();
@@ -68,12 +67,17 @@ fn test_client_message_serialization() {
     let json_screen = serde_json::to_string(&msg_screen).unwrap();
     let deserialized_screen: ClientMessage = serde_json::from_str(&json_screen).unwrap();
     assert_eq!(msg_screen, deserialized_screen);
+
+    let msg_end = ClientMessage::EndMeeting;
+    let json_end = serde_json::to_string(&msg_end).unwrap();
+    let deserialized_end: ClientMessage = serde_json::from_str(&json_end).unwrap();
+    assert_eq!(msg_end, deserialized_end);
 }
 
 #[test]
 fn test_room_config_serialization() {
     let config = RoomConfig::default();
-    assert_eq!(config.is_recording, false);
+    assert!(!config.is_recording);
     let json = serde_json::to_string(&config).unwrap();
     let deserialized: RoomConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(config, deserialized);
