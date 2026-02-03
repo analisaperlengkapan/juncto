@@ -77,38 +77,22 @@ pub fn PollsDialog(
                                                 <h4>{p.question}</h4>
                                                 <ul style="list-style: none; padding: 0;">
                                                     <For
-                                                        each=move || {
-                                                            let opts = p.options.clone();
-                                                            let total_votes: u32 = opts.iter().map(|o| o.votes).sum();
-                                                            opts.into_iter().map(move |o| (o, total_votes)).collect::<Vec<_>>()
-                                                        }
-                                                        key=|tuple| tuple.0.id
-                                                        children=move |(opt, total_votes)| {
+                                                        each=move || p.options.clone()
+                                                        key=|opt| opt.id
+                                                        children=move |opt| {
                                                             let pid_clone = pid.clone();
-                                                            let percent = if total_votes > 0 {
-                                                                (opt.votes as f64 / total_votes as f64) * 100.0
-                                                            } else {
-                                                                0.0
-                                                            };
-
                                                             view! {
-                                                                <li style="margin-bottom: 10px; position: relative;">
-                                                                    <div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2;">
-                                                                        <span>{opt.text}</span>
-                                                                        <div>
-                                                                            <span style="margin-right: 10px; font-weight: bold;">{opt.votes} " votes (" {format!("{:.0}", percent)} "%)"</span>
-                                                                            <button
-                                                                                on:click=move |_| on_vote.call((pid_clone.clone(), opt.id))
-                                                                                style="padding: 4px 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                                                                            >
-                                                                                "Vote"
-                                                                            </button>
-                                                                        </div>
+                                                                <li style="margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                                                    <span>{opt.text}</span>
+                                                                    <div>
+                                                                        <span style="margin-right: 10px; font-weight: bold;">{opt.votes} " votes"</span>
+                                                                        <button
+                                                                            on:click=move |_| on_vote.call((pid_clone.clone(), opt.id))
+                                                                            style="padding: 4px 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                                                        >
+                                                                            "Vote"
+                                                                        </button>
                                                                     </div>
-                                                                    <div
-                                                                        class="poll-bar"
-                                                                        style=format!("position: absolute; top: 0; left: 0; height: 100%; width: {}%; background-color: rgba(0, 123, 255, 0.2); border-radius: 4px; z-index: 1; transition: width 0.3s ease;", percent)
-                                                                    ></div>
                                                                 </li>
                                                             }
                                                         }

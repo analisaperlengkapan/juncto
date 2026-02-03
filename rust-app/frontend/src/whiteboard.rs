@@ -12,7 +12,6 @@ pub fn Whiteboard(
     let canvas_ref = create_node_ref::<Canvas>();
     let (is_drawing, set_is_drawing) = create_signal(false);
     let (last_pos, set_last_pos) = create_signal(None::<(f64, f64)>);
-    let (color, set_color) = create_signal("#000000".to_string());
 
     // Draw an action on the canvas
     let draw_on_canvas = move |action: &DrawAction| {
@@ -74,7 +73,7 @@ pub fn Whiteboard(
                 let end_y = ev.offset_y() as f64;
 
                 let action = DrawAction {
-                    color: color.get(),
+                    color: "#000000".to_string(),
                     width: 2.0,
                     start_x,
                     start_y,
@@ -95,21 +94,12 @@ pub fn Whiteboard(
     };
 
     view! {
-        <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 10; display: flex; flex-direction: column; align-items: center;">
-            <div class="controls" style="margin: 10px; display: flex; gap: 10px; align-items: center;">
-                <label>"Color: "</label>
-                <input
-                    type="color"
-                    prop:value=color
-                    on:input=move |ev| set_color.set(event_target_value(&ev))
-                    style="cursor: pointer;"
-                />
-            </div>
+        <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9);">
             <canvas
                 _ref=canvas_ref
-                width="800"
-                height="600"
-                style="border: 1px solid black; cursor: crosshair; background: white;"
+                width="640" // Matches video placeholder size for simplicity
+                height="360"
+                style="border: 1px solid black; cursor: crosshair;"
                 on:mousedown=on_mousedown
                 on:mouseup=on_mouseup
                 on:mouseleave=on_mouseup

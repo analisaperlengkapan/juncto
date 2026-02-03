@@ -8,7 +8,6 @@ pub struct RoomConfig {
     pub is_recording: bool,
     pub is_lobby_enabled: bool,
     pub max_participants: u32,
-    pub host_id: Option<String>,
 }
 
 impl Default for RoomConfig {
@@ -19,7 +18,6 @@ impl Default for RoomConfig {
             is_recording: false,
             is_lobby_enabled: false,
             max_participants: 100,
-            host_id: None,
         }
     }
 }
@@ -47,7 +45,6 @@ pub struct DrawAction {
 pub struct ChatMessage {
     pub user_id: String,
     pub content: String,
-    pub recipient_id: Option<String>,
     pub timestamp: u64,
 }
 
@@ -81,7 +78,7 @@ pub enum ClientMessage {
     CreatePoll(Poll),
     Vote { poll_id: String, option_id: u32 },
     Join(String), // Display Name
-    Chat { content: String, recipient_id: Option<String> },
+    Chat(String), // Content
     ToggleRoomLock,
     ToggleRecording,
     UpdateProfile(String), // New Name
@@ -91,27 +88,13 @@ pub enum ClientMessage {
     ToggleLobby,
     GrantAccess(String),
     DenyAccess(String),
-    KickParticipant(String), // Target ID
-    EndMeeting,
-    CreateBreakoutRoom(String), // Room Name
-    JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
-    Typing(bool),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BreakoutRoom {
-    pub id: String,
-    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ServerMessage {
-    Chat { message: ChatMessage, room_id: Option<String> },
-    PeerTyping { user_id: String, is_typing: bool, room_id: Option<String> },
-    Kicked(String), // Target ID
-    BreakoutRoomsList(Vec<BreakoutRoom>),
+    Chat(ChatMessage),
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID
     ParticipantList(Vec<Participant>),
@@ -124,12 +107,10 @@ pub enum ServerMessage {
     PollUpdated(Poll),
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
-    ChatHistory(Vec<ChatMessage>),
     Welcome { id: String },
     Knocking,
     AccessGranted,
     AccessDenied,
-    RoomEnded,
     Error(String),
 }
 

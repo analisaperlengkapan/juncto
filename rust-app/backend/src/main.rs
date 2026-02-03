@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use tokio::sync::{broadcast, oneshot};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction, BreakoutRoom};
+use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction};
 
 type KnockingMap = HashMap<String, (Participant, Option<oneshot::Sender<bool>>)>;
 
@@ -22,10 +22,6 @@ pub struct AppState {
     pub room_config: Arc<Mutex<RoomConfig>>,
     pub polls: Arc<Mutex<HashMap<String, Poll>>>,
     pub whiteboard: Arc<Mutex<Vec<DrawAction>>>,
-    pub chat_history: Arc<Mutex<Vec<shared::ChatMessage>>>,
-    pub breakout_rooms: Arc<Mutex<HashMap<String, BreakoutRoom>>>,
-    // Track participants' current room: participant_id -> room_id (None = Main)
-    pub participant_locations: Arc<Mutex<HashMap<String, Option<String>>>>,
 }
 
 #[tokio::main]
@@ -42,23 +38,8 @@ async fn main() {
     let polls = Arc::new(Mutex::new(HashMap::new()));
     // Initialize whiteboard
     let whiteboard = Arc::new(Mutex::new(Vec::new()));
-    // Initialize chat history
-    let chat_history = Arc::new(Mutex::new(Vec::new()));
-    // Initialize breakout rooms
-    let breakout_rooms = Arc::new(Mutex::new(HashMap::new()));
-    let participant_locations = Arc::new(Mutex::new(HashMap::new()));
 
-    let app_state = Arc::new(AppState {
-        tx,
-        participants,
-        knocking_participants,
-        room_config,
-        polls,
-        whiteboard,
-        chat_history,
-        breakout_rooms,
-        participant_locations,
-    });
+    let app_state = Arc::new(AppState { tx, participants, knocking_participants, room_config, polls, whiteboard });
 
     // Define the router
     let serve_dir = ServeDir::new("frontend/pkg")
