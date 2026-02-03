@@ -4,12 +4,17 @@ use gloo_timers::callback::Timeout;
 use std::collections::HashSet;
 
 // Helper for testing
-fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant]) -> String {
-    if users.is_empty() {
+fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant], my_id: &Option<String>) -> String {
+    let mut users_to_show = users.clone();
+    if let Some(uid) = my_id {
+        users_to_show.remove(uid);
+    }
+
+    if users_to_show.is_empty() {
         "".to_string()
     } else {
         // Lookup names
-        let names: Vec<String> = users.iter().map(|uid| {
+        let names: Vec<String> = users_to_show.iter().map(|uid| {
             participants.iter().find(|p| &p.id == uid).map(|p| p.name.clone()).unwrap_or(uid.clone())
         }).collect();
 
@@ -109,7 +114,7 @@ pub fn Chat(
                 <ul>
                     <For
                         each=move || messages.get()
-                        key=|msg| msg.timestamp
+                        key=|msg| format!("{}_{}", msg.timestamp, msg.user_id)
                         children=move |msg| {
                             let parts = participants.get();
                             let my = my_id.get();
@@ -149,7 +154,8 @@ pub fn Chat(
                 {move || {
                     let users = typing_users.get();
                     let parts = participants.get();
-                    format_typing_indicator(&users, &parts)
+                    let my = my_id.get();
+                    format_typing_indicator(&users, &parts, &my)
                 }}
             </div>
             <div class="input-area">
@@ -194,17 +200,20 @@ mod tests {
             }
         ];
 
+        let my_id = Some("u1".to_string());
+
         let mut typing = HashSet::new();
-        assert_eq!(format_typing_indicator(&typing, &participants), "");
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "");
 
         typing.insert("u1".to_string());
-        assert_eq!(format_typing_indicator(&typing, &participants), "Alice is typing...");
+        // Should ignore self
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "");
 
         typing.insert("u2".to_string());
-        let res = format_typing_indicator(&typing, &participants);
-        assert!(res == "2 users are typing..." || res == "2 users are typing...");
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "Bob is typing...");
 
         typing.insert("u3".to_string()); // Unknown user
-        assert_eq!(format_typing_indicator(&typing, &participants), "3 users are typing...");
+        let res = format_typing_indicator(&typing, &participants, &my_id);
+        assert!(res == "2 users are typing..." || res == "2 users are typing...");
     }
 }

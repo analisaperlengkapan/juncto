@@ -78,12 +78,12 @@ pub fn ParticipantsList(
                     key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen)
                     children=move |p| {
                         let id_kick = p.id.clone();
-                        let is_host = host_id.get() == Some(p.id.clone());
+                        // Use reactive check for host status
                         view! {
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div>
                                     <span>{p.name}</span>
-                                    <Show when=move || is_host>
+                                    <Show when=move || host_id.get() == Some(p.id.clone())>
                                         <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
                                     </Show>
                                 </div>
