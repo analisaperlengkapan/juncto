@@ -247,7 +247,8 @@ test('Lobby Feature E2E', async ({ browser }) => {
   await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
 
   // Host allows Guest
-  await hostPage.getByRole('button', { name: 'Allow', exact: true }).click();
+  // Use .first() to avoid ambiguity if multiple elements match or if previous tests left artifacts
+  await hostPage.locator('.knocking-list li').filter({ hasText: 'Guest' }).getByRole('button', { name: 'Allow' }).click();
 
   // --- GUEST ---
   // Verify Guest enters room
