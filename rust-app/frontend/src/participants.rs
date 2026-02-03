@@ -19,6 +19,7 @@ pub fn ParticipantsList(
     knocking_participants: ReadSignal<Vec<Participant>>,
     host_id: Signal<Option<String>>,
     is_host: Signal<bool>,
+    my_id: ReadSignal<Option<String>>,
     on_allow: Callback<String>,
     on_deny: Callback<String>,
     on_kick: Callback<String>,
@@ -99,12 +100,15 @@ pub fn ParticipantsList(
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    <Show when=move || is_host.get()>
+                                    <Show when={
+                                        let id_check = id_kick.clone();
+                                        move || is_host.get() && my_id.get() != Some(id_check.clone())
+                                    }>
                                         {
-                                            let id_kick = id_kick.clone();
+                                            let id_action = id_kick.clone();
                                             view! {
                                                 <button
-                                                    on:click=move |_| on_kick.call(id_kick.clone())
+                                                    on:click=move |_| on_kick.call(id_action.clone())
                                                     style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
                                                     title="Kick Participant"
                                                 >

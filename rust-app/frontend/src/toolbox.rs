@@ -82,19 +82,19 @@ pub fn Toolbox(
                 >
                     {move || if is_locked.get() { "Unlock Room" } else { "Lock Room" }}
                 </button>
+                <button
+                    on:click=move |_| on_toggle_lobby.call(())
+                    style="padding: 8px 16px; background-color: #20c997; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                >
+                    {move || if is_lobby_enabled.get() { "Disable Lobby" } else { "Enable Lobby" }}
+                </button>
+                <button
+                    on:click=move |_| on_toggle_recording.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })
+                >
+                    {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
+                </button>
             </Show>
-            <button
-                on:click=move |_| on_toggle_lobby.call(())
-                style="padding: 8px 16px; background-color: #20c997; color: white; border: none; cursor: pointer; border-radius: 4px;"
-            >
-                {move || if is_lobby_enabled.get() { "Disable Lobby" } else { "Enable Lobby" }}
-            </button>
-            <button
-                on:click=move |_| on_toggle_recording.call(())
-                style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })
-            >
-                {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
-            </button>
             <button
                 on:click=move |_| on_settings.call(())
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
