@@ -615,7 +615,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 history.clone()
                                             };
                                             if !history.is_empty() {
-                                                let _ = tx.send(ServerMessage::ChatHistory(history));
+                                                let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
                                             }
                                         }
                                     }
