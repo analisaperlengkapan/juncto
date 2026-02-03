@@ -1082,3 +1082,53 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     await context2.close();
     await context3.close();
 });
+
+test('Poll Visuals E2E', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "PollVisualsRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto('/room/PollVisualsRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('Voter');
+    await page.click('button.join-btn');
+
+    // Create Poll
+    await page.click('button:has-text("Polls")');
+    await page.click('button:has-text("Create Poll")');
+
+    // Fill form
+    const pollForm = page.locator('.modal-content .tab-content');
+    await pollForm.locator('input').nth(0).fill('Visual Test?');
+    await pollForm.locator('input').nth(1).fill('Yes');
+    await pollForm.locator('input').nth(2).fill('No');
+    await pollForm.locator('button:has-text("Create Poll")').click();
+
+    // Verify initial 0%
+    await expect(page.locator('.poll-bar').first()).toHaveCSS('width', '0px'); // 0%
+
+    // Vote for Option 1
+    await page.locator('button:has-text("Vote")').first().click();
+
+    // Verify 100% width on first bar (approximate check via style attribute or existence)
+    // The inline style sets width: 100%;
+    await expect(page.locator('.poll-bar').first()).toHaveAttribute('style', /width: 100%;/);
+
+    // Check text percentage
+    // The received string has "(100%)", expected "(100 %)" (extra space from my format macro?)
+    // format!("{:.0}", percent) -> "100"
+    // " votes (" {format...} "%)" -> " votes (100%)" - wait, view! macro spacing rules?
+    // Let's check received: "1 votes (100%)"
+    // So no space.
+    await expect(page.locator('.poll-item')).toContainText('(100%)');
+
+    await context.close();
+});
