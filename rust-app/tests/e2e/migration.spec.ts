@@ -869,3 +869,103 @@ test('Whiteboard Color E2E', async ({ page, request }) => {
     // We can't easily verify the pixel color on canvas without screenshot analysis,
     // but verifying the input state change confirms the UI logic works.
 });
+
+test('Participant Sorting E2E', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "SortRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context1 = await browser.newContext();
+    const page1 = await context1.newPage();
+    const context2 = await browser.newContext();
+    const page2 = await context2.newPage();
+
+    // Host Joins
+    await page1.goto('/room/SortRoom');
+    await page1.locator('.prejoin-container input[type="text"]').fill('HostUser');
+    await page1.click('button.join-btn');
+
+    // Guest Joins
+    await page2.goto('/room/SortRoom');
+    await page2.locator('.prejoin-container input[type="text"]').fill('GuestUser');
+    await page2.click('button.join-btn');
+
+    // Check for (Host) label on HostUser in Host's view
+    await expect(page1.locator('.participants-list li').filter({ hasText: 'HostUser' })).toContainText('(Host)');
+    // Check for (Host) label on HostUser in Guest's view
+    await expect(page2.locator('.participants-list li').filter({ hasText: 'HostUser' })).toContainText('(Host)');
+
+    // Guest raises hand
+    await page2.click('button:has-text("Raise Hand")');
+
+    // Verify GuestUser moves to top in Host's view (or above HostUser if alphabetical was Host > Guest, now Guest > Host)
+    // "GuestUser" starts with G, "HostUser" with H. Alphabetically G is before H.
+    // So GuestUser should be first anyway?
+    // Let's create users such that alphabetical order is opposite to raised hand order.
+    // Say "Zack" (Guest) and "Adam" (Host).
+    // Default: Adam, Zack.
+    // Zack raises hand: Zack, Adam.
+
+    // Since we already used HostUser/GuestUser:
+    // GuestUser (G) comes before HostUser (H).
+    // So they are already G, H.
+    // Raising hand keeps G at top.
+
+    // Let's create a new test case or just rename users?
+    // Renaming users in Prejoin is easier.
+    // Let's retry with specific names.
+});
+
+test('Participant Sorting E2E Explicit', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "SortRoomExplicit",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context1 = await browser.newContext();
+    const page1 = await context1.newPage();
+    const context2 = await browser.newContext();
+    const page2 = await context2.newPage();
+
+    // "Adam" (Host)
+    await page1.goto('/room/SortRoomExplicit');
+    await page1.locator('.prejoin-container input[type="text"]').fill('Adam');
+    await page1.click('button.join-btn');
+
+    // "Zack" (Guest)
+    await page2.goto('/room/SortRoomExplicit');
+    await page2.locator('.prejoin-container input[type="text"]').fill('Zack');
+    await page2.click('button.join-btn');
+
+    // Initial Order: Adam (Host), Zack
+    // We check the text of the first li
+    await expect(page1.locator('.participants-list li').first()).toContainText('Adam');
+
+    // Zack raises hand
+    await page2.click('button:has-text("Raise Hand")');
+
+    // Expected Order: Zack (Raised), Adam
+    await expect(page1.locator('.participants-list li').first()).toContainText('Zack');
+
+    // Zack lowers hand
+    await page2.click('button:has-text("Raise Hand")');
+
+    // Expected Order: Adam, Zack
+    await expect(page1.locator('.participants-list li').first()).toContainText('Adam');
+
+    await context1.close();
+    await context2.close();
+});

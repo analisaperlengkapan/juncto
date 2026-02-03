@@ -5,6 +5,7 @@ use shared::Participant;
 pub fn ParticipantsList(
     participants: ReadSignal<Vec<Participant>>,
     knocking_participants: ReadSignal<Vec<Participant>>,
+    host_id: Signal<Option<String>>,
     on_allow: Callback<String>,
     on_deny: Callback<String>,
     on_kick: Callback<String>,
@@ -49,13 +50,30 @@ pub fn ParticipantsList(
             <h3>"Participants"</h3>
             <ul>
                 <For
-                    each=move || participants.get()
+                    each=move || {
+                        let mut parts = participants.get();
+                        parts.sort_by(|a, b| {
+                            // Sort by hand raised (desc), then name (asc)
+                            if a.is_hand_raised != b.is_hand_raised {
+                                b.is_hand_raised.cmp(&a.is_hand_raised)
+                            } else {
+                                a.name.cmp(&b.name)
+                            }
+                        });
+                        parts
+                    }
                     key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen)
                     children=move |p| {
                         let id_kick = p.id.clone();
+                        let is_host = host_id.get() == Some(p.id.clone());
                         view! {
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <span>{p.name}</span>
+                                <div>
+                                    <span>{p.name}</span>
+                                    <Show when=move || is_host>
+                                        <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
+                                    </Show>
+                                </div>
                                 <div style="display: flex; align-items: center;">
                                     {if p.is_sharing_screen {
                                         view! { <span style="margin-right: 5px;">"🖥️"</span> }.into_view()

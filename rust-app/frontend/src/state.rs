@@ -34,6 +34,7 @@ pub struct RoomState {
     pub my_id: ReadSignal<Option<String>>,
     pub typing_users: ReadSignal<HashSet<String>>,
     pub is_host: Signal<bool>,
+    pub host_id: Signal<Option<String>>,
     pub current_room_id: ReadSignal<Option<String>>,
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
     pub local_stream: ReadSignal<Option<MediaStream>>,
@@ -100,17 +101,16 @@ pub fn use_room_state() -> RoomState {
     // We need to store the current room config to access host_id.
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
 
+    let host_id = Signal::derive(move || {
+        room_config.get().host_id
+    });
+
     let is_host = Signal::derive(move || {
-        let config = room_config.get();
+        let h = host_id.get();
         let my = my_id.get();
 
-        match (config.host_id, my) {
+        match (h, my) {
             (Some(host), Some(me)) => host == me,
-            // Fallback: if we are the only participant, maybe assume host?
-            // Or if host_id is None?
-            // Actually, if host_id is None, nobody is host.
-            // Backend guarantees assignment on first join.
-            // If we are waiting for the update, return false.
             _ => false,
         }
     });
@@ -567,6 +567,7 @@ pub fn use_room_state() -> RoomState {
         my_id,
         typing_users,
         is_host,
+        host_id,
         current_room_id,
         breakout_rooms,
         local_stream,
