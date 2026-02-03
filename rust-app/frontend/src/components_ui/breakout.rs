@@ -39,11 +39,18 @@ pub fn BreakoutRooms(
                     key=|r| r.id.clone()
                     children=move |r| {
                         let rid = Some(r.id.clone());
-                        let is_current = current_room_id.get() == rid;
+                        let rid_style = rid.clone();
+                        let rid_show = rid.clone();
+                        // Compute is_current reactively inside the closures
                         view! {
-                            <div style=move || format!("padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background: {};", if is_current { "#e9ecef" } else { "white" })>
+                            <div style=move || {
+                                let is_current = current_room_id.get() == rid_style;
+                                format!("padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background: {};", if is_current { "#e9ecef" } else { "white" })
+                            }>
                                 <span style="margin-right: 5px;">{r.name}</span>
-                                <Show when=move || !is_current>
+                                <Show when=move || {
+                                    current_room_id.get() != rid_show
+                                }>
                                     {
                                         let rid = rid.clone();
                                         view! {

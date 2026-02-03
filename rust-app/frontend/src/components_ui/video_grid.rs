@@ -2,6 +2,33 @@ use leptos::*;
 use shared::Participant;
 use web_sys::MediaStream;
 
+#[derive(Clone, PartialEq)]
+enum GridItem {
+    User(Participant),
+    RemoteScreen(Participant),
+}
+
+impl GridItem {
+    // Helper for key generation to ensure reactivity when state changes
+    fn unique_key(&self) -> String {
+        match self {
+            GridItem::User(p) => format!("{}_{}_{}", p.id, p.is_hand_raised, p.is_sharing_screen),
+            GridItem::RemoteScreen(p) => format!("{}_screen_{}", p.id, p.is_sharing_screen),
+        }
+    }
+
+    fn is_screen(&self) -> bool {
+        matches!(self, GridItem::RemoteScreen(_))
+    }
+
+    fn participant(&self) -> &Participant {
+        match self {
+            GridItem::User(p) => p,
+            GridItem::RemoteScreen(p) => p,
+        }
+    }
+}
+
 #[component]
 pub fn VideoGrid(
     participants: ReadSignal<Vec<Participant>>,
@@ -29,6 +56,21 @@ pub fn VideoGrid(
                 let _ = video_el.play();
             }
         }
+    });
+
+    // Prepare grid items: remote users + remote screens
+    let grid_items = create_memo(move |_| {
+        let mut items = Vec::new();
+        let my_id_val = my_id.get();
+        for p in participants.get() {
+            if my_id_val != Some(p.id.clone()) {
+                items.push(GridItem::User(p.clone()));
+                if p.is_sharing_screen {
+                    items.push(GridItem::RemoteScreen(p.clone()));
+                }
+            }
+        }
+        items
     });
 
     view! {
@@ -96,40 +138,39 @@ pub fn VideoGrid(
                 </div>
             </div>
 
-            // Remote Participants (in spotlight, these might be smaller or in a row, but here we just stack/wrap)
+            // Remote Items
             <For
-                each=move || participants.get()
-                key=|p| p.id.clone()
-                children=move |p| {
-                    let is_me = my_id.get() == Some(p.id.clone());
-                    // Skip myself in the list if I'm already shown above (or handle duplicates)
-                    // The participants list from server usually includes everyone.
-                    // If my_id is in participants, we should skip it here to avoid double rendering,
-                    // OR we render the list uniformly and treat "Me" special within the loop.
-                    // For now, let's skip "Me" in this loop and stick to the "Local User Video" block above for me.
-
-                    let p_name = p.name.clone();
-                    let p_is_sharing_screen = p.is_sharing_screen;
-                    let initial_char = p_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                each=move || grid_items.get()
+                key=|item| item.unique_key()
+                children=move |item| {
+                    let p = item.participant().clone();
+                    let is_screen = item.is_screen();
+                    let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
+                    let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                    let is_hand_raised = p.is_hand_raised;
 
                     view! {
-                        <Show when=move || !is_me>
-                            <div class="video-card" style="width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: 1px solid #444;">
-                                // Placeholder for remote video
+                        <div class="video-card" style="width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: 1px solid #444;">
+                            <Show when=move || is_screen fallback=move || view!{
                                 <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
                                     {initial_char.clone()}
                                 </div>
-                                <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                    {p_name.clone()}
+                            }>
+                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
+                                    "Remote Screen"
                                 </div>
-                                <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                                    <Show when=move || !p_is_sharing_screen>
-                                        // Mic off icon logic could go here if we tracked audio status
-                                        <span style="color: red;">"🎤"</span>
-                                    </Show>
-                                </div>
+                            </Show>
+
+                            <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
+                                {p_name}
                             </div>
-                        </Show>
+
+                            <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                <Show when=move || is_hand_raised && !is_screen>
+                                    <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
+                                </Show>
+                            </div>
+                        </div>
                     }
                 }
             />
@@ -140,9 +181,26 @@ pub fn VideoGrid(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use shared::Participant;
+
     #[test]
-    fn test_video_grid_component_logic() {
-        // Just verify it compiles and exists for now
-        assert_eq!(1, 1);
+    fn test_grid_item_key() {
+        let p = Participant {
+            id: "user1".to_string(),
+            name: "Alice".to_string(),
+            is_hand_raised: false,
+            is_sharing_screen: false,
+        };
+
+        let item_user = GridItem::User(p.clone());
+        // Key format: id_hand_screen
+        assert_eq!(item_user.unique_key(), "user1_false_false");
+        assert!(!item_user.is_screen());
+
+        let item_screen = GridItem::RemoteScreen(p.clone());
+        // Key format: id_screen_screen
+        assert_eq!(item_screen.unique_key(), "user1_screen_false");
+        assert!(item_screen.is_screen());
     }
 }

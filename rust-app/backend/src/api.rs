@@ -76,13 +76,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Channel for internal messages to self
     let (internal_tx, mut internal_rx) = tokio::sync::mpsc::channel::<ServerMessage>(10);
 
-    // Send initial room config immediately so Prejoin screen knows status
-    // Note: This config likely has host_id = None if this is the first user connecting to a fresh backend state?
-    // No, if the user called `create_room` API, the room config is updated with the payload.
-    // BUT `create_room` payload (from frontend) has default host_id = None.
-    // The backend `create_room` handler updates `room_config` with payload.
-    // So here `current_config` has host_id = None.
-
     let current_config: RoomConfig = {
         let config = state.room_config.lock().unwrap();
         config.clone()
@@ -92,19 +85,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     }
 
     // Explicitly send RoomUpdated to self to trigger frontend state logic (like is_host)
-    // This is redundant if we sent it above, but harmless.
     let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config.clone())).await;
-
-    // Send Chat History
-    let history: Vec<shared::ChatMessage> = {
-        let history = state.chat_history.lock().unwrap();
-        history.clone()
-    };
-    if !history.is_empty() {
-        if let Ok(json) = serde_json::to_string(&ServerMessage::ChatHistory(history)) {
-            let _ = sender.send(Message::Text(json)).await;
-        }
-    }
 
     // Channel for control messages from async tasks to the loop
     let (control_tx, mut control_rx) = tokio::sync::mpsc::channel::<bool>(1); // true = granted, false = denied
@@ -150,15 +131,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     loop {
         tokio::select! {
-            // 1. Client Messages
-            // 3. Kicked Event (from broadcast)
-            // Note: We need to handle this in the broadcast receive loop, not here.
-            // But if *I* am kicked, I need to know.
-            // My broadcast receiver forwards everything to `internal_tx`, which forwards to `sender`.
-            // So if I receive "Kicked(my_id)", the frontend will handle disconnection.
-            // HOWEVER, the server should also forcibly close the connection.
-            // Let's rely on frontend for graceful exit first, or check internal message loop.
-
             res = receiver.next() => {
                 match res {
                     Some(Ok(Message::Text(text))) => {
@@ -170,15 +142,24 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id.clone()
                                         };
                                         if Some(uid.clone()) == host_id {
+                                            if target_id == *uid {
+                                                // Prevent self-kick
+                                                continue;
+                                            }
                                             // Valid kick
                                             // 1. Remove from participants
                                             {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 participants.remove(&target_id);
                                             }
-                                            // 2. Broadcast Kicked
+                                            // 2. Remove from participant_locations
+                                            {
+                                                let mut locations = participant_locations_mutex.lock().unwrap();
+                                                locations.remove(&target_id);
+                                            }
+                                            // 3. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
-                                            // 3. Broadcast ParticipantLeft (so lists update)
+                                            // 4. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft(target_id));
                                         }
                                     }
@@ -193,15 +174,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             // Broadcast RoomEnded
                                             let _ = tx.send(ServerMessage::RoomEnded);
 
-                                            // Clear state?
-                                            // If we clear state, new joins will find empty room.
-                                            // This effectively "resets" the room.
-                                            // But current connections receiving RoomEnded should disconnect.
                                             {
                                                 let mut p = participants_mutex.lock().unwrap();
                                                 p.clear();
                                             }
-                                            // Reset host?
                                             {
                                                 let mut c = room_config_mutex.lock().unwrap();
                                                 c.host_id = None;
@@ -210,34 +186,49 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::ToggleLobby => {
-                                    if my_id.is_some() {
-                                        let new_config = {
-                                            let mut config = room_config_mutex.lock().unwrap();
-                                            config.is_lobby_enabled = !config.is_lobby_enabled;
-                                            config.clone()
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.is_lobby_enabled = !config.is_lobby_enabled;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
                                     }
                                 },
                                 ClientMessage::GrantAccess(target_id) => {
-                                    if my_id.is_some() {
-                                        let sender_opt = {
-                                            let mut knocking = knocking_mutex.lock().unwrap();
-                            knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if let Some(s) = sender_opt {
-                                            let _ = s.send(true);
+                                        if is_host {
+                                            let sender_opt = {
+                                                let mut knocking = knocking_mutex.lock().unwrap();
+                                                knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
+                                            };
+                                            if let Some(s) = sender_opt {
+                                                let _ = s.send(true);
+                                            }
                                         }
                                     }
                                 },
                                 ClientMessage::DenyAccess(target_id) => {
-                                    if my_id.is_some() {
-                                        let sender_opt = {
-                                            let mut knocking = knocking_mutex.lock().unwrap();
-                            knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if let Some(s) = sender_opt {
-                                            let _ = s.send(false);
+                                        if is_host {
+                                            let sender_opt = {
+                                                let mut knocking = knocking_mutex.lock().unwrap();
+                                                knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
+                                            };
+                                            if let Some(s) = sender_opt {
+                                                let _ = s.send(false);
+                                            }
                                         }
                                     }
                                 },
@@ -263,8 +254,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_sharing_screen: false,
                                     };
 
-                                    // If lobby is enabled, ONLY enforce it if a host already exists.
-                                    // If no host exists, the first user becomes host and bypasses lobby.
                                     if is_lobby && host_exists {
                                         let (s, r) = tokio::sync::oneshot::channel();
                                         {
@@ -275,7 +264,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::Knocking).await;
                                         let _ = tx.send(ServerMessage::KnockingParticipant(me.clone()));
 
-                                        // Spawn wait task
                                         let control_tx_clone = control_tx.clone();
                                         let knocking_mutex_clone = knocking_mutex.clone();
                                         let tx_clone = tx.clone();
@@ -284,12 +272,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         tokio::spawn(async move {
                                             match tokio::time::timeout(std::time::Duration::from_secs(120), r).await {
                                                 Ok(Ok(true)) => {
-                                                    // Granted
                                                     let _ = control_tx_clone.send(true).await;
                                                 },
                                                 _ => {
-                                                    // Timeout or Denied or Sender Dropped
-                                    let removed = {
+                                                    let removed = {
                                                         let mut knocking = knocking_mutex_clone.lock().unwrap();
                                         knocking.remove(&id_clone).is_some()
                                     };
@@ -309,7 +295,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if participants.len() >= max_participants as usize {
                                             (false, false)
                                         } else {
-                                            // Assign host if none exists
                                             let mut config = room_config_mutex.lock().unwrap();
                                             let assigned = if config.host_id.is_none() {
                                                 config.host_id = Some(id.clone());
@@ -332,14 +317,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     // Send Welcome with own ID
                                     let _ = internal_tx.send(ServerMessage::Welcome { id: id.clone() }).await;
 
-                                    // If we assigned a new host, broadcast the updated config
+                                    // Send Chat History
+                                    let history: Vec<shared::ChatMessage> = {
+                                        let history = chat_history_mutex.lock().unwrap();
+                                        history.clone()
+                                    };
+                                    if !history.is_empty() {
+                                        let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
+                                    }
+
                                     if new_host_assigned {
                                         let new_config = {
                                             room_config_mutex.lock().unwrap().clone()
                                         };
-                                        // Send to everyone (broadcast)
                                         let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
-                                        // Send to self explicitly
                                         let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
                                     }
 
@@ -349,21 +340,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         locations.insert(id.clone(), None);
                                     }
 
-                                    // Subscribe to broadcast and forward to internal_tx with filtering
                                     let mut rx = tx.subscribe();
                                     let forward_tx = internal_tx.clone();
-                                    // We need to access participant_locations in the task to filter?
-                                    // Or simply check the message content against current local state?
-                                    // The broadcast task runs concurrently. It doesn't share `my_room_id` variable easily unless we use an Arc<Mutex> or message passing.
-                                    // BUT, we can just forward everything to `internal_tx` (which goes to `handle_socket`'s send loop).
-                                    // Wait, `handle_socket` has a `send_task` loop that reads from `internal_rx` and sends to websocket.
-                                    // If we filter THERE, we have access to `my_room_id`.
-                                    // BUT `internal_rx` receives `ServerMessage`.
-                                    // Let's modify the `send_task` or the `broadcast_task`.
-                                    // Modifying `send_task` is harder because it consumes `internal_rx`.
-                                    // `broadcast_task` sends to `internal_tx`.
-                                    // If we use `state.participant_locations` in `broadcast_task`, we can filter.
-
                                     let my_id_clone = id.clone();
                                     let locations_clone = participant_locations_mutex.clone();
 
@@ -374,21 +352,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     // Filter based on room and recipient
                                                     let should_send = match &msg {
                                                         ServerMessage::Chat { message, room_id } => {
-                                                            // 1. Check Room
                                                             let my_loc = {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
                                                             if *room_id != my_loc {
                                                                 false
+                                                            } else if let Some(target) = &message.recipient_id {
+                                                                *target == my_id_clone || message.user_id == my_id_clone
                                                             } else {
-                                                                // 2. Check Private Message
-                                                                if let Some(target) = &message.recipient_id {
-                                                                    // Send only if I am the target OR the sender
-                                                                    *target == my_id_clone || message.user_id == my_id_clone
-                                                                } else {
-                                                                    true
-                                                                }
+                                                                true
                                                             }
                                                         },
                                                         ServerMessage::PeerTyping { room_id, .. } => {
@@ -398,7 +371,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             };
                                                             *room_id == my_loc
                                                         },
-                                                        // Global messages
                                                         _ => true,
                                                     };
 
@@ -411,17 +383,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }));
 
-                                    // Broadcast Join
                                     let _ = tx.send(ServerMessage::ParticipantJoined(me));
 
-                                    // Send current participants to self
                                     let current_list: Vec<Participant> = {
                                         let participants = participants_mutex.lock().unwrap();
                                         participants.values().cloned().collect()
                                     };
                                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
-                                    // Send current knocking participants to self (if any left)
                                     let knocking_list: Vec<Participant> = {
                                         let knocking = knocking_mutex.lock().unwrap();
                                         knocking.values().map(|(p, _)| p.clone()).collect()
@@ -430,7 +399,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::KnockingParticipant(p)).await;
                                     }
 
-                                    // Send whiteboard history
                                     let history: Vec<shared::DrawAction> = {
                                         let wb = whiteboard_mutex.lock().unwrap();
                                         wb.clone()
@@ -447,7 +415,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             recipient_id: recipient_id.clone(),
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
                                         };
-                                        // Only save history if public
                                         if recipient_id.is_none() && my_room_id.is_none() {
                                             let mut history = chat_history_mutex.lock().unwrap();
                                             history.push(chat_msg.clone());
@@ -459,36 +426,51 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::ToggleRoomLock => {
-                                    if my_id.is_some() {
-                                        let new_config = {
-                                            let mut config = room_config_mutex.lock().unwrap();
-                                            config.is_locked = !config.is_locked;
-                                            config.clone()
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.is_locked = !config.is_locked;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
                                     }
                                 },
                                 ClientMessage::ToggleRecording => {
-                                    if my_id.is_some() {
-                                        let new_config = {
-                                            let mut config = room_config_mutex.lock().unwrap();
-                                            config.is_recording = !config.is_recording;
-                                            config.clone()
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.is_recording = !config.is_recording;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
                                     }
                                 },
                                 ClientMessage::CreatePoll(mut poll) => {
-                                    if my_id.is_some() {
-                                        if poll.id.is_empty() {
-                                            poll.id = uuid::Uuid::new_v4().to_string();
-                                        }
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            if poll.id.is_empty() {
+                                                poll.id = uuid::Uuid::new_v4().to_string();
+                                            }
 
-                                        {
-                                            let mut polls = polls_mutex.lock().unwrap();
-                                            polls.insert(poll.id.clone(), poll.clone());
+                                            {
+                                                let mut polls = polls_mutex.lock().unwrap();
+                                                polls.insert(poll.id.clone(), poll.clone());
+                                            }
+                                            let _ = tx.send(ServerMessage::PollCreated(poll));
                                         }
-                                        let _ = tx.send(ServerMessage::PollCreated(poll));
                                     }
                                 },
                                 ClientMessage::Vote { poll_id, option_id } => {
@@ -596,34 +578,46 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::CreateBreakoutRoom(name) => {
-                                    if my_id.is_some() {
-                                        let id = uuid::Uuid::new_v4().to_string();
-                                        let room = shared::BreakoutRoom {
-                                            id: id.clone(),
-                                            name,
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        {
-                                            let mut rooms = breakout_rooms_mutex.lock().unwrap();
-                                            rooms.insert(id, room);
+                                        if is_host {
+                                            let id = uuid::Uuid::new_v4().to_string();
+                                            let room = shared::BreakoutRoom {
+                                                id: id.clone(),
+                                                name,
+                                            };
+                                            {
+                                                let mut rooms = breakout_rooms_mutex.lock().unwrap();
+                                                rooms.insert(id, room);
+                                            }
+                                            let all_rooms: Vec<shared::BreakoutRoom> = {
+                                                let rooms = breakout_rooms_mutex.lock().unwrap();
+                                                rooms.values().cloned().collect()
+                                            };
+                                            let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
                                         }
-                                        // Broadcast new list
-                                        let all_rooms: Vec<shared::BreakoutRoom> = {
-                                            let rooms = breakout_rooms_mutex.lock().unwrap();
-                                            rooms.values().cloned().collect()
-                                        };
-                                        let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
                                     }
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
-                                        // Update location
                                         {
                                             let mut locations = participant_locations_mutex.lock().unwrap();
                                             locations.insert(uid.clone(), room_id.clone());
                                         }
-                                        my_room_id = room_id;
-                                        // We don't explicitly notify others of movement in this simplified version,
-                                        // but filtering will now apply.
+                                        my_room_id = room_id.clone();
+
+                                        // If joining Main Room (None), resend global chat history
+                                        if my_room_id.is_none() {
+                                            let history: Vec<shared::ChatMessage> = {
+                                                let history = chat_history_mutex.lock().unwrap();
+                                                history.clone()
+                                            };
+                                            if !history.is_empty() {
+                                                let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -636,25 +630,26 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             Some(granted) = control_rx.recv() => {
                 if granted {
                     if let Some(id) = knocking_id.take() {
-                        // Retrieve the participant that was in knocking list
-                        // Note: It might have been removed if timeout raced?
-                        // Actually, if we are here, the `Ok(true)` path in spawn didn't remove it.
-                        // We must remove it now and add to main list.
-
                         let me_opt = {
                             let mut knocking = knocking_mutex.lock().unwrap();
                             knocking.remove(&id).map(|(p, _)| p)
                         };
 
                         if let Some(me) = me_opt {
-                            let joined = {
+                            let (joined, new_host_assigned) = {
                                 let mut participants = participants_mutex.lock().unwrap();
-                                let max_participants = room_config_mutex.lock().unwrap().max_participants;
-                                if participants.len() >= max_participants as usize {
-                                    false
+                                let mut config = room_config_mutex.lock().unwrap();
+                                if participants.len() >= config.max_participants as usize {
+                                    (false, false)
                                 } else {
+                                    let assigned = if config.host_id.is_none() {
+                                        config.host_id = Some(id.clone());
+                                        true
+                                    } else {
+                                        false
+                                    };
                                     participants.insert(id.clone(), me.clone());
-                                    true
+                                    (true, assigned)
                                 }
                             };
 
@@ -666,14 +661,66 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                             let _ = internal_tx.send(ServerMessage::Welcome { id: id.clone() }).await;
 
+                            // Send Chat History
+                            let history: Vec<shared::ChatMessage> = {
+                                let history = chat_history_mutex.lock().unwrap();
+                                history.clone()
+                            };
+                            if !history.is_empty() {
+                                let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
+                            }
+
+                            if new_host_assigned {
+                                let new_config = {
+                                    room_config_mutex.lock().unwrap().clone()
+                                };
+                                let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
+                                let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
+                            }
+
+                             // Register initial location (Main Room)
+                            {
+                                let mut locations = participant_locations_mutex.lock().unwrap();
+                                locations.insert(id.clone(), None);
+                            }
+
                             // Subscribe to broadcast
                             let mut rx = tx.subscribe();
                             let forward_tx = internal_tx.clone();
+                            let my_id_clone = id.clone();
+                            let locations_clone = participant_locations_mutex.clone();
+
                             broadcast_task = Some(tokio::spawn(async move {
                                 loop {
                                     match rx.recv().await {
                                         Ok(msg) => {
-                                            if forward_tx.send(msg).await.is_err() { break; }
+                                            // Filter based on room and recipient
+                                            let should_send = match &msg {
+                                                ServerMessage::Chat { message, room_id } => {
+                                                    let my_loc = {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        locs.get(&my_id_clone).cloned().flatten()
+                                                    };
+                                                    if *room_id != my_loc {
+                                                        false
+                                                    } else if let Some(target) = &message.recipient_id {
+                                                        *target == my_id_clone || message.user_id == my_id_clone
+                                                    } else {
+                                                        true
+                                                    }
+                                                },
+                                                ServerMessage::PeerTyping { room_id, .. } => {
+                                                    let my_loc = {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        locs.get(&my_id_clone).cloned().flatten()
+                                                    };
+                                                    *room_id == my_loc
+                                                },
+                                                _ => true,
+                                            };
+
+                                            if should_send
+                                                && forward_tx.send(msg).await.is_err() { break; }
                                         },
                                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -689,14 +736,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             };
                             let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
-                            // Note: Knocking list is already sent via broadcast/internal events if needed,
-                            // but if I'm the host, I should see others.
                             let knocking_list: Vec<Participant> = {
                                 let knocking = knocking_mutex.lock().unwrap();
                                 knocking.values().map(|(p, _)| p.clone()).collect()
                             };
                             for p in knocking_list {
                                 let _ = internal_tx.send(ServerMessage::KnockingParticipant(p)).await;
+                            }
+
+                            // Send Breakout Rooms List
+                            let all_rooms: Vec<shared::BreakoutRoom> = {
+                                let rooms = breakout_rooms_mutex.lock().unwrap();
+                                rooms.values().cloned().collect()
+                            };
+                            if !all_rooms.is_empty() {
+                                let _ = internal_tx.send(ServerMessage::BreakoutRoomsList(all_rooms)).await;
                             }
 
                             let history: Vec<shared::DrawAction> = {
@@ -707,7 +761,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                             }
                         } else {
-                            // Should not happen if logic is correct, but safe fallback
                             let _ = internal_tx.send(ServerMessage::AccessDenied).await;
                         }
                     }
@@ -752,7 +805,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let _ = tx.send(ServerMessage::RoomUpdated(new_config));
         }
 
-        let _ = tx.send(ServerMessage::ParticipantLeft(id));
+        let _ = tx.send(ServerMessage::ParticipantLeft(id.clone()));
+
+        // Cleanup location
+        {
+            let mut locations = participant_locations_mutex.lock().unwrap();
+            locations.remove(&id);
+        }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
         let removed = {

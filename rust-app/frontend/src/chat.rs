@@ -3,6 +3,29 @@ use shared::{ChatMessage, Participant};
 use gloo_timers::callback::Timeout;
 use std::collections::HashSet;
 
+// Helper for testing
+fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant], my_id: &Option<String>) -> String {
+    let mut users_to_show = users.clone();
+    if let Some(uid) = my_id {
+        users_to_show.remove(uid);
+    }
+
+    if users_to_show.is_empty() {
+        "".to_string()
+    } else {
+        // Lookup names
+        let names: Vec<String> = users_to_show.iter().map(|uid| {
+            participants.iter().find(|p| &p.id == uid).map(|p| p.name.clone()).unwrap_or(uid.clone())
+        }).collect();
+
+        if names.len() == 1 {
+            format!("{} is typing...", names[0])
+        } else {
+            format!("{} users are typing...", names.len())
+        }
+    }
+}
+
 #[component]
 pub fn Chat(
     messages: ReadSignal<Vec<ChatMessage>>,
@@ -91,7 +114,7 @@ pub fn Chat(
                 <ul>
                     <For
                         each=move || messages.get()
-                        key=|msg| msg.timestamp
+                        key=|msg| format!("{}_{}", msg.timestamp, msg.user_id)
                         children=move |msg| {
                             let parts = participants.get();
                             let my = my_id.get();
@@ -131,20 +154,8 @@ pub fn Chat(
                 {move || {
                     let users = typing_users.get();
                     let parts = participants.get();
-                    if users.is_empty() {
-                        "".to_string()
-                    } else {
-                        // Lookup names
-                        let names: Vec<String> = users.iter().map(|uid| {
-                            parts.iter().find(|p| &p.id == uid).map(|p| p.name.clone()).unwrap_or(uid.clone())
-                        }).collect();
-
-                        if names.len() == 1 {
-                            format!("{} is typing...", names[0])
-                        } else {
-                            format!("{} users are typing...", names.len())
-                        }
-                    }
+                    let my = my_id.get();
+                    format_typing_indicator(&users, &parts, &my)
                 }}
             </div>
             <div class="input-area">
@@ -163,5 +174,46 @@ pub fn Chat(
                 </button>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::Participant;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_format_typing_indicator() {
+        let participants = vec![
+            Participant {
+                id: "u1".to_string(),
+                name: "Alice".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+            },
+            Participant {
+                id: "u2".to_string(),
+                name: "Bob".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+            }
+        ];
+
+        let my_id = Some("u1".to_string());
+
+        let mut typing = HashSet::new();
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "");
+
+        typing.insert("u1".to_string());
+        // Should ignore self
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "");
+
+        typing.insert("u2".to_string());
+        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "Bob is typing...");
+
+        typing.insert("u3".to_string()); // Unknown user
+        let res = format_typing_indicator(&typing, &participants, &my_id);
+        assert!(res == "2 users are typing..." || res == "2 users are typing...");
     }
 }

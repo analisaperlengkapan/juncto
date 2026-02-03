@@ -1,11 +1,25 @@
 use leptos::*;
 use shared::Participant;
 
+fn sort_participants(mut participants: Vec<Participant>) -> Vec<Participant> {
+    participants.sort_by(|a, b| {
+        // Sort by hand raised (desc), then name (asc)
+        if a.is_hand_raised != b.is_hand_raised {
+            b.is_hand_raised.cmp(&a.is_hand_raised)
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+    participants
+}
+
 #[component]
 pub fn ParticipantsList(
     participants: ReadSignal<Vec<Participant>>,
     knocking_participants: ReadSignal<Vec<Participant>>,
     host_id: Signal<Option<String>>,
+    is_host: Signal<bool>,
+    my_id: ReadSignal<Option<String>>,
     on_allow: Callback<String>,
     on_deny: Callback<String>,
     on_kick: Callback<String>,
@@ -62,27 +76,16 @@ pub fn ParticipantsList(
             <h3>"Participants"</h3>
             <ul>
                 <For
-                    each=move || {
-                        let mut parts = participants.get();
-                        parts.sort_by(|a, b| {
-                            // Sort by hand raised (desc), then name (asc)
-                            if a.is_hand_raised != b.is_hand_raised {
-                                b.is_hand_raised.cmp(&a.is_hand_raised)
-                            } else {
-                                a.name.cmp(&b.name)
-                            }
-                        });
-                        parts
-                    }
+                    each=move || sort_participants(participants.get())
                     key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen)
                     children=move |p| {
                         let id_kick = p.id.clone();
-                        let is_host = host_id.get() == Some(p.id.clone());
+                        // Use reactive check for host status
                         view! {
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div>
                                     <span>{p.name}</span>
-                                    <Show when=move || is_host>
+                                    <Show when=move || host_id.get() == Some(p.id.clone())>
                                         <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
                                     </Show>
                                 </div>
@@ -97,13 +100,23 @@ pub fn ParticipantsList(
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    <button
-                                        on:click=move |_| on_kick.call(id_kick.clone())
-                                        style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                        title="Kick Participant"
-                                    >
-                                        "Kick"
-                                    </button>
+                                    <Show when={
+                                        let id_check = id_kick.clone();
+                                        move || is_host.get() && my_id.get() != Some(id_check.clone())
+                                    }>
+                                        {
+                                            let id_action = id_kick.clone();
+                                            view! {
+                                                <button
+                                                    on:click=move |_| on_kick.call(id_action.clone())
+                                                    style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Kick Participant"
+                                                >
+                                                    "Kick"
+                                                </button>
+                                            }
+                                        }
+                                    </Show>
                                 </div>
                             </li>
                         }
@@ -111,5 +124,40 @@ pub fn ParticipantsList(
                 />
             </ul>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::Participant;
+
+    #[test]
+    fn test_participant_sorting() {
+        let p1 = Participant {
+            id: "1".to_string(),
+            name: "Charlie".to_string(),
+            is_hand_raised: false,
+            is_sharing_screen: false,
+        };
+        let p2 = Participant {
+            id: "2".to_string(),
+            name: "Alice".to_string(),
+            is_hand_raised: true, // Hand raised should be first
+            is_sharing_screen: false,
+        };
+        let p3 = Participant {
+            id: "3".to_string(),
+            name: "Bob".to_string(),
+            is_hand_raised: false,
+            is_sharing_screen: false,
+        };
+
+        let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];
+        let sorted = sort_participants(unsorted);
+
+        assert_eq!(sorted[0].name, "Alice"); // Raised hand
+        assert_eq!(sorted[1].name, "Bob");   // Alphabetical
+        assert_eq!(sorted[2].name, "Charlie");
     }
 }
