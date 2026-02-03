@@ -47,6 +47,7 @@ pub struct DrawAction {
 pub struct ChatMessage {
     pub user_id: String,
     pub content: String,
+    pub recipient_id: Option<String>,
     pub timestamp: u64,
 }
 
@@ -80,7 +81,7 @@ pub enum ClientMessage {
     CreatePoll(Poll),
     Vote { poll_id: String, option_id: u32 },
     Join(String), // Display Name
-    Chat(String), // Content
+    Chat { content: String, recipient_id: Option<String> },
     ToggleRoomLock,
     ToggleRecording,
     UpdateProfile(String), // New Name

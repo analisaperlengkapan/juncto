@@ -4,6 +4,7 @@ fn test_chat_message_serialization() {
     let msg = ChatMessage {
         user_id: "user1".to_string(),
         content: "Hello Rust".to_string(),
+        recipient_id: None,
         timestamp: 1627840000,
     };
     let json = serde_json::to_string(&msg).unwrap();

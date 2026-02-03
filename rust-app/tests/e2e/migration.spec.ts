@@ -1006,3 +1006,79 @@ test('Layout Switching E2E', async ({ page, request }) => {
     await page.getByRole('button', { name: 'Switch to Grid' }).click();
     await expect(page.getByRole('button', { name: 'Switch to Spotlight' })).toBeVisible();
 });
+
+test('Private Messaging E2E', async ({ browser, request }) => {
+    // Reset config
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "PrivateChatRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    const context1 = await browser.newContext();
+    const page1 = await context1.newPage();
+    const context2 = await browser.newContext();
+    const page2 = await context2.newPage();
+    const context3 = await browser.newContext();
+    const page3 = await context3.newPage();
+
+    // Alice
+    await page1.goto('/room/PrivateChatRoom');
+    await page1.locator('.prejoin-container input[type="text"]').fill('Alice');
+    await page1.click('button.join-btn');
+
+    // Bob
+    await page2.goto('/room/PrivateChatRoom');
+    await page2.locator('.prejoin-container input[type="text"]').fill('Bob');
+    await page2.click('button.join-btn');
+
+    // Eve
+    await page3.goto('/room/PrivateChatRoom');
+    await page3.locator('.prejoin-container input[type="text"]').fill('Eve');
+    await page3.click('button.join-btn');
+
+    // Wait for everyone to join
+    // Use more specific locator to avoid strict mode violation
+    await expect(page1.locator('.participants-list').getByText('Eve')).toBeVisible();
+
+    // Alice sends private message to Bob
+    // Select Bob from dropdown
+    // Note: The value of option is user ID. We need to find the option with text "Bob".
+    // Or we just pick the second option (0 is Everyone, 1 is Bob/Eve).
+    // Let's iterate options to find Bob's ID.
+    // Or cleaner: locate by label.
+
+    await page1.locator('select').selectOption({ label: 'Bob' });
+    await page1.locator('.chat-container input[type="text"]').fill('Secret for Bob');
+    await page1.click('.chat-container button');
+
+    // Alice should see it (Private indicator)
+    await expect(page1.locator('.messages li').last()).toContainText('(Private)');
+    await expect(page1.locator('.messages li').last()).toContainText('Secret for Bob');
+
+    // Bob should see it
+    await expect(page2.locator('.messages li').last()).toContainText('(Private)');
+    await expect(page2.locator('.messages li').last()).toContainText('Secret for Bob');
+
+    // Eve should NOT see it
+    // Check if Eve has any message. She might have system messages (joins) or nothing if chat is empty.
+    // The test logic assumes "Secret for Bob" is not in Eve's chat.
+    await expect(page3.locator('.messages')).not.toContainText('Secret for Bob');
+
+    // Send public message
+    await page1.locator('select').selectOption({ label: 'Everyone' });
+    await page1.locator('.chat-container input[type="text"]').fill('Hello All');
+    await page1.click('.chat-container button');
+
+    // Everyone should see it
+    await expect(page2.locator('.messages')).toContainText('Hello All');
+    await expect(page3.locator('.messages')).toContainText('Hello All');
+
+    await context1.close();
+    await context2.close();
+    await context3.close();
+});

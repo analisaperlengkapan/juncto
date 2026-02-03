@@ -343,15 +343,31 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         loop {
                                             match rx.recv().await {
                                                 Ok(msg) => {
-                                                    // Filter based on room
+                                                    // Filter based on room and recipient
                                                     let should_send = match &msg {
-                                                        ServerMessage::Chat { room_id, .. } |
+                                                        ServerMessage::Chat { message, room_id } => {
+                                                            // 1. Check Room
+                                                            let my_loc = {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                locs.get(&my_id_clone).cloned().flatten()
+                                                            };
+                                                            if *room_id != my_loc {
+                                                                false
+                                                            } else {
+                                                                // 2. Check Private Message
+                                                                if let Some(target) = &message.recipient_id {
+                                                                    // Send only if I am the target OR the sender
+                                                                    *target == my_id_clone || message.user_id == my_id_clone
+                                                                } else {
+                                                                    true
+                                                                }
+                                                            }
+                                                        },
                                                         ServerMessage::PeerTyping { room_id, .. } => {
                                                             let my_loc = {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            // If message room_id matches my location
                                                             *room_id == my_loc
                                                         },
                                                         // Global messages
@@ -395,16 +411,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                                     }
                                 },
-                                ClientMessage::Chat(content) => {
+                                ClientMessage::Chat { content, recipient_id } => {
                                     if let Some(uid) = &my_id {
                                         let chat_msg = ChatMessage {
                                             user_id: uid.clone(),
                                             content,
+                                            recipient_id: recipient_id.clone(),
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
                                         };
-                                        // Only save history for Main Room (None) for now, or handle per-room history.
-                                        // Simplified: No history for breakout rooms.
-                                        if my_room_id.is_none() {
+                                        // Only save history if public
+                                        if recipient_id.is_none() && my_room_id.is_none() {
                                             let mut history = chat_history_mutex.lock().unwrap();
                                             history.push(chat_msg.clone());
                                         }
@@ -797,6 +813,7 @@ mod tests {
             h.push(shared::ChatMessage {
                 user_id: "user1".to_string(),
                 content: "Hello".to_string(),
+                recipient_id: None,
                 timestamp: 1234567890,
             });
         }

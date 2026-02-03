@@ -8,12 +8,13 @@ pub fn Chat(
     messages: ReadSignal<Vec<ChatMessage>>,
     typing_users: ReadSignal<HashSet<String>>,
     participants: ReadSignal<Vec<Participant>>,
-    on_send: Callback<String>,
+    on_send: Callback<(String, Option<String>)>,
     on_typing: Callback<bool>,
     is_connected: ReadSignal<bool>,
     my_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let (input_value, set_input_value) = create_signal("".to_string());
+    let (recipient, set_recipient) = create_signal(None::<String>); // None = Everyone
     // Store timer handle in a ref to clear it if needed, or just let it fire.
     // In Leptos, we can't easily store non-Clone types in signals.
     // We'll rely on a simple logic: send true on input, set a timeout to send false.
@@ -44,8 +45,9 @@ pub fn Chat(
 
     let send = move |_| {
         let content = input_value.get();
+        let target = recipient.get();
         if !content.is_empty() {
-            on_send.call(content);
+            on_send.call((content, target));
             on_typing.call(false); // Stop typing immediately on send
             set_input_value.set("".to_string());
         }
@@ -54,6 +56,37 @@ pub fn Chat(
     view! {
         <div class="chat-container" style="border-left: 1px solid #ccc; width: 300px; padding: 10px; display: flex; flex-direction: column; background: white;">
             <h3>"Chat"</h3>
+            <div class="recipient-selector" style="margin-bottom: 10px;">
+                <label>"To: "</label>
+                <select
+                    on:change=move |ev| {
+                        let val = event_target_value(&ev);
+                        if val.is_empty() {
+                            set_recipient.set(None);
+                        } else {
+                            set_recipient.set(Some(val));
+                        }
+                    }
+                    style="width: 100%; padding: 5px;"
+                >
+                    <option value="">"Everyone"</option>
+                    <For
+                        each=move || participants.get()
+                        key=|p| p.id.clone()
+                        children=move |p| {
+                            let id = p.id.clone();
+                            // Don't show myself in recipient list
+                            let is_me = my_id.get() == Some(id.clone());
+                            let p_name = p.name.clone();
+                            view! {
+                                <Show when=move || !is_me>
+                                    <option value=id.clone()>{p_name.clone()}</option>
+                                </Show>
+                            }
+                        }
+                    />
+                </select>
+            </div>
             <div class="messages" style="flex: 1; overflow-y: auto; height: 300px; border: 1px solid #eee; margin-bottom: 10px; padding: 5px;">
                 <ul>
                     <For
@@ -67,10 +100,18 @@ pub fn Chat(
                             } else {
                                 parts.iter().find(|p| p.id == msg.user_id).map(|p| p.name.clone()).unwrap_or(msg.user_id.clone())
                             };
-                            let style = if Some(msg.user_id.clone()) == my { "color: blue;" } else { "color: black;" };
+
+                            let mut style = if Some(msg.user_id.clone()) == my { "color: blue;" } else { "color: black;" };
+                            let private_indicator = if msg.recipient_id.is_some() {
+                                style = "color: purple;"; // Private msg style
+                                "(Private) "
+                            } else {
+                                ""
+                            };
 
                             view! {
                                 <li style=style>
+                                    <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>
                                     <span>{msg.content}</span>
                                 </li>
