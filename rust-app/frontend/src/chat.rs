@@ -1,9 +1,22 @@
 use leptos::*;
-use shared::{ChatMessage, Participant};
+use shared::{ChatMessage, Participant, FileAttachment};
 use gloo_timers::callback::Timeout;
 use std::collections::HashSet;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+
+const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024; // 2MB
 
 // Helper for testing
+fn extract_base64_from_data_url(data_url: &str) -> Option<String> {
+    let parts: Vec<&str> = data_url.split(',').collect();
+    if parts.len() == 2 {
+        Some(parts[1].to_string())
+    } else {
+        None
+    }
+}
+
 fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant], my_id: &Option<String>) -> String {
     let mut users_to_show = users.clone();
     if let Some(uid) = my_id {
@@ -31,13 +44,16 @@ pub fn Chat(
     messages: ReadSignal<Vec<ChatMessage>>,
     typing_users: ReadSignal<HashSet<String>>,
     participants: ReadSignal<Vec<Participant>>,
-    on_send: Callback<(String, Option<String>)>,
+    on_send: Callback<(String, Option<String>, Option<FileAttachment>)>,
     on_typing: Callback<bool>,
     is_connected: ReadSignal<bool>,
     my_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let (input_value, set_input_value) = create_signal("".to_string());
     let (recipient, set_recipient) = create_signal(None::<String>); // None = Everyone
+    let (selected_file, set_selected_file) = create_signal(None::<FileAttachment>);
+    let file_input_ref = create_node_ref::<html::Input>();
+
     // Store timer handle in a ref to clear it if needed, or just let it fire.
     // In Leptos, we can't easily store non-Clone types in signals.
     // We'll rely on a simple logic: send true on input, set a timeout to send false.
@@ -57,8 +73,6 @@ pub fn Chat(
             last_typing_sent.set(now);
 
             // Schedule stop typing
-            // Note: In a real app we would cancel previous timer.
-            // Here we just send false after 3s. If user types again, we send true again.
             let on_typing = on_typing;
             Timeout::new(3000, move || {
                 on_typing.call(false);
@@ -66,13 +80,58 @@ pub fn Chat(
         }
     };
 
+    let handle_file_change = move |ev: web_sys::Event| {
+        let input: web_sys::HtmlInputElement = event_target(&ev);
+        if let Some(files) = input.files() {
+            if let Some(file) = files.get(0) {
+                let filename = file.name();
+                let mime_type = file.type_();
+                let size = file.size() as u64;
+
+                if size > MAX_FILE_SIZE {
+                    let _ = web_sys::window().unwrap().alert_with_message("File too large. Max size is 2MB.");
+                    input.set_value("");
+                    return;
+                }
+
+                let reader = web_sys::FileReader::new().unwrap();
+                let reader_clone = reader.clone();
+                // Need to move necessary data into closure
+                let on_load = Closure::wrap(Box::new(move |_e: web_sys::Event| {
+                    if let Ok(res) = reader_clone.result() {
+                        if let Some(data_url) = res.as_string() {
+                            if let Some(content_base64) = extract_base64_from_data_url(&data_url) {
+                                set_selected_file.set(Some(FileAttachment {
+                                    filename: filename.clone(),
+                                    mime_type: mime_type.clone(),
+                                    size,
+                                    content_base64,
+                                }));
+                            }
+                        }
+                    }
+                }) as Box<dyn FnMut(_)>);
+
+                reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
+                on_load.forget();
+                let _ = reader.read_as_data_url(&file);
+            }
+        }
+    };
+
     let send = move |_| {
         let content = input_value.get();
         let target = recipient.get();
-        if !content.is_empty() {
-            on_send.call((content, target));
-            on_typing.call(false); // Stop typing immediately on send
+        let attachment = selected_file.get();
+
+        if !content.is_empty() || attachment.is_some() {
+            on_send.call((content, target, attachment));
+            on_typing.call(false);
             set_input_value.set("".to_string());
+            set_selected_file.set(None);
+            if let Some(input) = file_input_ref.get() {
+                input.set_value("");
+            }
         }
     };
 
@@ -143,7 +202,30 @@ pub fn Chat(
                                     <small style="color: #999; margin-right: 5px;">"[" {time_str} "] "</small>
                                     <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>
-                                    <span>{msg.content}</span>
+                                    <span>{msg.content.clone()}</span>
+                                    {move || {
+                                        if let Some(att) = &msg.attachment {
+                                            if att.mime_type.starts_with("image/") {
+                                                let src = format!("data:{};base64,{}", att.mime_type, att.content_base64);
+                                                view! {
+                                                    <div>
+                                                        <img src=src style="max_width: 200px; max_height: 200px; display: block; margin-top: 5px;" />
+                                                    </div>
+                                                }.into_view()
+                                            } else {
+                                                let href = format!("data:{};base64,{}", att.mime_type, att.content_base64);
+                                                view! {
+                                                    <div>
+                                                        <a href=href download=att.filename.clone() style="display: block; margin-top: 5px;">
+                                                            "📎 " {att.filename.clone()}
+                                                        </a>
+                                                    </div>
+                                                }.into_view()
+                                            }
+                                        } else {
+                                            view! { <span></span> }.into_view()
+                                        }
+                                    }}
                                 </li>
                             }
                         }
@@ -158,20 +240,35 @@ pub fn Chat(
                     format_typing_indicator(&users, &parts, &my)
                 }}
             </div>
-            <div class="input-area">
-                <input
-                    type="text"
-                    prop:value=input_value
-                    on:input=handle_input
-                    placeholder="Type a message..."
-                    style="width: 70%;"
-                />
-                <button
-                    on:click=send
-                    disabled=move || !is_connected.get()
-                    style="width: 25%;">
-                    {move || if is_connected.get() { "Send" } else { "Connecting..." }}
-                </button>
+            <div class="input-area" style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; gap: 5px;">
+                    <input
+                        type="text"
+                        prop:value=input_value
+                        on:input=handle_input
+                        placeholder="Type a message..."
+                        style="flex: 1;"
+                    />
+                    <button
+                        on:click=send
+                        disabled=move || !is_connected.get()
+                        style="width: 60px;">
+                        {move || if is_connected.get() { "Send" } else { "..." }}
+                    </button>
+                </div>
+                <div>
+                     <input
+                        type="file"
+                        _ref=file_input_ref
+                        on:change=handle_file_change
+                        style="width: 100%; font-size: 0.8em;"
+                     />
+                     {move || if let Some(f) = selected_file.get() {
+                         view! { <small style="color: green;">" Selected: " {f.filename}</small> }.into_view()
+                     } else {
+                         view! { <span/> }.into_view()
+                     }}
+                </div>
             </div>
         </div>
     }
@@ -215,5 +312,14 @@ mod tests {
         typing.insert("u3".to_string()); // Unknown user
         let res = format_typing_indicator(&typing, &participants, &my_id);
         assert!(res == "2 users are typing..." || res == "2 users are typing...");
+    }
+
+    #[test]
+    fn test_extract_base64() {
+        let data_url = "data:text/plain;base64,SGVsbG8=";
+        assert_eq!(extract_base64_from_data_url(data_url), Some("SGVsbG8=".to_string()));
+
+        let invalid = "invalid_data";
+        assert_eq!(extract_base64_from_data_url(invalid), None);
     }
 }

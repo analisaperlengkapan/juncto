@@ -407,13 +407,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                                     }
                                 },
-                                ClientMessage::Chat { content, recipient_id } => {
+                                ClientMessage::Chat { content, recipient_id, attachment } => {
+                                    if let Some(att) = &attachment {
+                                        if att.size > 2 * 1024 * 1024 || att.content_base64.len() > 3 * 1024 * 1024 {
+                                            let _ = internal_tx.send(ServerMessage::Error("File too large".to_string())).await;
+                                            continue;
+                                        }
+                                    }
                                     if let Some(uid) = &my_id {
                                         let chat_msg = ChatMessage {
                                             user_id: uid.clone(),
                                             content,
                                             recipient_id: recipient_id.clone(),
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
+                                            attachment,
                                         };
                                         if recipient_id.is_none() && my_room_id.is_none() {
                                             let mut history = chat_history_mutex.lock().unwrap();
@@ -925,6 +932,7 @@ mod tests {
                 content: "Hello".to_string(),
                 recipient_id: None,
                 timestamp: 1234567890,
+                attachment: None,
             });
         }
 
@@ -1035,6 +1043,44 @@ mod tests {
             assert_eq!(list[0].name, "Team A");
         } else {
             panic!("Wrong message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_file_sharing_broadcast() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel(100);
+
+        let attachment = shared::FileAttachment {
+            filename: "doc.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            size: 100,
+            content_base64: "base64content".to_string(),
+        };
+
+        let chat_msg = shared::ChatMessage {
+            user_id: "user1".to_string(),
+            content: "File sent".to_string(),
+            recipient_id: None,
+            timestamp: 1234567890,
+            attachment: Some(attachment.clone()),
+        };
+
+        // Send logic
+        let _ = tx.send(shared::ServerMessage::Chat {
+            message: chat_msg,
+            room_id: None,
+        });
+
+        // Receive logic
+        let received = rx.recv().await.unwrap();
+        match received {
+            shared::ServerMessage::Chat { message, room_id } => {
+                assert_eq!(message.user_id, "user1");
+                assert!(message.attachment.is_some());
+                assert_eq!(message.attachment.unwrap().filename, "doc.txt");
+                assert_eq!(room_id, None);
+            },
+            _ => panic!("Wrong message"),
         }
     }
 }

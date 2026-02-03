@@ -1,5 +1,5 @@
 use leptos::*;
-use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction};
+use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction, FileAttachment};
 use web_sys::{MessageEvent, WebSocket, MediaStream};
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
@@ -45,7 +45,7 @@ pub struct RoomState {
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_whiteboard: WriteSignal<bool>,
-    pub send_message: Callback<(String, Option<String>)>, // content, recipient_id
+    pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
     pub toggle_lock: Callback<()>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
@@ -337,9 +337,9 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let send_message = Callback::new(move |(content, recipient_id): (String, Option<String>)| {
+    let send_message = Callback::new(move |(content, recipient_id, attachment): (String, Option<String>, Option<FileAttachment>)| {
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Chat { content, recipient_id };
+            let msg = ClientMessage::Chat { content, recipient_id, attachment };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }

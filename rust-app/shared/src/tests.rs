@@ -6,10 +6,33 @@ fn test_chat_message_serialization() {
         content: "Hello Rust".to_string(),
         recipient_id: None,
         timestamp: 1627840000,
+        attachment: None,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
+}
+
+#[test]
+fn test_chat_message_with_attachment_serialization() {
+    let attachment = FileAttachment {
+        filename: "test.txt".to_string(),
+        mime_type: "text/plain".to_string(),
+        size: 12,
+        content_base64: "SGVsbG8gV29ybGQ=".to_string(),
+    };
+    let msg = ChatMessage {
+        user_id: "user1".to_string(),
+        content: "Here is a file".to_string(),
+        recipient_id: None,
+        timestamp: 1627840000,
+        attachment: Some(attachment),
+    };
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+    assert!(deserialized.attachment.is_some());
+    assert_eq!(deserialized.attachment.unwrap().filename, "test.txt");
 }
 
 #[test]
