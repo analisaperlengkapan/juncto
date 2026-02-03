@@ -63,6 +63,7 @@ pub fn Room() -> impl IntoView {
                             participants=state.participants
                             knocking_participants=state.knocking_participants
                             host_id=state.host_id
+                            is_host=state.is_host
                             on_allow=state.grant_access
                             on_deny=state.deny_access
                             on_kick=state.kick_participant

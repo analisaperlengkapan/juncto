@@ -358,12 +358,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             };
                                                             if *room_id != my_loc {
                                                                 false
+                                                            } else if let Some(target) = &message.recipient_id {
+                                                                *target == my_id_clone || message.user_id == my_id_clone
                                                             } else {
-                                                                if let Some(target) = &message.recipient_id {
-                                                                    *target == my_id_clone || message.user_id == my_id_clone
-                                                                } else {
-                                                                    true
-                                                                }
+                                                                true
                                                             }
                                                         },
                                                         ServerMessage::PeerTyping { room_id, .. } => {
@@ -684,12 +682,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     };
                                                     if *room_id != my_loc {
                                                         false
+                                                    } else if let Some(target) = &message.recipient_id {
+                                                        *target == my_id_clone || message.user_id == my_id_clone
                                                     } else {
-                                                        if let Some(target) = &message.recipient_id {
-                                                            *target == my_id_clone || message.user_id == my_id_clone
-                                                        } else {
-                                                            true
-                                                        }
+                                                        true
                                                     }
                                                 },
                                                 ServerMessage::PeerTyping { room_id, .. } => {

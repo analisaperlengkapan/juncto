@@ -18,6 +18,7 @@ pub fn ParticipantsList(
     participants: ReadSignal<Vec<Participant>>,
     knocking_participants: ReadSignal<Vec<Participant>>,
     host_id: Signal<Option<String>>,
+    is_host: Signal<bool>,
     on_allow: Callback<String>,
     on_deny: Callback<String>,
     on_kick: Callback<String>,
@@ -98,13 +99,20 @@ pub fn ParticipantsList(
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    <button
-                                        on:click=move |_| on_kick.call(id_kick.clone())
-                                        style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                        title="Kick Participant"
-                                    >
-                                        "Kick"
-                                    </button>
+                                    <Show when=move || is_host.get()>
+                                        {
+                                            let id_kick = id_kick.clone();
+                                            view! {
+                                                <button
+                                                    on:click=move |_| on_kick.call(id_kick.clone())
+                                                    style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Kick Participant"
+                                                >
+                                                    "Kick"
+                                                </button>
+                                            }
+                                        }
+                                    </Show>
                                 </div>
                             </li>
                         }
