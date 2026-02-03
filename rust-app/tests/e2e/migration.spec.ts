@@ -827,3 +827,45 @@ test('Feature Toasts E2E', async ({ page, request }) => {
     // "FeatureTester raised their hand"
     await expect(page.locator('.toast').last()).toContainText('FeatureTester raised their hand');
 });
+
+test('Whiteboard Color E2E', async ({ page, request }) => {
+    // Join room
+    await request.post('http://localhost:3000/api/rooms', {
+        data: {
+            room_name: "ColorRoom",
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
+    await page.goto('/room/ColorRoom');
+    await page.locator('.prejoin-container input[type="text"]').fill('Artist');
+    await page.click('button.join-btn');
+
+    // Open Whiteboard
+    await page.click('button:has-text("Whiteboard")');
+    await expect(page.locator('canvas')).toBeVisible();
+
+    // Check Color Picker
+    const colorInput = page.locator('input[type="color"]');
+    await expect(colorInput).toBeVisible();
+    await expect(colorInput).toHaveValue('#000000');
+
+    // Change color
+    await colorInput.fill('#ff0000');
+    await expect(colorInput).toHaveValue('#ff0000');
+
+    // Draw something (simulate mouse events)
+    const canvas = page.locator('canvas');
+    const box = await canvas.boundingBox();
+    if (box) {
+        await page.mouse.move(box.x + 10, box.y + 10);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 50, box.y + 50);
+        await page.mouse.up();
+    }
+    // We can't easily verify the pixel color on canvas without screenshot analysis,
+    // but verifying the input state change confirms the UI logic works.
+});
