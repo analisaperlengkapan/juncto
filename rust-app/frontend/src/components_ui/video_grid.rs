@@ -165,7 +165,7 @@ pub fn VideoGrid(
                                 if let Some(idx) = url.find("v=") {
                                     url[idx+2..].split('&').next().unwrap_or("").to_string()
                                 } else if let Some(idx) = url.rfind('/') {
-                                    url[idx+1..].to_string()
+                                    url[idx+1..].split('?').next().unwrap_or("").to_string()
                                 } else {
                                     "".to_string()
                                 }
@@ -173,7 +173,16 @@ pub fn VideoGrid(
                                 "".to_string()
                             };
 
-                            let embed_url = format!("https://www.youtube.com/embed/{}?autoplay=1", video_id);
+                            // Bug 9 Fix: Basic handling for non-YouTube
+                            // If video_id is empty but we have a url, maybe show error or just ignore.
+                            // For now, if empty, we won't render iframe source correctly.
+
+                            let embed_url = if !video_id.is_empty() {
+                                format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
+                            } else {
+                                // Fallback or empty (user will see black box with "Shared Video")
+                                "".to_string()
+                            };
 
                             view! {
                                 <div class="video-card shared-video" style="width: 640px; height: 360px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">

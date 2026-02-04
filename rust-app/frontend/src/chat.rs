@@ -80,6 +80,14 @@ pub fn Chat(
         }
     };
 
+    // Store closure to avoid leak.
+    // We use a StoredValue to keep ownership of the closure until we are done or component drops.
+    // Since we only handle one file load at a time, we can overwrite the previous one.
+    // Using Rc<RefCell<Option<Closure>>> pattern inside StoredValue or similar.
+    // Actually, just storing it in a RefCell in scope is enough if we weren't in a callback.
+    // We can use a StoredValue<Option<Closure<dyn FnMut(web_sys::Event)>>> to hold the active listener.
+    let file_reader_closure = store_value(None::<Closure<dyn FnMut(web_sys::Event)>>);
+
     let handle_file_change = move |ev: web_sys::Event| {
         let input: web_sys::HtmlInputElement = event_target(&ev);
         if let Some(files) = input.files() {
@@ -110,10 +118,16 @@ pub fn Chat(
                             }
                         }
                     }
+                    // We can't easily drop ourselves from inside ourselves without Interior Mutability gymnastics.
+                    // But overwriting it on next change is "good enough" to prevent infinite accumulation.
+                    // Or we could clear it here if we had access to the StoredValue.
                 }) as Box<dyn FnMut(_)>);
 
                 reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
-                on_load.forget();
+
+                // Store the closure to keep it alive and drop previous one
+                file_reader_closure.set_value(Some(on_load));
+
                 let _ = reader.read_as_data_url(&file);
             }
         }

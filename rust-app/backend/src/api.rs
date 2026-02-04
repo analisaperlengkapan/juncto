@@ -51,6 +51,10 @@ pub async fn create_room(
         let mut pl = state.participant_locations.lock().unwrap();
         pl.clear();
     }
+    {
+        let mut v = state.shared_video_url.lock().unwrap();
+        *v = None;
+    }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
@@ -418,7 +422,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Chat { content, recipient_id, attachment } => {
                                     if let Some(att) = &attachment {
-                                        if att.size > 2 * 1024 * 1024 || att.content_base64.len() > 3 * 1024 * 1024 {
+                                        // Bug 5: Don't trust att.size from client.
+                                        // Max encoded size for 2MB file: 2 * 1024 * 1024 * 4 / 3 = 2,796,202 bytes.
+                                        // Round up to 3MB (3 * 1024 * 1024) for safety.
+                                        if att.content_base64.len() > 3 * 1024 * 1024 {
                                             let _ = internal_tx.send(ServerMessage::Error("File too large".to_string())).await;
                                             continue;
                                         }
@@ -811,6 +818,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             };
                             if !history.is_empty() {
                                 let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
+                            }
+
+                            // Send Shared Video State
+                            let shared_url = {
+                                shared_video_mutex.lock().unwrap().clone()
+                            };
+                            if let Some(url) = shared_url {
+                                let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
                             }
                         } else {
                             let _ = internal_tx.send(ServerMessage::AccessDenied).await;
