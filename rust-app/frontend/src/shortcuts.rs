@@ -51,27 +51,9 @@ pub fn KeyboardShortcuts(
         on_cleanup(move || {
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
-            document
-                .remove_event_listener_with_callback("keydown", handle_keydown.as_ref().unchecked_ref())
-                .unwrap();
-            handle_keydown.forget(); // Wait, forget leaks? No, we should keep it alive until cleanup.
-            // But Closure in pure Rust variable inside create_effect might be dropped at end of scope?
-            // create_effect keeps the scope alive? No.
-            // Leptos `window_event_listener` handles this better.
-            // But here, I'm using raw web_sys.
-            // I should use `leptos::window_event_listener` if possible, but it's not imported.
-            // To fix memory safety, we need to store the closure.
-            // But for simplicity in this task, let's assume `forget` leaks once per room mount, which is acceptable for SPA navigation (cleanup might fail to remove if we forget it first).
-            // Actually, if we `forget` it, we can't remove it with the same reference unless we stored it.
-            // The proper way in Leptos effect:
-            // return cleanup closure.
-            // But `create_effect` doesn't return cleanup. `on_cleanup` is used.
-            // We need to keep `handle_keydown` alive as long as effect is active.
-            // Storing it in a signal or just leaking it?
-            // Leaking "keydown" listeners is bad.
-            // Let's rely on `ev.key()` check logic being sound.
-            // We will fix the listener management by just NOT forgetting, but we need to keep ownership.
-            // In Leptos, we can use `store_value`.
+            let _ = document.remove_event_listener_with_callback("keydown", handle_keydown.as_ref().unchecked_ref());
+            // handle_keydown is moved into this closure, so it lives until cleanup is called.
+            // After cleanup, it drops and the Closure is properly freed.
         });
 
         // Ownership of handle_keydown is moved into the cleanup closure,

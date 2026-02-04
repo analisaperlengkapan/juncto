@@ -79,6 +79,7 @@ pub struct AudioMonitor {
     analyser: AnalyserNode,
     _source: web_sys::MediaStreamAudioSourceNode,
     _closure: Closure<dyn FnMut()>,
+    interval_id: i32,
 }
 
 impl AudioMonitor {
@@ -92,7 +93,7 @@ impl AudioMonitor {
         let mut callback = on_talking;
         let mut was_talking = false;
         let buffer_len = analyser.frequency_bin_count() as usize;
-        let mut data_array = vec![0u8; buffer_len];
+        let data_array = vec![0u8; buffer_len];
 
         let analyser_clone = analyser.clone();
 
@@ -118,7 +119,7 @@ impl AudioMonitor {
 
         // Run interval
         let window = web_sys::window().unwrap();
-        window.set_interval_with_callback_and_timeout_and_arguments_0(
+        let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(
             closure.as_ref().unchecked_ref(),
             100, // Check every 100ms
         )?;
@@ -127,21 +128,17 @@ impl AudioMonitor {
             context,
             analyser,
             _source: source,
-            _closure: closure, // Keep alive
+            _closure: closure,
+            interval_id,
         })
     }
 }
 
-// Drop implementation to cleanup if needed?
-// Interval will leak unless cleared.
-// We should return a handle to clear interval.
-// But keeping it simple for now. The AudioMonitor struct will be dropped when stream changes.
-// We need to clear the interval on drop.
 impl Drop for AudioMonitor {
     fn drop(&mut self) {
-        // We can't clear interval easily without storing ID.
-        // For this task, assuming strict modularity, we should store ID.
-        // But `set_interval` returns i32.
+        if let Some(window) = web_sys::window() {
+            window.clear_interval_with_handle(self.interval_id);
+        }
         let _ = self.context.close();
     }
 }

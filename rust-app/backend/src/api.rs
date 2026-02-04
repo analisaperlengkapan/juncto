@@ -135,8 +135,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             res = receiver.next() => {
                 match res {
                     Some(Ok(Message::Text(text))) => {
-                        match serde_json::from_str::<ClientMessage>(&text) {
-                            Ok(client_msg) => match client_msg {
+                        if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+                            match client_msg {
                                 ClientMessage::KickParticipant(target_id) => {
                                     if let Some(uid) = &my_id {
                                         let host_id = {
@@ -672,8 +672,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         });
                                     }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                     },
                     _ => break, // Disconnect or Error

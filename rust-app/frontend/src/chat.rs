@@ -259,7 +259,7 @@ pub fn Chat(
                 <div>
                      <input
                         type="file"
-                        _ref=file_input_ref
+                        node_ref=file_input_ref
                         on:change=handle_file_change
                         style="width: 100%; font-size: 0.8em;"
                      />
