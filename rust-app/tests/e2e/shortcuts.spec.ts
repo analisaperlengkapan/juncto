@@ -5,7 +5,6 @@ test.describe('Keyboard Shortcuts', () => {
         const roomName = `ShortcutRoom_${Date.now()}`;
         const context = await browser.newContext();
         const page = await context.newPage();
-        page.on('console', msg => console.log(`PAGE LOG: ${msg.text()}`));
         await page.goto('/');
 
         // Create and Join

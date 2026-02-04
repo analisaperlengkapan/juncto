@@ -4,7 +4,7 @@ use web_sys::{MessageEvent, WebSocket, MediaStream};
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::media::{get_user_media, get_display_media};
+use crate::media::{get_user_media, get_display_media, AudioMonitor};
 use crate::components_ui::toast::{ToastMessage, ToastType};
 use gloo_timers::callback::Timeout;
 
@@ -42,12 +42,16 @@ pub struct RoomState {
     pub local_screen_stream: ReadSignal<Option<MediaStream>>,
     pub toasts: ReadSignal<Vec<ToastMessage>>,
     pub is_muted: ReadSignal<bool>,
+    pub shared_video_url: ReadSignal<Option<String>>,
+    pub speaking_peers: ReadSignal<HashSet<String>>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
     pub set_show_whiteboard: WriteSignal<bool>,
     pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
+    pub start_share_video: Callback<String>,
+    pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
@@ -97,6 +101,9 @@ pub fn use_room_state() -> RoomState {
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
     let (toasts, set_toasts) = create_signal(Vec::<ToastMessage>::new());
     let (is_muted, set_is_muted) = create_signal(false);
+    let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
+    let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
+    let (_audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -298,6 +305,21 @@ pub fn use_room_state() -> RoomState {
                             },
                             ServerMessage::WhiteboardHistory(history) => {
                                 set_whiteboard_history.set(history);
+                            },
+                            ServerMessage::VideoShared(url) => {
+                                set_shared_video_url.set(Some(url));
+                            },
+                            ServerMessage::VideoStopped => {
+                                set_shared_video_url.set(None);
+                            },
+                            ServerMessage::PeerSpeaking { user_id, speaking } => {
+                                set_speaking_peers.update(|s| {
+                                    if speaking {
+                                        s.insert(user_id);
+                                    } else {
+                                        s.remove(&user_id);
+                                    }
+                                });
                             },
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
@@ -563,13 +585,45 @@ pub fn use_room_state() -> RoomState {
                 }
             }
             set_local_stream.set(None);
+            set_audio_monitor.set(None);
         } else {
             // Turn on
             spawn_local(async move {
                 if let Ok(stream) = get_user_media(None, None).await {
-                    set_local_stream.set(Some(stream));
+                    set_local_stream.set(Some(stream.clone()));
+
+                    let on_speaking = Box::new(move |is_speaking: bool| {
+                        if let Some(socket) = ws.get_untracked() {
+                             let msg = ClientMessage::Speaking(is_speaking);
+                             if let Ok(json) = serde_json::to_string(&msg) {
+                                 let _ = socket.send_with_str(&json);
+                             }
+                        }
+                    });
+
+                    if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                        set_audio_monitor.set(Some(monitor));
+                    }
                 }
             });
+        }
+    });
+
+    let start_share_video = Callback::new(move |url: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::StartShareVideo(url);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let stop_share_video = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::StopShareVideo;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
         }
     });
 
@@ -613,6 +667,8 @@ pub fn use_room_state() -> RoomState {
         local_screen_stream,
         toasts,
         is_muted,
+        shared_video_url,
+        speaking_peers,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
@@ -639,6 +695,8 @@ pub fn use_room_state() -> RoomState {
         toggle_mic,
         dismiss_toast,
         end_meeting,
+        start_share_video,
+        stop_share_video,
     }
 }
 

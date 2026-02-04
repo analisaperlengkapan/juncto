@@ -111,6 +111,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let chat_history_mutex = state.chat_history.clone();
     let breakout_rooms_mutex = state.breakout_rooms.clone();
     let participant_locations_mutex = state.participant_locations.clone();
+    let shared_video_mutex = state.shared_video_url.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -134,8 +135,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             res = receiver.next() => {
                 match res {
                     Some(Ok(Message::Text(text))) => {
-                        if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                            match client_msg {
+                        match serde_json::from_str::<ClientMessage>(&text) {
+                            Ok(client_msg) => match client_msg {
                                 ClientMessage::KickParticipant(target_id) => {
                                     if let Some(uid) = &my_id {
                                         let host_id = {
@@ -406,6 +407,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if !history.is_empty() {
                                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                                     }
+
+                                    // Send Shared Video State
+                                    let shared_url = {
+                                        shared_video_mutex.lock().unwrap().clone()
+                                    };
+                                    if let Some(url) = shared_url {
+                                        let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
+                                    }
                                 },
                                 ClientMessage::Chat { content, recipient_id, attachment } => {
                                     if let Some(att) = &attachment {
@@ -626,8 +635,45 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                         }
                                     }
+                                },
+                                ClientMessage::StartShareVideo(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            {
+                                                let mut v = shared_video_mutex.lock().unwrap();
+                                                *v = Some(url.clone());
+                                            }
+                                            let _ = tx.send(ServerMessage::VideoShared(url));
+                                        }
+                                    }
+                                },
+                                ClientMessage::StopShareVideo => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            {
+                                                let mut v = shared_video_mutex.lock().unwrap();
+                                                *v = None;
+                                            }
+                                            let _ = tx.send(ServerMessage::VideoStopped);
+                                        }
+                                    }
+                                },
+                                ClientMessage::Speaking(is_speaking) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::PeerSpeaking {
+                                            user_id: uid.clone(),
+                                            speaking: is_speaking,
+                                        });
+                                    }
                                 }
-                            }
+                            },
+                            _ => {}
                         }
                     },
                     _ => break, // Disconnect or Error
@@ -866,6 +912,7 @@ mod tests {
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let config = RoomConfig::default();
@@ -887,6 +934,7 @@ mod tests {
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let config = RoomConfig {
@@ -922,6 +970,7 @@ mod tests {
             chat_history: history.clone(),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         // Simulate adding a message (like the websocket handler would)

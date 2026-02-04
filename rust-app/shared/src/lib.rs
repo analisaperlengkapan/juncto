@@ -107,6 +107,9 @@ pub enum ClientMessage {
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
     Typing(bool),
+    StartShareVideo(String), // URL
+    StopShareVideo,
+    Speaking(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -140,6 +143,9 @@ pub enum ServerMessage {
     AccessGranted,
     AccessDenied,
     RoomEnded,
+    VideoShared(String), // URL
+    VideoStopped,
+    PeerSpeaking { user_id: String, speaking: bool },
     Error(String),
 }
 

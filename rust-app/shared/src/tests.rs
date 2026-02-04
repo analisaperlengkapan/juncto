@@ -124,6 +124,37 @@ fn test_poll_serialization() {
 }
 
 #[test]
+fn test_shared_video_messages() {
+    let msg = ClientMessage::StartShareVideo("https://youtu.be/test".to_string());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg = ClientMessage::StopShareVideo;
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg = ServerMessage::VideoShared("https://youtu.be/test".to_string());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}
+
+#[test]
+fn test_speaking_message() {
+    let msg = ClientMessage::Speaking(true);
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg = ServerMessage::PeerSpeaking { user_id: "u1".to_string(), speaking: true };
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}
+
+#[test]
 fn test_draw_serialization() {
     let draw = DrawAction {
         color: "#000000".to_string(),

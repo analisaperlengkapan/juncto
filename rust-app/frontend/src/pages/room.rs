@@ -106,6 +106,8 @@ pub fn Room() -> impl IntoView {
                                             local_stream=state.local_stream
                                             local_screen_stream=state.local_screen_stream
                                             my_id=state.my_id
+                                            shared_video_url=state.shared_video_url
+                                            speaking_peers=state.speaking_peers
                                         />
                                     </div>
                                 </div>
@@ -133,6 +135,15 @@ pub fn Room() -> impl IntoView {
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
+                                on_share_video=Callback::new(move |_| {
+                                    if let Some(url) = web_sys::window().unwrap().prompt_with_message("Enter YouTube URL:").unwrap() {
+                                        if !url.is_empty() {
+                                            state.start_share_video.call(url);
+                                        }
+                                    }
+                                })
+                                on_stop_share_video=state.stop_share_video
+                                is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
                                 on_toggle_camera=state.toggle_camera

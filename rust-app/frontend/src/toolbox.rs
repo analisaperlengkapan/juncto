@@ -14,6 +14,9 @@ pub fn Toolbox(
     on_shortcuts: Callback<()>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
+    on_share_video: Callback<()>,
+    on_stop_share_video: Callback<()>,
+    is_sharing_video: Signal<bool>,
     on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
     on_toggle_camera: Callback<()>,
@@ -60,6 +63,20 @@ pub fn Toolbox(
             >
                 "Share Screen"
             </button>
+            <Show when=move || is_host.get() fallback=|| ()>
+                <button
+                    on:click=move |_| {
+                        if is_sharing_video.get() {
+                            on_stop_share_video.call(());
+                        } else {
+                            on_share_video.call(());
+                        }
+                    }
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_sharing_video.get() { "#dc3545" } else { "#fd7e14" })
+                >
+                    {move || if is_sharing_video.get() { "Stop Video" } else { "Share Video" }}
+                </button>
+            </Show>
             <button
                 on:click=move |_| on_whiteboard.call(())
                 style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"
