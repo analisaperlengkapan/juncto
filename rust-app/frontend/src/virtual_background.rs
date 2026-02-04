@@ -4,13 +4,19 @@ use leptos::*;
 pub fn VirtualBackgroundDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
-    on_change: Callback<String>,
+    on_change: Callback<(String, Option<String>)>,
 ) -> impl IntoView {
     let (selected, set_selected) = create_signal("none".to_string());
 
     let apply = move |mode: String| {
         set_selected.set(mode.clone());
-        on_change.call(mode);
+        // For now use a placeholder, or we could add a file picker
+        let img_url = if mode == "image" {
+            Some("https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?auto=format&fit=crop&w=640".to_string())
+        } else {
+            None
+        };
+        on_change.call((mode, img_url));
     };
 
     view! {

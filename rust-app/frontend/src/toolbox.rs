@@ -24,8 +24,14 @@ pub fn Toolbox(
     on_toggle_camera: Callback<()>,
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
-    on_leave: Callback<()>,
-    on_end_meeting: Callback<()>,
+    #[prop(optional)]
+    on_leave: Option<Callback<()>>,
+    #[prop(optional)]
+    on_end_meeting: Option<Callback<()>>,
+    #[prop(optional)]
+    on_share_file: Option<Callback<()>>,
+    #[prop(optional)]
+    on_feedback: Option<Callback<()>>,
     #[prop(optional)]
     class: &'static str,
     #[prop(optional)]
@@ -79,6 +85,15 @@ pub fn Toolbox(
                     {move || if is_sharing_video.get() { "Stop Video" } else { "Share Video" }}
                 </button>
             </Show>
+            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_share_file { cb.call(()); } title="Share File">
+                "📁"
+            </button>
+            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_feedback { cb.call(()); } title="Feedback">
+                "💬"
+            </button>
+            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_leave { cb.call(()); } title="Leave Room">
+                "🚪"
+            </button>
             <button
                 on:click=move |_| on_whiteboard.call(())
                 style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"

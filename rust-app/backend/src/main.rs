@@ -1,4 +1,8 @@
 mod api;
+mod db;
+
+#[cfg(test)]
+mod tests;
 
 use axum::{
     routing::{get, post},
@@ -67,19 +71,25 @@ async fn main() {
     });
 
     // Define the router
+    let app = create_router(app_state);
+
+    // Run it
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    println!("listening on {}", listener.local_addr().unwrap());
+    axum::serve(listener, app).await.unwrap();
+}
+
+pub fn create_router(app_state: Arc<AppState>) -> Router {
     let serve_dir = ServeDir::new("frontend/pkg")
         .not_found_service(ServeFile::new("frontend/pkg/index.html"));
 
-    let app = Router::new()
+    Router::new()
+        .route("/api/health", get(api::health_check))
         .route("/api/rooms", post(api::create_room))
-        .route("/health", get(api::health_check))
-        .route("/ws/chat", get(api::chat_handler))
+        .route("/api/upload", post(api::upload_handler))
+        .route("/api/feedback", post(api::feedback_handler))
+        .route("/ws/chat", axum::routing::any(api::chat_handler))
+        .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         .fallback_service(serve_dir)
-        .with_state(app_state);
-
-    // Run the server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+        .with_state(app_state)
 }

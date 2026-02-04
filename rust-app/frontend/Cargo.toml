@@ -15,7 +15,8 @@ console_error_panic_hook = "0.1"
 urlencoding = "2.1"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "Location", "Window", "MouseEvent", "HtmlCanvasElement", "CanvasRenderingContext2d", "Navigator", "MediaDevices", "MediaDeviceInfo", "MediaStream", "MediaStreamTrack", "MediaStreamConstraints", "HtmlVideoElement", "HtmlMediaElement", "Element", "MediaDeviceKind", "FileReader", "File", "FileList", "Blob", "HtmlInputElement", "Event", "EventTarget", "KeyboardEvent", "Document", "HtmlElement", "Node", "AudioContext", "AnalyserNode", "AudioNode", "MediaStreamAudioSourceNode"] }
-gloo-timers = "0.3.0"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+gloo-net = "0.6.0"
 wasm-bindgen-futures = "0.4"
 
 [lib]

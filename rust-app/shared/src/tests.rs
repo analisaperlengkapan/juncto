@@ -171,3 +171,29 @@ fn test_draw_serialization() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 }
+
+#[test]
+fn test_feedback_serialization() {
+    let feedback = Feedback {
+        rating: 5,
+        comment: "Great app!".to_string(),
+        user_id: Some("user123".to_string()),
+    };
+    let serialized = serde_json::to_string(&feedback).unwrap();
+    let deserialized: Feedback = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(feedback, deserialized);
+}
+
+#[test]
+fn test_file_attachment_serialization() {
+    let attachment = FileAttachment {
+        filename: "test.txt".to_string(),
+        mime_type: "text/plain".to_string(),
+        size: 100,
+        content_base64: "base64encodedcontent".to_string(),
+    };
+    let serialized = serde_json::to_string(&attachment).unwrap();
+    let deserialized: FileAttachment = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(attachment.filename, deserialized.filename);
+    assert_eq!(attachment.content_base64, deserialized.content_base64);
+}

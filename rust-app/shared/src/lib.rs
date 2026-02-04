@@ -10,6 +10,13 @@ pub struct FileAttachment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Feedback {
+    pub rating: u8, // 1-5
+    pub comment: String,
+    pub user_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,

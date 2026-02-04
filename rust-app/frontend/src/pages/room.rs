@@ -9,6 +9,8 @@ use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::components_ui::toast::ToastContainer;
 use crate::settings::SettingsDialog;
+use crate::components_ui::file_sharing::FileSharingDialog;
+use crate::components_ui::feedback::FeedbackDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
 use crate::whiteboard::Whiteboard;
@@ -115,6 +117,8 @@ pub fn Room() -> impl IntoView {
                                             my_id=state.my_id
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
+                                            pinned_participant=state.pinned_participant
+                                            set_pinned_participant=state.set_pinned_participant
                                         />
                                     </div>
                                 </div>
@@ -158,8 +162,10 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_camera=state.toggle_camera
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
-                                on_leave=leave_room
+                                on_leave=leave_room // Original Leave
                                 on_end_meeting=state.end_meeting
+                                on_share_file=Callback::new(move |_| state.set_show_file_sharing.set(true))
+                                on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
                             />
                         </div>
                         <Chat
@@ -175,6 +181,14 @@ pub fn Room() -> impl IntoView {
                             show=state.show_settings
                             on_close=Callback::new(move |_| state.set_show_settings.set(false))
                             on_save_profile=state.save_profile
+                            audio_devices=state.audio_devices
+                            video_devices=state.video_devices
+                            selected_audio_input=state.selected_audio_input
+                            selected_video_input=state.selected_video_input
+                            set_audio_devices=state.set_audio_devices
+                            set_video_devices=state.set_video_devices
+                            set_selected_audio_input=state.set_selected_audio_input
+                            set_selected_video_input=state.set_selected_video_input
                         />
                         <PollsDialog
                             show=state.show_polls
@@ -195,9 +209,27 @@ pub fn Room() -> impl IntoView {
                         <VirtualBackgroundDialog
                             show=state.show_virtual_background
                             on_close=Callback::new(move |_| state.set_show_virtual_background.set(false))
-                            on_change=Callback::new(move |mode| {
-                                web_sys::console::log_1(&format!("Background changed to: {}", mode).into());
+                            on_change=state.set_virtual_background_mode
+                        />
+                        <FileSharingDialog
+                            show=state.show_file_sharing
+                            on_close=Callback::new(move |_| state.set_show_file_sharing.set(false))
+                            on_upload=Callback::new(move |url: String| {
+                                state.send_message.call((format!("Shared a file: {}", url), None, None));
+                                // Ideally we should send actual Attachment object, but for MVP we send URL in text.
+                                // Or better: send attachment message.
+                                // The current `send_message` signature takes `(content, recipient, attachment)`.
+                                // Let's construct attachment.
+                                // But `send_message` expects `Option<FileAttachment>`.
+                                // We only have URL here.
+                                // Let's just send text for now to match MVP.
+                                // "Shared a file: /uploads/..."
                             })
+                        />
+                        <FeedbackDialog
+                            show=state.show_feedback
+                            on_close=Callback::new(move |_| state.set_show_feedback.set(false))
+                            user_id=state.my_id.get()
                         />
                     </div>
                 }.into_view()

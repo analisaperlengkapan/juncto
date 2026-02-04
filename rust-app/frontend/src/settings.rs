@@ -7,15 +7,17 @@ pub fn SettingsDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_save_profile: Callback<String>,
+    audio_devices: ReadSignal<Vec<MediaDeviceInfo>>,
+    video_devices: ReadSignal<Vec<MediaDeviceInfo>>,
+    selected_audio_input: ReadSignal<Option<String>>,
+    selected_video_input: ReadSignal<Option<String>>,
+    set_audio_devices: WriteSignal<Vec<MediaDeviceInfo>>,
+    set_video_devices: WriteSignal<Vec<MediaDeviceInfo>>,
+    set_selected_audio_input: WriteSignal<Option<String>>,
+    set_selected_video_input: WriteSignal<Option<String>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
-
-    // Devices State
-    let (video_devices, set_video_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
-    let (audio_devices, set_audio_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
-    let (selected_video, set_selected_video) = create_signal(None::<String>);
-    let (selected_audio, set_selected_audio) = create_signal(None::<String>);
     let (error_msg, set_error_msg) = create_signal(None::<String>);
 
     let video_ref = create_node_ref::<html::Video>();
@@ -42,8 +44,8 @@ pub fn SettingsDialog(
     });
 
     let start_preview = create_action(move |_: &()| async move {
-        let v_id = selected_video.get();
-        let a_id = selected_audio.get();
+        let v_id = selected_video_input.get();
+        let a_id = selected_audio_input.get();
 
         match get_user_media(v_id, a_id).await {
             Ok(stream) => {
@@ -125,9 +127,9 @@ pub fn SettingsDialog(
                                     on:change=move |ev| {
                                         let val = event_target_value(&ev);
                                         if val.is_empty() {
-                                            set_selected_video.set(None);
+                                            set_selected_video_input.set(None);
                                         } else {
-                                            set_selected_video.set(Some(val));
+                                            set_selected_video_input.set(Some(val));
                                         }
                                         start_preview.dispatch(());
                                     }
@@ -142,7 +144,7 @@ pub fn SettingsDialog(
                                             let label_text = if label.is_empty() { format!("Camera {}", id) } else { label };
                                             let id_clone = id.clone();
                                             view! {
-                                                <option value=id selected=move || selected_video.get().as_ref() == Some(&id_clone)>
+                                                <option value=id selected=move || selected_video_input.get().as_ref() == Some(&id_clone)>
                                                     {label_text}
                                                 </option>
                                             }
@@ -157,9 +159,9 @@ pub fn SettingsDialog(
                                     on:change=move |ev| {
                                         let val = event_target_value(&ev);
                                         if val.is_empty() {
-                                            set_selected_audio.set(None);
+                                            set_selected_audio_input.set(None);
                                         } else {
-                                            set_selected_audio.set(Some(val));
+                                            set_selected_audio_input.set(Some(val));
                                         }
                                         start_preview.dispatch(());
                                     }
@@ -174,7 +176,7 @@ pub fn SettingsDialog(
                                             let label_text = if label.is_empty() { format!("Mic {}", id) } else { label };
                                             let id_clone = id.clone();
                                             view! {
-                                                <option value=id selected=move || selected_audio.get().as_ref() == Some(&id_clone)>
+                                                <option value=id selected=move || selected_audio_input.get().as_ref() == Some(&id_clone)>
                                                     {label_text}
                                                 </option>
                                             }

@@ -14,6 +14,7 @@ mod shortcuts;
 mod speaker_stats;
 mod virtual_background;
 mod connection_stats;
+mod video_processor;
 
 use leptos::*;
 use leptos_router::*;

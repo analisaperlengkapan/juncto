@@ -46,6 +46,8 @@ pub fn VideoGrid(
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
+    pinned_participant: ReadSignal<Option<String>>,
+    set_pinned_participant: WriteSignal<Option<String>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -127,9 +129,8 @@ pub fn VideoGrid(
             </Show>
 
             // Local User Video
-            <div class="video-card local-video" style=move || if layout.get() == "spotlight" && local_screen_stream.get().is_none() {
-                 // If spotlight and no screen share, make local video big (or first remote)
-                 // For simplicity, just making local big if it's the only priority content
+            <div class="video-card local-video" style=move || if pinned_participant.get() == Some("me".to_string()) || (layout.get() == "spotlight" && local_screen_stream.get().is_none() && pinned_participant.get().is_none()) {
+                 // Expanded style
                  "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
             } else {
                  "width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
@@ -150,6 +151,19 @@ pub fn VideoGrid(
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
                 </div>
+                <button
+                    class="pin-btn"
+                    on:click=move |_| {
+                        if pinned_participant.get() == Some("me".to_string()) {
+                            set_pinned_participant.set(None);
+                        } else {
+                            set_pinned_participant.set(Some("me".to_string()));
+                        }
+                    }
+                    style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer;"
+                >
+                    {move || if pinned_participant.get() == Some("me".to_string()) { "Unpin" } else { "Pin" }}
+                </button>
             </div>
 
             // Remote Items
@@ -206,11 +220,18 @@ pub fn VideoGrid(
                             let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
                             let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
                             let is_hand_raised = p.is_hand_raised;
-                            let id_clone = p.id.clone();
-                            let is_speaking = move || speaking_peers.get().contains(&id_clone);
+                            let id_speaking = p.id.clone();
+                            let is_speaking = move || speaking_peers.get().contains(&id_speaking);
+                            let id_pin = p.id.clone();
+                            let id_pin_view = p.id.clone(); // For button text
 
                             view! {
-                                <div class="video-card" style=move || format!("width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                <div class="video-card" style=move || format!("width: {}; height: {}; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", 
+                                    if pinned_participant.get() == Some(p.id.clone()) { "100%" } else { "320px" },
+                                    if pinned_participant.get() == Some(p.id.clone()) { "100%" } else { "240px" },
+                                    if is_speaking() { "3px" } else { "1px" }, 
+                                    if is_speaking() { "#28a745" } else { "#444" }
+                                )>
                                     <Show when=move || is_screen fallback=move || view!{
                                         <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
                                             {initial_char.clone()}
@@ -229,6 +250,19 @@ pub fn VideoGrid(
                                         <Show when=move || is_hand_raised && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
+                                        <button
+                                            class="pin-btn"
+                                            on:click=move |_| {
+                                                if pinned_participant.get() == Some(id_pin.clone()) {
+                                                    set_pinned_participant.set(None);
+                                                } else {
+                                                    set_pinned_participant.set(Some(id_pin.clone()));
+                                                }
+                                            }
+                                            style="background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer;"
+                                        >
+                                            {move || if pinned_participant.get() == Some(id_pin_view.clone()) { "Unpin" } else { "Pin" }}
+                                        </button>
                                     </div>
                                 </div>
                             }
