@@ -55,6 +55,10 @@ pub async fn create_room(
         let mut v = state.shared_video_url.lock().unwrap();
         *v = None;
     }
+    {
+        let mut s = state.speaking_start_times.lock().unwrap();
+        s.clear();
+    }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
@@ -163,6 +167,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
                                                 locations.remove(&target_id);
                                             }
+                                            {
+                                                let mut starts = speaking_start_times_mutex.lock().unwrap();
+                                                starts.remove(&target_id);
+                                            }
                                             // 3. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
                                             // 4. Broadcast ParticipantLeft (so lists update)
@@ -187,6 +195,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             {
                                                 let mut c = room_config_mutex.lock().unwrap();
                                                 c.host_id = None;
+                                            }
+                                            {
+                                                let mut s = speaking_start_times_mutex.lock().unwrap();
+                                                s.clear();
                                             }
                                         }
                                     }
@@ -915,6 +927,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         {
             let mut locations = participant_locations_mutex.lock().unwrap();
             locations.remove(&id);
+        }
+        {
+            let mut starts = speaking_start_times_mutex.lock().unwrap();
+            starts.remove(&id);
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
