@@ -2,6 +2,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FileAttachment {
+    pub filename: String,
+    pub mime_type: String,
+    pub size: u64,
+    pub content_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,
@@ -49,6 +57,8 @@ pub struct ChatMessage {
     pub content: String,
     pub recipient_id: Option<String>,
     pub timestamp: u64,
+    #[serde(default)] // Default to None for backward compatibility during migration
+    pub attachment: Option<FileAttachment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -81,7 +91,7 @@ pub enum ClientMessage {
     CreatePoll(Poll),
     Vote { poll_id: String, option_id: u32 },
     Join(String), // Display Name
-    Chat { content: String, recipient_id: Option<String> },
+    Chat { content: String, recipient_id: Option<String>, attachment: Option<FileAttachment> },
     ToggleRoomLock,
     ToggleRecording,
     UpdateProfile(String), // New Name
@@ -97,6 +107,9 @@ pub enum ClientMessage {
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
     Typing(bool),
+    StartShareVideo(String), // URL
+    StopShareVideo,
+    Speaking(bool),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -130,6 +143,9 @@ pub enum ServerMessage {
     AccessGranted,
     AccessDenied,
     RoomEnded,
+    VideoShared(String), // URL
+    VideoStopped,
+    PeerSpeaking { user_id: String, speaking: bool },
     Error(String),
 }
 

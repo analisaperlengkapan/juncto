@@ -51,6 +51,10 @@ pub async fn create_room(
         let mut pl = state.participant_locations.lock().unwrap();
         pl.clear();
     }
+    {
+        let mut v = state.shared_video_url.lock().unwrap();
+        *v = None;
+    }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
@@ -111,6 +115,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let chat_history_mutex = state.chat_history.clone();
     let breakout_rooms_mutex = state.breakout_rooms.clone();
     let participant_locations_mutex = state.participant_locations.clone();
+    let shared_video_mutex = state.shared_video_url.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -406,14 +411,32 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if !history.is_empty() {
                                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                                     }
+
+                                    // Send Shared Video State
+                                    let shared_url = {
+                                        shared_video_mutex.lock().unwrap().clone()
+                                    };
+                                    if let Some(url) = shared_url {
+                                        let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
+                                    }
                                 },
-                                ClientMessage::Chat { content, recipient_id } => {
+                                ClientMessage::Chat { content, recipient_id, attachment } => {
+                                    if let Some(att) = &attachment {
+                                        // Bug 5: Don't trust att.size from client.
+                                        // Max encoded size for 2MB file: 2 * 1024 * 1024 * 4 / 3 = 2,796,202 bytes.
+                                        // Round up to 3MB (3 * 1024 * 1024) for safety.
+                                        if att.content_base64.len() > 3 * 1024 * 1024 {
+                                            let _ = internal_tx.send(ServerMessage::Error("File too large".to_string())).await;
+                                            continue;
+                                        }
+                                    }
                                     if let Some(uid) = &my_id {
                                         let chat_msg = ChatMessage {
                                             user_id: uid.clone(),
                                             content,
                                             recipient_id: recipient_id.clone(),
                                             timestamp: chrono::Utc::now().timestamp_millis() as u64,
+                                            attachment,
                                         };
                                         if recipient_id.is_none() && my_room_id.is_none() {
                                             let mut history = chat_history_mutex.lock().unwrap();
@@ -619,6 +642,42 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                         }
                                     }
+                                },
+                                ClientMessage::StartShareVideo(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            {
+                                                let mut v = shared_video_mutex.lock().unwrap();
+                                                *v = Some(url.clone());
+                                            }
+                                            let _ = tx.send(ServerMessage::VideoShared(url));
+                                        }
+                                    }
+                                },
+                                ClientMessage::StopShareVideo => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            {
+                                                let mut v = shared_video_mutex.lock().unwrap();
+                                                *v = None;
+                                            }
+                                            let _ = tx.send(ServerMessage::VideoStopped);
+                                        }
+                                    }
+                                },
+                                ClientMessage::Speaking(is_speaking) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::PeerSpeaking {
+                                            user_id: uid.clone(),
+                                            speaking: is_speaking,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -760,6 +819,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             if !history.is_empty() {
                                 let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                             }
+
+                            // Send Shared Video State
+                            let shared_url = {
+                                shared_video_mutex.lock().unwrap().clone()
+                            };
+                            if let Some(url) = shared_url {
+                                let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
+                            }
                         } else {
                             let _ = internal_tx.send(ServerMessage::AccessDenied).await;
                         }
@@ -859,6 +926,7 @@ mod tests {
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let config = RoomConfig::default();
@@ -880,6 +948,7 @@ mod tests {
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let config = RoomConfig {
@@ -915,6 +984,7 @@ mod tests {
             chat_history: history.clone(),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            shared_video_url: Arc::new(std::sync::Mutex::new(None)),
         });
 
         // Simulate adding a message (like the websocket handler would)
@@ -925,6 +995,7 @@ mod tests {
                 content: "Hello".to_string(),
                 recipient_id: None,
                 timestamp: 1234567890,
+                attachment: None,
             });
         }
 
@@ -1035,6 +1106,44 @@ mod tests {
             assert_eq!(list[0].name, "Team A");
         } else {
             panic!("Wrong message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_file_sharing_broadcast() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel(100);
+
+        let attachment = shared::FileAttachment {
+            filename: "doc.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            size: 100,
+            content_base64: "base64content".to_string(),
+        };
+
+        let chat_msg = shared::ChatMessage {
+            user_id: "user1".to_string(),
+            content: "File sent".to_string(),
+            recipient_id: None,
+            timestamp: 1234567890,
+            attachment: Some(attachment.clone()),
+        };
+
+        // Send logic
+        let _ = tx.send(shared::ServerMessage::Chat {
+            message: chat_msg,
+            room_id: None,
+        });
+
+        // Receive logic
+        let received = rx.recv().await.unwrap();
+        match received {
+            shared::ServerMessage::Chat { message, room_id } => {
+                assert_eq!(message.user_id, "user1");
+                assert!(message.attachment.is_some());
+                assert_eq!(message.attachment.unwrap().filename, "doc.txt");
+                assert_eq!(room_id, None);
+            },
+            _ => panic!("Wrong message"),
         }
     }
 }

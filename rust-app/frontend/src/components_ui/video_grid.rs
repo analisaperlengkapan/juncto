@@ -1,11 +1,13 @@
 use leptos::*;
 use shared::Participant;
 use web_sys::MediaStream;
+use std::collections::HashSet;
 
 #[derive(Clone, PartialEq)]
 enum GridItem {
     User(Participant),
     RemoteScreen(Participant),
+    SharedVideo(String), // URL
 }
 
 impl GridItem {
@@ -14,6 +16,7 @@ impl GridItem {
         match self {
             GridItem::User(p) => format!("{}_{}_{}", p.id, p.is_hand_raised, p.is_sharing_screen),
             GridItem::RemoteScreen(p) => format!("{}_screen_{}", p.id, p.is_sharing_screen),
+            GridItem::SharedVideo(url) => format!("shared_video_{}", url),
         }
     }
 
@@ -21,10 +24,16 @@ impl GridItem {
         matches!(self, GridItem::RemoteScreen(_))
     }
 
-    fn participant(&self) -> &Participant {
+    #[allow(dead_code)]
+    fn is_shared_video(&self) -> bool {
+        matches!(self, GridItem::SharedVideo(_))
+    }
+
+    fn participant(&self) -> Option<&Participant> {
         match self {
-            GridItem::User(p) => p,
-            GridItem::RemoteScreen(p) => p,
+            GridItem::User(p) => Some(p),
+            GridItem::RemoteScreen(p) => Some(p),
+            GridItem::SharedVideo(_) => None,
         }
     }
 }
@@ -35,6 +44,8 @@ pub fn VideoGrid(
     local_stream: ReadSignal<Option<MediaStream>>,
     local_screen_stream: ReadSignal<Option<MediaStream>>,
     my_id: ReadSignal<Option<String>>,
+    shared_video_url: ReadSignal<Option<String>>,
+    speaking_peers: ReadSignal<HashSet<String>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -58,9 +69,12 @@ pub fn VideoGrid(
         }
     });
 
-    // Prepare grid items: remote users + remote screens
+    // Prepare grid items: remote users + remote screens + shared video
     let grid_items = create_memo(move |_| {
         let mut items = Vec::new();
+        if let Some(url) = shared_video_url.get() {
+            items.push(GridItem::SharedVideo(url));
+        }
         let my_id_val = my_id.get();
         for p in participants.get() {
             if my_id_val != Some(p.id.clone()) {
@@ -143,34 +157,82 @@ pub fn VideoGrid(
                 each=move || grid_items.get()
                 key=|item| item.unique_key()
                 children=move |item| {
-                    let p = item.participant().clone();
-                    let is_screen = item.is_screen();
-                    let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
-                    let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
-                    let is_hand_raised = p.is_hand_raised;
+                    match item {
+                        GridItem::SharedVideo(url) => {
+                            // Extract video ID if YouTube
+                            let video_id = if url.contains("youtube.com") || url.contains("youtu.be") {
+                                // Basic extraction
+                                if let Some(idx) = url.find("v=") {
+                                    url[idx+2..].split('&').next().unwrap_or("").to_string()
+                                } else if let Some(idx) = url.rfind('/') {
+                                    url[idx+1..].split('?').next().unwrap_or("").to_string()
+                                } else {
+                                    "".to_string()
+                                }
+                            } else {
+                                "".to_string()
+                            };
 
-                    view! {
-                        <div class="video-card" style="width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: 1px solid #444;">
-                            <Show when=move || is_screen fallback=move || view!{
-                                <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                    {initial_char.clone()}
+                            // Bug 9 Fix: Basic handling for non-YouTube
+                            // If video_id is empty but we have a url, maybe show error or just ignore.
+                            // For now, if empty, we won't render iframe source correctly.
+
+                            let embed_url = if !video_id.is_empty() {
+                                format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
+                            } else {
+                                // Fallback or empty (user will see black box with "Shared Video")
+                                "".to_string()
+                            };
+
+                            view! {
+                                <div class="video-card shared-video" style="width: 640px; height: 360px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src=embed_url
+                                        frameborder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen
+                                    ></iframe>
+                                    <div class="name-tag" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
+                                        "Shared Video"
+                                    </div>
                                 </div>
-                            }>
-                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
-                                    "Remote Screen"
+                            }
+                        },
+                        _ => {
+                            let p = item.participant().unwrap().clone();
+                            let is_screen = item.is_screen();
+                            let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
+                            let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                            let is_hand_raised = p.is_hand_raised;
+                            let id_clone = p.id.clone();
+                            let is_speaking = move || speaking_peers.get().contains(&id_clone);
+
+                            view! {
+                                <div class="video-card" style=move || format!("width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                    <Show when=move || is_screen fallback=move || view!{
+                                        <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                            {initial_char.clone()}
+                                        </div>
+                                    }>
+                                        <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
+                                            "Remote Screen"
+                                        </div>
+                                    </Show>
+
+                                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
+                                        {p_name}
+                                    </div>
+
+                                    <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                        <Show when=move || is_hand_raised && !is_screen>
+                                            <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
+                                        </Show>
+                                    </div>
                                 </div>
-                            </Show>
-
-                            <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                {p_name}
-                            </div>
-
-                            <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                                <Show when=move || is_hand_raised && !is_screen>
-                                    <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
-                                </Show>
-                            </div>
-                        </div>
+                            }
+                        }
                     }
                 }
             />
@@ -202,5 +264,9 @@ mod tests {
         // Key format: id_screen_screen
         assert_eq!(item_screen.unique_key(), "user1_screen_false");
         assert!(item_screen.is_screen());
+
+        let item_video = GridItem::SharedVideo("http://test".to_string());
+        assert_eq!(item_video.unique_key(), "shared_video_http://test");
+        assert!(item_video.is_shared_video());
     }
 }

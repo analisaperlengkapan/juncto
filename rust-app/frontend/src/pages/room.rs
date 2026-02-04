@@ -12,6 +12,7 @@ use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
 use crate::whiteboard::Whiteboard;
+use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
 use crate::state::{use_room_state, RoomConnectionState};
 use gloo_timers::callback::Interval;
 
@@ -59,6 +60,12 @@ pub fn Room() -> impl IntoView {
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
+                        <KeyboardShortcuts
+                            on_toggle_mic=state.toggle_mic
+                            on_toggle_camera=state.toggle_camera
+                            on_raise_hand=state.toggle_raise_hand
+                            on_screen_share=state.toggle_screen_share
+                        />
                         <ParticipantsList
                             participants=state.participants
                             knocking_participants=state.knocking_participants
@@ -99,6 +106,8 @@ pub fn Room() -> impl IntoView {
                                             local_stream=state.local_stream
                                             local_screen_stream=state.local_screen_stream
                                             my_id=state.my_id
+                                            shared_video_url=state.shared_video_url
+                                            speaking_peers=state.speaking_peers
                                         />
                                     </div>
                                 </div>
@@ -123,8 +132,18 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
+                                on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
+                                on_share_video=Callback::new(move |_| {
+                                    if let Some(url) = web_sys::window().unwrap().prompt_with_message("Enter YouTube URL:").unwrap() {
+                                        if !url.is_empty() {
+                                            state.start_share_video.call(url);
+                                        }
+                                    }
+                                })
+                                on_stop_share_video=state.stop_share_video
+                                is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
                                 on_toggle_camera=state.toggle_camera
@@ -154,6 +173,10 @@ pub fn Room() -> impl IntoView {
                             on_close=Callback::new(move |_| state.set_show_polls.set(false))
                             on_create_poll=state.create_poll
                             on_vote=state.vote_poll
+                        />
+                        <ShortcutsDialog
+                            show=state.show_shortcuts
+                            on_close=Callback::new(move |_| state.set_show_shortcuts.set(false))
                         />
                     </div>
                 }.into_view()
