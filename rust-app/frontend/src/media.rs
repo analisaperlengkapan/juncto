@@ -76,6 +76,7 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
 
 pub struct AudioMonitor {
     context: AudioContext,
+    #[allow(dead_code)]
     analyser: AnalyserNode,
     _source: web_sys::MediaStreamAudioSourceNode,
     _closure: Closure<dyn FnMut()>,

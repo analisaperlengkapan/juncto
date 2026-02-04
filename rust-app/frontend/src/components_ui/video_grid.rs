@@ -24,6 +24,7 @@ impl GridItem {
         matches!(self, GridItem::RemoteScreen(_))
     }
 
+    #[allow(dead_code)]
     fn is_shared_video(&self) -> bool {
         matches!(self, GridItem::SharedVideo(_))
     }
