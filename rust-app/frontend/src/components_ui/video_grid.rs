@@ -253,6 +253,7 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
+            speaking_time: 0,
         };
 
         let item_user = GridItem::User(p.clone());

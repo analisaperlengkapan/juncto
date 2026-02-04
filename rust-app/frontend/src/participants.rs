@@ -24,6 +24,13 @@ pub fn ParticipantsList(
     on_deny: Callback<String>,
     on_kick: Callback<String>,
 ) -> impl IntoView {
+    let format_time = |ms: u64| {
+        let seconds = ms / 1000;
+        let m = seconds / 60;
+        let s = seconds % 60;
+        format!("{:02}:{:02}", m, s)
+    };
+
     view! {
         <div class="participants-list" style="width: 200px; background: #eee; padding: 20px; height: 100%;">
             <Show when=move || !knocking_participants.get().is_empty()>
@@ -85,6 +92,9 @@ pub fn ParticipantsList(
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div>
                                     <span>{p.name}</span>
+                                    <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
+                                       "(" {format_time(p.speaking_time)} ")"
+                                    </span>
                                     <Show when=move || host_id.get() == Some(p.id.clone())>
                                         <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
                                     </Show>
@@ -139,18 +149,21 @@ mod tests {
             name: "Charlie".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
+            speaking_time: 0,
         };
         let p2 = Participant {
             id: "2".to_string(),
             name: "Alice".to_string(),
             is_hand_raised: true, // Hand raised should be first
             is_sharing_screen: false,
+            speaking_time: 0,
         };
         let p3 = Participant {
             id: "3".to_string(),
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
+            speaking_time: 0,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

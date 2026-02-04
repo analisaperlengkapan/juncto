@@ -27,6 +27,7 @@ pub struct AppState {
     // Track participants' current room: participant_id -> room_id (None = Main)
     pub participant_locations: Arc<Mutex<HashMap<String, Option<String>>>>,
     pub shared_video_url: Arc<Mutex<Option<String>>>,
+    pub speaking_start_times: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 #[tokio::main]
@@ -49,6 +50,7 @@ async fn main() {
     let breakout_rooms = Arc::new(Mutex::new(HashMap::new()));
     let participant_locations = Arc::new(Mutex::new(HashMap::new()));
     let shared_video_url = Arc::new(Mutex::new(None));
+    let speaking_start_times = Arc::new(Mutex::new(HashMap::new()));
 
     let app_state = Arc::new(AppState {
         tx,
@@ -61,6 +63,7 @@ async fn main() {
         breakout_rooms,
         participant_locations,
         shared_video_url,
+        speaking_start_times,
     });
 
     // Define the router

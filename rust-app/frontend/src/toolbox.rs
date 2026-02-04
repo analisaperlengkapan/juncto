@@ -12,6 +12,8 @@ pub fn Toolbox(
     on_settings: Callback<()>,
     on_polls: Callback<()>,
     on_shortcuts: Callback<()>,
+    on_speaker_stats: Callback<()>,
+    on_virtual_background: Callback<()>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
     on_share_video: Callback<()>,
@@ -22,8 +24,10 @@ pub fn Toolbox(
     on_toggle_camera: Callback<()>,
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
-    on_leave: Callback<()>,
-    on_end_meeting: Callback<()>,
+    #[prop(optional)]
+    on_leave: Option<Callback<()>>,
+    #[prop(optional)]
+    on_end_meeting: Option<Callback<()>>,
     #[prop(optional)]
     class: &'static str,
     #[prop(optional)]
@@ -32,14 +36,22 @@ pub fn Toolbox(
     view! {
         <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px; {}", style)>
             <button
-                on:click=move |_| on_leave.call(())
+                on:click=move |_| {
+                    if let Some(cb) = on_leave {
+                        cb.call(());
+                    }
+                }
                 style="padding: 8px 16px; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
             >
                 "Leave"
             </button>
             <Show when=move || is_host.get() fallback=|| ()>
                 <button
-                    on:click=move |_| on_end_meeting.call(())
+                    on:click=move |_| {
+                        if let Some(cb) = on_end_meeting {
+                            cb.call(());
+                        }
+                    }
                     style="padding: 8px 16px; background-color: #8b0000; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
                 >
                     "End Meeting"
@@ -113,6 +125,18 @@ pub fn Toolbox(
                     {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
                 </button>
             </Show>
+            <button
+                on:click=move |_| on_speaker_stats.call(())
+                style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Stats"
+            </button>
+            <button
+                on:click=move |_| on_virtual_background.call(())
+                style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Background"
+            </button>
             <button
                 on:click=move |_| on_settings.call(())
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"

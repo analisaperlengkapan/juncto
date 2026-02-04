@@ -302,12 +302,14 @@ mod tests {
                 name: "Alice".to_string(),
                 is_hand_raised: false,
                 is_sharing_screen: false,
+                speaking_time: 0,
             },
             Participant {
                 id: "u2".to_string(),
                 name: "Bob".to_string(),
                 is_hand_raised: false,
                 is_sharing_screen: false,
+                speaking_time: 0,
             }
         ];
 

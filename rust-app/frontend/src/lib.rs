@@ -11,6 +11,9 @@ mod polls;
 mod whiteboard;
 mod media;
 mod shortcuts;
+mod speaker_stats;
+mod virtual_background;
+mod connection_stats;
 
 use leptos::*;
 use leptos_router::*;

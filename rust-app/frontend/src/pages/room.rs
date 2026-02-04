@@ -14,6 +14,9 @@ use crate::polls::PollsDialog;
 use crate::whiteboard::Whiteboard;
 use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
 use crate::state::{use_room_state, RoomConnectionState};
+use crate::speaker_stats::SpeakerStatsDialog;
+use crate::virtual_background::VirtualBackgroundDialog;
+use crate::connection_stats::ConnectionStats;
 use gloo_timers::callback::Interval;
 
 #[component]
@@ -65,6 +68,10 @@ pub fn Room() -> impl IntoView {
                             on_toggle_camera=state.toggle_camera
                             on_raise_hand=state.toggle_raise_hand
                             on_screen_share=state.toggle_screen_share
+                        />
+                        <ConnectionStats
+                            on_ping=state.send_ping
+                            rtt=state.rtt
                         />
                         <ParticipantsList
                             participants=state.participants
@@ -133,6 +140,8 @@ pub fn Room() -> impl IntoView {
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
+                                on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
+                                on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
                                 on_share_video=Callback::new(move |_| {
@@ -177,6 +186,18 @@ pub fn Room() -> impl IntoView {
                         <ShortcutsDialog
                             show=state.show_shortcuts
                             on_close=Callback::new(move |_| state.set_show_shortcuts.set(false))
+                        />
+                        <SpeakerStatsDialog
+                            show=state.show_speaker_stats
+                            participants=state.participants
+                            on_close=Callback::new(move |_| state.set_show_speaker_stats.set(false))
+                        />
+                        <VirtualBackgroundDialog
+                            show=state.show_virtual_background
+                            on_close=Callback::new(move |_| state.set_show_virtual_background.set(false))
+                            on_change=Callback::new(move |mode| {
+                                web_sys::console::log_1(&format!("Background changed to: {}", mode).into());
+                            })
                         />
                     </div>
                 }.into_view()
