@@ -167,9 +167,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
                                                 locations.remove(&target_id);
                                             }
+                                            // Update speaking time before removal
                                             {
                                                 let mut starts = speaking_start_times_mutex.lock().unwrap();
-                                                starts.remove(&target_id);
+                                                if let Some(start) = starts.remove(&target_id) {
+                                                    let now = chrono::Utc::now().timestamp_millis() as u64;
+                                                    if now > start {
+                                                        let delta = now - start;
+                                                        let mut participants = participants_mutex.lock().unwrap();
+                                                        if let Some(p) = participants.get_mut(&target_id) {
+                                                            p.speaking_time += delta;
+                                                            // Broadcast final update before kick
+                                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p.clone()));
+                                                        }
+                                                    }
+                                                }
                                             }
                                             // 3. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
@@ -894,6 +906,23 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     if let Some(t) = broadcast_task { t.abort(); }
 
     if let Some(id) = my_id {
+        // Update speaking time before removal
+        {
+            let mut starts = speaking_start_times_mutex.lock().unwrap();
+            if let Some(start) = starts.remove(&id) {
+                let now = chrono::Utc::now().timestamp_millis() as u64;
+                if now > start {
+                    let delta = now - start;
+                    let mut participants = participants_mutex.lock().unwrap();
+                    if let Some(p) = participants.get_mut(&id) {
+                        p.speaking_time += delta;
+                        // Broadcast final update
+                        let _ = tx.send(ServerMessage::ParticipantUpdated(p.clone()));
+                    }
+                }
+            }
+        }
+
         // Handle Host Leaving / Reassignment
         let new_host_assigned = {
             let mut participants = participants_mutex.lock().unwrap();
@@ -927,10 +956,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         {
             let mut locations = participant_locations_mutex.lock().unwrap();
             locations.remove(&id);
-        }
-        {
-            let mut starts = speaking_start_times_mutex.lock().unwrap();
-            starts.remove(&id);
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
