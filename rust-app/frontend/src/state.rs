@@ -590,6 +590,16 @@ pub fn use_room_state() -> RoomState {
             // Turn on
             spawn_local(async move {
                 if let Ok(stream) = get_user_media(None, None).await {
+                    // Apply existing mute state to new stream
+                    if is_muted.get_untracked() {
+                        let audio_tracks = stream.get_audio_tracks();
+                        for i in 0..audio_tracks.length() {
+                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                track.set_enabled(false);
+                            }
+                        }
+                    }
+
                     set_local_stream.set(Some(stream.clone()));
 
                     let on_speaking = Box::new(move |is_speaking: bool| {
