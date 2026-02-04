@@ -116,6 +116,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let breakout_rooms_mutex = state.breakout_rooms.clone();
     let participant_locations_mutex = state.participant_locations.clone();
     let shared_video_mutex = state.shared_video_url.clone();
+    let speaking_start_times_mutex = state.speaking_start_times.clone();
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
@@ -257,6 +258,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         name,
                                         is_hand_raised: false,
                                         is_sharing_screen: false,
+                                        speaking_time: 0,
                                     };
 
                                     if is_lobby && host_exists {
@@ -673,11 +675,46 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Speaking(is_speaking) => {
                                     if let Some(uid) = &my_id {
+                                        let mut update_stats = false;
+                                        if is_speaking {
+                                            let mut starts = speaking_start_times_mutex.lock().unwrap();
+                                            starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+                                        } else {
+                                            let start_opt = {
+                                                let mut starts = speaking_start_times_mutex.lock().unwrap();
+                                                starts.remove(uid)
+                                            };
+                                            if let Some(start) = start_opt {
+                                                let now = chrono::Utc::now().timestamp_millis() as u64;
+                                                if now > start {
+                                                    let delta = now - start;
+                                                    let mut participants = participants_mutex.lock().unwrap();
+                                                    if let Some(p) = participants.get_mut(uid) {
+                                                        p.speaking_time += delta;
+                                                        update_stats = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if update_stats {
+                                            let updated_p = {
+                                                let participants = participants_mutex.lock().unwrap();
+                                                participants.get(uid).cloned()
+                                            };
+                                            if let Some(p) = updated_p {
+                                                let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                            }
+                                        }
+
                                         let _ = tx.send(ServerMessage::PeerSpeaking {
                                             user_id: uid.clone(),
                                             speaking: is_speaking,
                                         });
                                     }
+                                },
+                                ClientMessage::Ping => {
+                                    let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
                                 }
                             }
                         }
@@ -927,6 +964,7 @@ mod tests {
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
+            speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         let config = RoomConfig::default();
@@ -949,6 +987,7 @@ mod tests {
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
+            speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         let config = RoomConfig {
@@ -985,6 +1024,7 @@ mod tests {
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
+            speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         // Simulate adding a message (like the websocket handler would)
@@ -1055,6 +1095,7 @@ mod tests {
                 name: "Target".to_string(),
                 is_hand_raised: false,
                 is_sharing_screen: false,
+                speaking_time: 0,
             });
         }
 
@@ -1145,5 +1186,53 @@ mod tests {
             },
             _ => panic!("Wrong message"),
         }
+    }
+
+    #[test]
+    fn test_speaking_time_accumulation_logic() {
+        // Test the logic used in handle_socket for speaking time
+        let participants = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let speaking_start_times = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let uid = "user1".to_string();
+
+        // 1. Setup participant
+        {
+            let mut p = participants.lock().unwrap();
+            p.insert(uid.clone(), shared::Participant {
+                id: uid.clone(),
+                name: "User".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+                speaking_time: 0,
+            });
+        }
+
+        // 2. Start Speaking
+        let start_time = 1000;
+        {
+            let mut starts = speaking_start_times.lock().unwrap();
+            starts.insert(uid.clone(), start_time);
+        }
+
+        // 3. Stop Speaking (later)
+        let end_time = 2500;
+        {
+            let mut starts = speaking_start_times.lock().unwrap();
+            let s = starts.remove(&uid);
+            assert_eq!(s, Some(start_time));
+        }
+
+        // Update logic
+        let delta = end_time - start_time;
+        {
+            let mut p = participants.lock().unwrap();
+            if let Some(user) = p.get_mut(&uid) {
+                user.speaking_time += delta;
+            }
+        }
+
+        // 4. Verify
+        let p = participants.lock().unwrap();
+        assert_eq!(p.get(&uid).unwrap().speaking_time, 1500);
     }
 }

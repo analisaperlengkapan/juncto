@@ -67,6 +67,8 @@ pub struct Participant {
     pub name: String,
     pub is_hand_raised: bool,
     pub is_sharing_screen: bool,
+    #[serde(default)]
+    pub speaking_time: u64, // Total milliseconds spoken
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -110,6 +112,7 @@ pub enum ClientMessage {
     StartShareVideo(String), // URL
     StopShareVideo,
     Speaking(bool),
+    Ping,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -146,6 +149,7 @@ pub enum ServerMessage {
     VideoShared(String), // URL
     VideoStopped,
     PeerSpeaking { user_id: String, speaking: bool },
+    Pong { timestamp: u64 },
     Error(String),
 }
 

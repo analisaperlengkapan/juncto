@@ -42,6 +42,7 @@ fn test_server_message_serialization() {
         name: "Alice".to_string(),
         is_hand_raised: false,
         is_sharing_screen: false,
+        speaking_time: 0,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();

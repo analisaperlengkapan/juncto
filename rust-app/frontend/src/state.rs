@@ -44,11 +44,17 @@ pub struct RoomState {
     pub is_muted: ReadSignal<bool>,
     pub shared_video_url: ReadSignal<Option<String>>,
     pub speaking_peers: ReadSignal<HashSet<String>>,
+    pub show_speaker_stats: ReadSignal<bool>,
+    pub show_virtual_background: ReadSignal<bool>,
+    pub rtt: ReadSignal<u64>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
     pub set_show_whiteboard: WriteSignal<bool>,
+    pub set_show_speaker_stats: WriteSignal<bool>,
+    pub set_show_virtual_background: WriteSignal<bool>,
+    pub send_ping: Callback<()>,
     pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
@@ -104,6 +110,10 @@ pub fn use_room_state() -> RoomState {
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
     let (_audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
+    let (show_speaker_stats, set_show_speaker_stats) = create_signal(false);
+    let (show_virtual_background, set_show_virtual_background) = create_signal(false);
+    let (rtt, set_rtt) = create_signal(0u64);
+    let (last_ping_time, set_last_ping_time) = create_signal(0f64);
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -320,6 +330,14 @@ pub fn use_room_state() -> RoomState {
                                         s.remove(&user_id);
                                     }
                                 });
+                            },
+                            ServerMessage::Pong { .. } => {
+                                let now = js_sys::Date::now();
+                                let start = last_ping_time.get_untracked();
+                                if start > 0.0 {
+                                    let latency = (now - start) as u64;
+                                    set_rtt.set(latency);
+                                }
                             },
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
@@ -651,6 +669,16 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let send_ping = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            set_last_ping_time.set(js_sys::Date::now());
+            let msg = ClientMessage::Ping;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     RoomState {
         connection_state: current_state,
         messages,
@@ -679,10 +707,16 @@ pub fn use_room_state() -> RoomState {
         is_muted,
         shared_video_url,
         speaking_peers,
+        show_speaker_stats,
+        show_virtual_background,
+        rtt,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
         set_show_whiteboard,
+        set_show_speaker_stats,
+        set_show_virtual_background,
+        send_ping,
         send_message,
         toggle_lock,
         toggle_lobby,
