@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use serde_json::json;
-use shared::{RoomConfig, ChatMessage, ServerMessage, Participant, ClientMessage, Feedback};
+use shared::{RoomConfig, ChatMessage, ServerMessage, Participant, ClientMessage};
 use std::sync::Arc;
 use crate::AppState;
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -69,47 +69,6 @@ pub async fn create_room(
     });
 
     (StatusCode::CREATED, Json(response))
-}
-
-pub async fn upload_handler(
-    mut multipart: axum::extract::Multipart,
-) -> impl IntoResponse {
-    let mut file_url = None;
-    let mut filename = None;
-
-    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
-        let name = field.name().unwrap_or("").to_string();
-        if name == "file" {
-            filename = field.file_name().map(|s| s.to_string());
-            if let Ok(data) = field.bytes().await {
-                // Save to disk (in a real app, use S3/MinIO)
-                // Ensure "uploads" directory exists
-                let _ = tokio::fs::create_dir_all("uploads").await;
-                let id = uuid::Uuid::new_v4();
-                let f_name = filename.clone().unwrap_or_else(|| "unknown".to_string());
-                let path = format!("uploads/{}_{}", id, f_name);
-                
-                if tokio::fs::write(&path, &data).await.is_ok() {
-                    // Return relative path or full URL
-                    file_url = Some(format!("/uploads/{}_{}", id, f_name));
-                }
-            }
-        }
-    }
-
-    if let Some(url) = file_url {
-        (StatusCode::OK, Json(json!({ "url": url, "filename": filename })))
-    } else {
-        (StatusCode::BAD_REQUEST, Json(json!({ "error": "No file uploaded" })))
-    }
-}
-
-pub async fn feedback_handler(
-    Json(payload): Json<Feedback>
-) -> impl IntoResponse {
-    // In a real app, save to DB
-    println!("Received Feedback: {:?}", payload);
-    (StatusCode::OK, Json(json!({ "status": "received" })))
 }
 
 pub async fn chat_handler(
@@ -198,6 +157,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 continue;
                                             }
                                             // Valid kick
+                                            // 1. Remove from participants
+                                            {
+                                                let mut participants = participants_mutex.lock().unwrap();
+                                                participants.remove(&target_id);
+                                            }
+                                            // 2. Remove from participant_locations
+                                            {
+                                                let mut locations = participant_locations_mutex.lock().unwrap();
+                                                locations.remove(&target_id);
+                                            }
                                             // Update speaking time before removal
                                             {
                                                 let mut starts = speaking_start_times_mutex.lock().unwrap();
@@ -213,17 +182,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         }
                                                     }
                                                 }
-                                            }
-
-                                            // 1. Remove from participants
-                                            {
-                                                let mut participants = participants_mutex.lock().unwrap();
-                                                participants.remove(&target_id);
-                                            }
-                                            // 2. Remove from participant_locations
-                                            {
-                                                let mut locations = participant_locations_mutex.lock().unwrap();
-                                                locations.remove(&target_id);
                                             }
                                             // 3. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));

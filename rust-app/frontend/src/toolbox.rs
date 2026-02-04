@@ -29,10 +29,6 @@ pub fn Toolbox(
     #[prop(optional)]
     on_end_meeting: Option<Callback<()>>,
     #[prop(optional)]
-    on_share_file: Option<Callback<()>>,
-    #[prop(optional)]
-    on_feedback: Option<Callback<()>>,
-    #[prop(optional)]
     class: &'static str,
     #[prop(optional)]
     style: &'static str,
@@ -40,14 +36,22 @@ pub fn Toolbox(
     view! {
         <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px; {}", style)>
             <button
-                on:click=move |_| on_leave.call(())
+                on:click=move |_| {
+                    if let Some(cb) = on_leave {
+                        cb.call(());
+                    }
+                }
                 style="padding: 8px 16px; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
             >
                 "Leave"
             </button>
             <Show when=move || is_host.get() fallback=|| ()>
                 <button
-                    on:click=move |_| on_end_meeting.call(())
+                    on:click=move |_| {
+                        if let Some(cb) = on_end_meeting {
+                            cb.call(());
+                        }
+                    }
                     style="padding: 8px 16px; background-color: #8b0000; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
                 >
                     "End Meeting"
@@ -85,15 +89,6 @@ pub fn Toolbox(
                     {move || if is_sharing_video.get() { "Stop Video" } else { "Share Video" }}
                 </button>
             </Show>
-            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_share_file { cb.call(()); } title="Share File">
-                "📁"
-            </button>
-            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_feedback { cb.call(()); } title="Feedback">
-                "💬"
-            </button>
-            <button class="toolbox-btn" on:click=move |_| if let Some(cb) = on_leave { cb.call(()); } title="Leave Room">
-                "🚪"
-            </button>
             <button
                 on:click=move |_| on_whiteboard.call(())
                 style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"

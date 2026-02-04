@@ -1,15 +1,12 @@
 use leptos::*;
 use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction, FileAttachment};
-use web_sys::{MessageEvent, WebSocket, MediaStream, MediaDeviceInfo};
+use web_sys::{MessageEvent, WebSocket, MediaStream};
 use std::collections::HashSet;
-use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use crate::media::{get_user_media, get_display_media, AudioMonitor};
 use crate::components_ui::toast::{ToastMessage, ToastType};
 use gloo_timers::callback::Timeout;
-
-use crate::video_processor::{create_video_processor};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
@@ -50,14 +47,6 @@ pub struct RoomState {
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
-    pub vb_mode: ReadSignal<String>,
-    pub pinned_participant: ReadSignal<Option<String>>,
-    pub audio_devices: ReadSignal<Vec<MediaDeviceInfo>>,
-    pub video_devices: ReadSignal<Vec<MediaDeviceInfo>>,
-    pub selected_audio_input: ReadSignal<Option<String>>,
-    pub selected_video_input: ReadSignal<Option<String>>,
-    pub show_file_sharing: ReadSignal<bool>,
-    pub show_feedback: ReadSignal<bool>,
     // Setters or Actions
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
@@ -90,14 +79,6 @@ pub struct RoomState {
     pub toggle_mic: Callback<()>,
     pub dismiss_toast: Callback<u64>,
     pub end_meeting: Callback<()>,
-    pub set_virtual_background_mode: Callback<(String, Option<String>)>,
-    pub set_pinned_participant: WriteSignal<Option<String>>,
-    pub set_audio_devices: WriteSignal<Vec<MediaDeviceInfo>>,
-    pub set_video_devices: WriteSignal<Vec<MediaDeviceInfo>>,
-    pub set_selected_audio_input: WriteSignal<Option<String>>,
-    pub set_selected_video_input: WriteSignal<Option<String>>,
-    pub set_show_file_sharing: WriteSignal<bool>,
-    pub set_show_feedback: WriteSignal<bool>,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -123,7 +104,6 @@ pub fn use_room_state() -> RoomState {
     let (_last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
     let (my_id, set_my_id) = create_signal(None::<String>);
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
-    let (source_stream, set_source_stream) = create_signal(None::<MediaStream>); // Raw camera stream
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
     let (toasts, set_toasts) = create_signal(Vec::<ToastMessage>::new());
     let (is_muted, set_is_muted) = create_signal(false);
@@ -134,16 +114,6 @@ pub fn use_room_state() -> RoomState {
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
-    let (vb_mode, set_vb_mode) = create_signal("none".to_string());
-    let (pinned_participant, set_pinned_participant) = create_signal(None::<String>);
-    let (audio_devices, set_audio_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
-    let (video_devices, set_video_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
-    let (selected_audio_input, set_selected_audio_input) = create_signal(None::<String>);
-    let (selected_video_input, set_selected_video_input) = create_signal(None::<String>);
-    let (show_file_sharing, set_show_file_sharing) = create_signal(false);
-    let (show_feedback, set_show_feedback) = create_signal(false);
-    
-    let video_processor = StoredValue::new(Rc::new(create_video_processor()));
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -623,7 +593,7 @@ pub fn use_room_state() -> RoomState {
     let toggle_camera = Callback::new(move |_: ()| {
         if local_stream.get().is_some() {
             // Turn off
-            // Stop local stream tracks (Canvas stream)
+            // Stop tracks
             if let Some(stream) = local_stream.get() {
                 let tracks = stream.get_tracks();
                 for i in 0..tracks.length() {
@@ -632,81 +602,39 @@ pub fn use_room_state() -> RoomState {
                     }
                 }
             }
-            
-            // Stop source stream tracks (Camera)
-            if let Some(stream) = source_stream.get() {
-                 let tracks = stream.get_tracks();
-                 for i in 0..tracks.length() {
-                     if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                         track.stop();
-                     }
-                 }
-            }
-
-            // Stop processor
-            video_processor.with_value(|vp| vp.stop());
-
             set_local_stream.set(None);
-            set_source_stream.set(None);
             set_audio_monitor.set(None);
         } else {
             // Turn on
             spawn_local(async move {
-                let v_id = selected_video_input.get_untracked();
-                let a_id = selected_audio_input.get_untracked();
-                if let Ok(raw_stream) = get_user_media(v_id, a_id).await {
-                    set_source_stream.set(Some(raw_stream.clone()));
-
-                    // Start processor
-                    let vp = video_processor.with_value(|v| v.clone());
-                    match vp.start(&raw_stream).await {
-                        Ok(_) => {
-                             // Set start mode
-                            let mode = vb_mode.get_untracked();
-                            vp.set_mode(&mode, None); 
-
-                            let out_stream = vp.get_stream();
-                            
-                            // Mix audio
-                            let audio_tracks = raw_stream.get_audio_tracks();
-                            for i in 0..audio_tracks.length() {
-                                 if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                        // Apply mute state
-                                        if is_muted.get_untracked() {
-                                            track.set_enabled(false);
-                                        }
-                                        out_stream.add_track(&track);
-                                 }
+                if let Ok(stream) = get_user_media(None, None).await {
+                    // Apply existing mute state to new stream
+                    if is_muted.get_untracked() {
+                        let audio_tracks = stream.get_audio_tracks();
+                        for i in 0..audio_tracks.length() {
+                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                track.set_enabled(false);
                             }
-
-                            set_local_stream.set(Some(out_stream.clone()));
-
-                            let on_speaking = Box::new(move |is_speaking: bool| {
-                                if let Some(socket) = ws.get_untracked() {
-                                     let msg = ClientMessage::Speaking(is_speaking);
-                                     if let Ok(json) = serde_json::to_string(&msg) {
-                                         let _ = socket.send_with_str(&json);
-                                     }
-                                }
-                            });
-
-                            if let Ok(monitor) = AudioMonitor::new(&out_stream, on_speaking) {
-                                set_audio_monitor.set(Some(monitor));
-                            }
-                        },
-                        Err(e) => {
-                            web_sys::console::error_1(&e);
-                            add_toast("Failed to start video processor".to_string(), ToastType::Error);
                         }
+                    }
+
+                    set_local_stream.set(Some(stream.clone()));
+
+                    let on_speaking = Box::new(move |is_speaking: bool| {
+                        if let Some(socket) = ws.get_untracked() {
+                             let msg = ClientMessage::Speaking(is_speaking);
+                             if let Ok(json) = serde_json::to_string(&msg) {
+                                 let _ = socket.send_with_str(&json);
+                             }
+                        }
+                    });
+
+                    if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                        set_audio_monitor.set(Some(monitor));
                     }
                 }
             });
         }
-    });
-
-    let set_virtual_background_mode = Callback::new(move |(mode, img): (String, Option<String>)| {
-        set_vb_mode.set(mode.clone());
-        video_processor.with_value(|vp| vp.set_mode(&mode, img));
     });
 
     let start_share_video = Callback::new(move |url: String| {
@@ -813,22 +741,6 @@ pub fn use_room_state() -> RoomState {
         end_meeting,
         start_share_video,
         stop_share_video,
-        vb_mode,
-        set_virtual_background_mode,
-        pinned_participant,
-        set_pinned_participant,
-        audio_devices,
-        video_devices,
-        selected_audio_input,
-        selected_video_input,
-        set_audio_devices,
-        set_video_devices,
-        set_selected_audio_input,
-        set_selected_video_input,
-        show_file_sharing,
-        set_show_file_sharing,
-        show_feedback,
-        set_show_feedback,
     }
 }
 
