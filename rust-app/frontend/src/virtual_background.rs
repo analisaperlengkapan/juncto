@@ -87,8 +87,6 @@ pub fn VirtualBackgroundDialog(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_virtual_background_selection() {
         // Logic test for default state could be here, but visual mostly.

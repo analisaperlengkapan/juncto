@@ -1,16 +1,11 @@
 use leptos::*;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum Locale {
+    #[default]
     En,
     #[allow(dead_code)]
     Id,
-}
-
-impl Default for Locale {
-    fn default() -> Self {
-        Locale::En
-    }
 }
 
 #[derive(Clone)]

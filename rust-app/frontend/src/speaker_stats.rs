@@ -58,9 +58,6 @@ pub fn SpeakerStatsDialog(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use shared::Participant;
-
     #[test]
     fn test_format_time_logic() {
         let format_time = |ms: u64| {

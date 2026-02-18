@@ -36,8 +36,6 @@ pub fn ConnectionStats(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_stats_render() {
         assert_eq!(1, 1);
