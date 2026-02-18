@@ -5,8 +5,7 @@ use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use crate::media::{get_user_media, get_display_media, AudioMonitor};
-use crate::components_ui::toast::{ToastMessage, ToastType};
-use gloo_timers::callback::Timeout;
+use crate::components_ui::toast::{use_toast, ToastType};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
@@ -40,7 +39,6 @@ pub struct RoomState {
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
     pub local_stream: ReadSignal<Option<MediaStream>>,
     pub local_screen_stream: ReadSignal<Option<MediaStream>>,
-    pub toasts: ReadSignal<Vec<ToastMessage>>,
     pub is_muted: ReadSignal<bool>,
     pub shared_video_url: ReadSignal<Option<String>>,
     pub speaking_peers: ReadSignal<HashSet<String>>,
@@ -77,11 +75,11 @@ pub struct RoomState {
     pub join_breakout_room: Callback<Option<String>>,
     pub toggle_camera: Callback<()>,
     pub toggle_mic: Callback<()>,
-    pub dismiss_toast: Callback<u64>,
     pub end_meeting: Callback<()>,
 }
 
 pub fn use_room_state() -> RoomState {
+    let toast_ctx = use_toast();
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
@@ -105,7 +103,6 @@ pub fn use_room_state() -> RoomState {
     let (my_id, set_my_id) = create_signal(None::<String>);
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
-    let (toasts, set_toasts) = create_signal(Vec::<ToastMessage>::new());
     let (is_muted, set_is_muted) = create_signal(false);
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
@@ -140,18 +137,8 @@ pub fn use_room_state() -> RoomState {
     });
 
     let add_toast = move |msg: String, type_: ToastType| {
-        let id = js_sys::Date::now() as u64;
-        set_toasts.update(|t| t.push(ToastMessage { id, message: msg, type_ }));
-
-        // Auto dismiss
-        Timeout::new(3000, move || {
-            set_toasts.update(|t| t.retain(|x| x.id != id));
-        }).forget();
+        toast_ctx.add(msg, type_);
     };
-
-    let dismiss_toast = Callback::new(move |id: u64| {
-        set_toasts.update(|t| t.retain(|x| x.id != id));
-    });
 
     // Initialize WebSocket
     create_effect(move |_| {
@@ -703,7 +690,6 @@ pub fn use_room_state() -> RoomState {
         breakout_rooms,
         local_stream,
         local_screen_stream,
-        toasts,
         is_muted,
         shared_video_url,
         speaking_peers,
@@ -737,7 +723,6 @@ pub fn use_room_state() -> RoomState {
         join_breakout_room,
         toggle_camera,
         toggle_mic,
-        dismiss_toast,
         end_meeting,
         start_share_video,
         stop_share_video,

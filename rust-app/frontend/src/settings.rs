@@ -1,6 +1,7 @@
 use leptos::*;
 use web_sys::{MediaDeviceInfo, MediaDeviceKind};
 use crate::media::{enumerate_devices, get_user_media};
+use crate::i18n::t;
 
 #[component]
 pub fn SettingsDialog(
@@ -71,7 +72,7 @@ pub fn SettingsDialog(
             <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3>"Settings"</h3>
+                        <h3>{move || t("settings")}</h3>
                         <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
@@ -80,20 +81,20 @@ pub fn SettingsDialog(
                             on:click=move |_| set_active_tab.set("profile")
                             style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "profile" { "#007bff" } else { "transparent" })
                         >
-                            "Profile"
+                            {move || t("profile")}
                         </button>
                         <button
                             on:click=move |_| set_active_tab.set("devices")
                             style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "devices" { "#007bff" } else { "transparent" })
                         >
-                            "Devices"
+                            {move || t("devices")}
                         </button>
                     </div>
 
                     <div class="tab-content">
                         <Show when=move || active_tab.get() == "profile">
                             <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Display Name"</label>
+                                <label style="display: block; margin-bottom: 5px;">{move || t("display_name")}</label>
                                 <input
                                     type="text"
                                     prop:value=display_name
@@ -108,7 +109,7 @@ pub fn SettingsDialog(
                                 }
                                 style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
                             >
-                                "Save Profile"
+                                {move || t("save_profile")}
                             </button>
                         </Show>
                         <Show when=move || active_tab.get() == "devices">
@@ -119,7 +120,7 @@ pub fn SettingsDialog(
                             </Show>
 
                             <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Camera"</label>
+                                <label style="display: block; margin-bottom: 5px;">{move || t("camera")}</label>
                                 <select
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
                                     on:change=move |ev| {
@@ -132,7 +133,7 @@ pub fn SettingsDialog(
                                         start_preview.dispatch(());
                                     }
                                 >
-                                    <option value="">"Default"</option>
+                                    <option value="">{move || t("default")}</option>
                                     <For
                                         each=move || video_devices.get()
                                         key=|d| d.device_id()
@@ -151,7 +152,7 @@ pub fn SettingsDialog(
                                 </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Microphone"</label>
+                                <label style="display: block; margin-bottom: 5px;">{move || t("microphone")}</label>
                                 <select
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
                                     on:change=move |ev| {
@@ -164,7 +165,7 @@ pub fn SettingsDialog(
                                         start_preview.dispatch(());
                                     }
                                 >
-                                    <option value="">"Default"</option>
+                                    <option value="">{move || t("default")}</option>
                                     <For
                                         each=move || audio_devices.get()
                                         key=|d| d.device_id()
@@ -191,7 +192,7 @@ pub fn SettingsDialog(
                                     style="max-width: 100%; max-height: 100%;"
                                 />
                             </div>
-                            <p style="color: #666; font-size: 0.8em; margin-top: 5px;">"This is a local preview only."</p>
+                            <p style="color: #666; font-size: 0.8em; margin-top: 5px;">{move || t("preview_only")}</p>
                         </Show>
                     </div>
                 </div>
