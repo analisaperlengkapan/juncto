@@ -220,9 +220,6 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
                             },
-                            ServerMessage::AccessGranted => {
-                                set_current_state.set(RoomConnectionState::Joined);
-                            },
                             ServerMessage::AccessDenied => {
                                 add_toast("Access Denied".to_string(), ToastType::Error);
                                 set_current_state.set(RoomConnectionState::Prejoin);

@@ -146,7 +146,6 @@ pub enum ServerMessage {
     ChatHistory(Vec<ChatMessage>),
     Welcome { id: String },
     Knocking,
-    AccessGranted,
     AccessDenied,
     RoomEnded,
     VideoShared(String), // URL

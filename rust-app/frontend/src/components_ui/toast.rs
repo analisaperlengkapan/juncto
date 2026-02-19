@@ -37,6 +37,10 @@ impl ToastContext {
             toasts.update(|t| t.retain(|item| item.id != id));
         }, std::time::Duration::from_secs(3));
     }
+
+    pub fn remove(&self, id: u64) {
+        self.toasts.update(|t| t.retain(|item| item.id != id));
+    }
 }
 
 pub fn provide_toast_context() {
@@ -65,10 +69,12 @@ pub fn ToastContainer() -> impl IntoView {
                         ToastType::Error => "background: #dc3545; color: white;",
                         ToastType::Success => "background: #28a745; color: white;",
                     };
+                    let id = t.id;
                     view! {
                         <div
                             class="toast"
-                            style=format!("padding: 10px 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); min-width: 200px; animation: fadein 0.3s; {}", style)
+                            style=format!("padding: 10px 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); min-width: 200px; animation: fadein 0.3s; cursor: pointer; {}", style)
+                            on:click=move |_| ctx.remove(id)
                         >
                             {t.message}
                         </div>

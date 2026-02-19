@@ -1,5 +1,6 @@
 use leptos::*;
 use web_sys::{MediaDeviceInfo, MediaDeviceKind};
+use wasm_bindgen::JsCast;
 use crate::media::{enumerate_devices, get_user_media};
 use crate::i18n::t;
 
@@ -19,8 +20,21 @@ pub fn SettingsDialog(
     let (selected_audio, set_selected_audio) = create_signal(None::<String>);
     let (video_quality, set_video_quality) = create_signal("hd".to_string());
     let (error_msg, set_error_msg) = create_signal(None::<String>);
+    let (preview_stream, set_preview_stream) = create_signal(None::<web_sys::MediaStream>);
 
     let video_ref = create_node_ref::<html::Video>();
+
+    let stop_preview = move || {
+        if let Some(stream) = preview_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+            set_preview_stream.set(None);
+        }
+    };
 
     let fetch_devices = create_action(move |_: &()| async move {
         match enumerate_devices().await {
@@ -44,12 +58,16 @@ pub fn SettingsDialog(
     });
 
     let start_preview = create_action(move |_: &()| async move {
+        // Stop existing before starting new
+        stop_preview();
+
         let v_id = selected_video.get();
         let a_id = selected_audio.get();
         let quality = video_quality.get();
 
         match get_user_media(v_id, a_id, Some(&quality)).await {
             Ok(stream) => {
+                set_preview_stream.set(Some(stream.clone()));
                 if let Some(video_el) = video_ref.get() {
                     video_el.set_src_object(Some(&stream));
                     let _ = video_el.play();
@@ -66,7 +84,13 @@ pub fn SettingsDialog(
         if active_tab.get() == "devices" {
             fetch_devices.dispatch(());
             start_preview.dispatch(());
+        } else {
+            stop_preview();
         }
+    });
+
+    on_cleanup(move || {
+        stop_preview();
     });
 
     view! {
