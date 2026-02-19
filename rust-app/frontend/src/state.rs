@@ -594,7 +594,7 @@ pub fn use_room_state() -> RoomState {
         } else {
             // Turn on
             spawn_local(async move {
-                if let Ok(stream) = get_user_media(None, None).await {
+                if let Ok(stream) = get_user_media(None, None, None).await {
                     // Apply existing mute state to new stream
                     if is_muted.get_untracked() {
                         let audio_tracks = stream.get_audio_tracks();

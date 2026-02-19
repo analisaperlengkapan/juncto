@@ -44,6 +44,8 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "save_profile") => "Simpan Profil".to_string(),
         (Locale::En, "camera") => "Camera".to_string(),
         (Locale::Id, "camera") => "Kamera".to_string(),
+        (Locale::En, "video_quality") => "Video Quality".to_string(),
+        (Locale::Id, "video_quality") => "Kualitas Video".to_string(),
         (Locale::En, "microphone") => "Microphone".to_string(),
         (Locale::Id, "microphone") => "Mikrofon".to_string(),
         (Locale::En, "default") => "Default".to_string(),

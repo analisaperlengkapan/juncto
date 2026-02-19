@@ -93,7 +93,10 @@ mod tests {
             speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
-        let config = RoomConfig::default();
+        let config = RoomConfig {
+            e2ee_enabled: true,
+            ..Default::default()
+        };
         // Mock app with just this route for testing
         let app = Router::new()
             .route("/api/rooms", post(create_room))

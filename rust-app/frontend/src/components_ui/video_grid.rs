@@ -101,9 +101,9 @@ pub fn VideoGrid(
             <div
                 class=move || format!("video-grid {}", layout.get())
                 style=move || if layout.get() == "grid" {
-                    "display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 20px; box-sizing: border-box; overflow-y: auto; height: 100%; align-items: center;"
+                    "display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%; align-items: center; align-content: flex-start;"
                 } else {
-                    "display: flex; flex-direction: column; gap: 10px; padding: 20px; box-sizing: border-box; overflow-y: auto; height: 100%;"
+                    "display: flex; flex-direction: column; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%;"
                 }
             >
             // Local Screen Share
@@ -111,7 +111,7 @@ pub fn VideoGrid(
                 <div class="video-card screen-share" style=move || if layout.get() == "spotlight" {
                     "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
                 } else {
-                    "width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
+                    "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
                 }>
                     <video
                         _ref=screen_ref
@@ -128,11 +128,9 @@ pub fn VideoGrid(
 
             // Local User Video
             <div class="video-card local-video" style=move || if layout.get() == "spotlight" && local_screen_stream.get().is_none() {
-                 // If spotlight and no screen share, make local video big (or first remote)
-                 // For simplicity, just making local big if it's the only priority content
                  "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
             } else {
-                 "width: 320px; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
+                 "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
             }>
                 <Show when=move || local_stream.get().is_some() fallback=move || view! {
                     <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white;">
@@ -180,12 +178,11 @@ pub fn VideoGrid(
                             let embed_url = if !video_id.is_empty() {
                                 format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
                             } else {
-                                // Fallback or empty (user will see black box with "Shared Video")
                                 "".to_string()
                             };
 
                             view! {
-                                <div class="video-card shared-video" style="width: 640px; height: 360px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">
+                                <div class="video-card shared-video" style="flex: 1 1 100%; max-width: 800px; height: 450px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">
                                     <iframe
                                         width="100%"
                                         height="100%"
@@ -210,7 +207,7 @@ pub fn VideoGrid(
                             let is_speaking = move || speaking_peers.get().contains(&id_clone);
 
                             view! {
-                                <div class="video-card" style=move || format!("width: 320px; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
                                     <Show when=move || is_screen fallback=move || view!{
                                         <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
                                             {initial_char.clone()}

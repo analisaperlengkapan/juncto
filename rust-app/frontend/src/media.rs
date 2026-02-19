@@ -24,7 +24,11 @@ pub async fn enumerate_devices() -> Result<Vec<MediaDeviceInfo>, JsValue> {
     Ok(devices)
 }
 
-pub async fn get_user_media(video_device_id: Option<String>, audio_device_id: Option<String>) -> Result<MediaStream, JsValue> {
+pub async fn get_user_media(
+    video_device_id: Option<String>,
+    audio_device_id: Option<String>,
+    video_resolution: Option<&str>
+) -> Result<MediaStream, JsValue> {
     let window = web_sys::window().ok_or(JsValue::from_str("No global window"))?;
     let navigator = window.navigator();
     let media_devices = navigator.media_devices()?;
@@ -32,13 +36,22 @@ pub async fn get_user_media(video_device_id: Option<String>, audio_device_id: Op
     let constraints = MediaStreamConstraints::new();
 
     // Video constraints
-    let video_val = if let Some(id) = video_device_id {
-         let video_obj = js_sys::Object::new();
+    let video_obj = js_sys::Object::new();
+    if let Some(id) = video_device_id {
          let _ = js_sys::Reflect::set(&video_obj, &"deviceId".into(), &id.into());
-         wasm_bindgen::JsValue::from(video_obj)
-    } else {
-        wasm_bindgen::JsValue::TRUE
-    };
+    }
+
+    if let Some(res) = video_resolution {
+        if res == "hd" {
+            let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &1280.into());
+            let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &720.into());
+        } else if res == "sd" {
+            let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &640.into());
+            let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &360.into());
+        }
+    }
+
+    let video_val = wasm_bindgen::JsValue::from(video_obj);
     constraints.set_video(&video_val);
 
     // Audio constraints

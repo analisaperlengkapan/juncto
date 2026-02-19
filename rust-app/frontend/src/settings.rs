@@ -17,6 +17,7 @@ pub fn SettingsDialog(
     let (audio_devices, set_audio_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
     let (selected_video, set_selected_video) = create_signal(None::<String>);
     let (selected_audio, set_selected_audio) = create_signal(None::<String>);
+    let (video_quality, set_video_quality) = create_signal("hd".to_string());
     let (error_msg, set_error_msg) = create_signal(None::<String>);
 
     let video_ref = create_node_ref::<html::Video>();
@@ -45,8 +46,9 @@ pub fn SettingsDialog(
     let start_preview = create_action(move |_: &()| async move {
         let v_id = selected_video.get();
         let a_id = selected_audio.get();
+        let quality = video_quality.get();
 
-        match get_user_media(v_id, a_id).await {
+        match get_user_media(v_id, a_id, Some(&quality)).await {
             Ok(stream) => {
                 if let Some(video_el) = video_ref.get() {
                     video_el.set_src_object(Some(&stream));
@@ -149,6 +151,19 @@ pub fn SettingsDialog(
                                             }
                                         }
                                     />
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">{move || t("video_quality")}</label>
+                                <select
+                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                    on:change=move |ev| {
+                                        set_video_quality.set(event_target_value(&ev));
+                                        start_preview.dispatch(());
+                                    }
+                                >
+                                    <option value="hd" selected=move || video_quality.get() == "hd">"HD (720p)"</option>
+                                    <option value="sd" selected=move || video_quality.get() == "sd">"SD (360p)"</option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
