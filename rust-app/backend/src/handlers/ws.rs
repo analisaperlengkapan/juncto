@@ -95,17 +95,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 continue;
                                             }
                                             // Valid kick
-                                            // 1. Remove from participants
-                                            {
-                                                let mut participants = participants_mutex.lock().unwrap();
-                                                participants.remove(&target_id);
-                                            }
-                                            // 2. Remove from participant_locations
-                                            {
-                                                let mut locations = participant_locations_mutex.lock().unwrap();
-                                                locations.remove(&target_id);
-                                            }
-                                            // Update speaking time before removal
+                                            // 1. Update speaking time before removal
                                             {
                                                 let mut starts = speaking_start_times_mutex.lock().unwrap();
                                                 if let Some(start) = starts.remove(&target_id) {
@@ -121,9 +111,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     }
                                                 }
                                             }
-                                            // 3. Broadcast Kicked
+                                            // 2. Remove from participants
+                                            {
+                                                let mut participants = participants_mutex.lock().unwrap();
+                                                participants.remove(&target_id);
+                                            }
+                                            // 3. Remove from participant_locations
+                                            {
+                                                let mut locations = participant_locations_mutex.lock().unwrap();
+                                                locations.remove(&target_id);
+                                            }
+                                            // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
-                                            // 4. Broadcast ParticipantLeft (so lists update)
+                                            // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft(target_id));
                                         }
                                     }
