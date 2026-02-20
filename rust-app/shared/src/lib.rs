@@ -141,6 +141,7 @@ pub enum ServerMessage {
     Reaction { sender_id: String, emoji: String },
     PollCreated(Poll),
     PollUpdated(Poll),
+    PollsList(Vec<Poll>),
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
     ChatHistory(Vec<ChatMessage>),

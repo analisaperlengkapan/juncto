@@ -209,14 +209,6 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::ParticipantList(list) => {
                                 set_participants.set(list);
                             },
-                            // RoomUpdated is already handled above in the Welcome block? No, I added it twice by mistake in previous patch or I need to check where I added it.
-                            // The previous SEARCH block in `read_file` output showed `RoomUpdated` *after* `ParticipantList`.
-                            // But I inserted it *before* `Chat` which is *before* `ParticipantList` in the `Welcome` block in my previous `replace_with_git_merge_diff`.
-                            // Wait, the file has a large `match server_msg`.
-                            // Let's remove the duplicate `RoomUpdated` if present or just ensure it's handled.
-                            // I added one handler near `Welcome`.
-                            // The original `RoomUpdated` handler was further down.
-                            // Let's check the file content first.
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
                             },
@@ -229,10 +221,6 @@ pub fn use_room_state() -> RoomState {
                                     if my == target_id {
                                         add_toast("You have been kicked from the room.".to_string(), ToastType::Error);
                                         set_current_state.set(RoomConnectionState::Prejoin);
-                                        // Close socket?
-                                        // The effect cleanup will close it if we navigate away, but here we just change state.
-                                        // Ideally we should force close or depend on state change to trigger cleanup if we moved socket creation inside a resource/effect dependent on state.
-                                        // For now, state change to Prejoin is enough visual indication.
                                     }
                                 }
                             },
@@ -265,14 +253,6 @@ pub fn use_room_state() -> RoomState {
                             },
                             ServerMessage::PeerTyping { user_id, is_typing, .. } => {
                                 set_typing_users.update(|users| {
-                                    // Map ID to Name if possible, or just use ID for now.
-                                    // Better: store ID in set, and lookup name in `Chat` component.
-                                    // Ideally `typing_users` should be `HashSet<String>` (IDs).
-                                    // And we need access to `participants` map to get names.
-                                    // For now, let's just stick to ID logic, but we might want to expose a helper or just let Chat handle it.
-                                    // The current `Chat` implementation iterates `typing_users` and displays them.
-                                    // If we want names, we need to pass `participants` to `Chat` too.
-
                                     if is_typing {
                                         users.insert(user_id);
                                     } else {
@@ -292,6 +272,9 @@ pub fn use_room_state() -> RoomState {
                                         *existing = poll;
                                     }
                                 });
+                            },
+                            ServerMessage::PollsList(list) => {
+                                set_polls.set(list);
                             },
                             ServerMessage::Draw(action) => {
                                 set_last_draw_action.set(Some(action.clone()));

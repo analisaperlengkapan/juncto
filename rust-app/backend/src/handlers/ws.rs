@@ -383,8 +383,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let polls = polls_mutex.lock().unwrap();
                                         polls.values().cloned().collect()
                                     };
-                                    for poll in polls_list {
-                                        let _ = internal_tx.send(ServerMessage::PollCreated(poll)).await;
+                                    if !polls_list.is_empty() {
+                                        let _ = internal_tx.send(ServerMessage::PollsList(polls_list)).await;
                                     }
 
                                     // Send Shared Video State
@@ -773,8 +773,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 let polls = polls_mutex.lock().unwrap();
                                 polls.values().cloned().collect()
                             };
-                            for poll in polls_list {
-                                let _ = internal_tx.send(ServerMessage::PollCreated(poll)).await;
+                            if !polls_list.is_empty() {
+                                let _ = internal_tx.send(ServerMessage::PollsList(polls_list)).await;
                             }
 
                             // Send Shared Video State
