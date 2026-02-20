@@ -8,6 +8,8 @@ use crate::AppState;
 use futures::{sink::SinkExt, stream::StreamExt};
 use super::chat;
 use super::whiteboard;
+use super::polls;
+use super::breakout;
 
 pub async fn chat_handler(
     ws: WebSocketUpgrade,
@@ -52,7 +54,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let participants_mutex = state.participants.clone();
     let knocking_mutex = state.knocking_participants.clone();
     let room_config_mutex = state.room_config.clone();
-    let polls_mutex = state.polls.clone();
+    // polls_mutex removed (used in handler)
     let whiteboard_mutex = state.whiteboard.clone();
     let chat_history_mutex = state.chat_history.clone();
     let breakout_rooms_mutex = state.breakout_rooms.clone();
@@ -434,47 +436,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::CreatePoll(mut poll) => {
+                                ClientMessage::CreatePoll(poll) => {
                                     if let Some(uid) = &my_id {
-                                        let is_host = {
-                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
-                                        };
-                                        if is_host {
-                                            if poll.id.is_empty() {
-                                                poll.id = uuid::Uuid::new_v4().to_string();
-                                            }
-
-                                            {
-                                                let mut polls = polls_mutex.lock().unwrap();
-                                                polls.insert(poll.id.clone(), poll.clone());
-                                            }
-                                            let _ = tx.send(ServerMessage::PollCreated(poll));
+                                        if let Ok(msg) = polls::create_poll(uid, poll, &state) {
+                                            let _ = tx.send(msg);
                                         }
                                     }
                                 },
                                 ClientMessage::Vote { poll_id, option_id } => {
                                     if let Some(uid) = &my_id {
-                                        let updated_poll = {
-                                            let mut polls = polls_mutex.lock().unwrap();
-                                            if let Some(poll) = polls.get_mut(&poll_id) {
-                                                if poll.voters.contains(uid) {
-                                                    None
-                                                } else {
-                                                    poll.voters.insert(uid.clone());
-                                                    for opt in &mut poll.options {
-                                                        if opt.id == option_id {
-                                                            opt.votes += 1;
-                                                        }
-                                                    }
-                                                    Some(poll.clone())
-                                                }
-                                            } else {
-                                                None
-                                            }
-                                        };
-
-                                        if let Some(poll) = updated_poll {
-                                            let _ = tx.send(ServerMessage::PollUpdated(poll));
+                                        if let Ok(msg) = polls::vote(uid, poll_id, option_id, &state) {
+                                            let _ = tx.send(msg);
                                         }
                                     }
                                 },
@@ -554,43 +526,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::CreateBreakoutRoom(name) => {
                                     if let Some(uid) = &my_id {
-                                        let is_host = {
-                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
-                                        };
-                                        if is_host {
-                                            let id = uuid::Uuid::new_v4().to_string();
-                                            let room = shared::BreakoutRoom {
-                                                id: id.clone(),
-                                                name,
-                                            };
-                                            {
-                                                let mut rooms = breakout_rooms_mutex.lock().unwrap();
-                                                rooms.insert(id, room);
-                                            }
-                                            let all_rooms: Vec<shared::BreakoutRoom> = {
-                                                let rooms = breakout_rooms_mutex.lock().unwrap();
-                                                rooms.values().cloned().collect()
-                                            };
-                                            let _ = tx.send(ServerMessage::BreakoutRoomsList(all_rooms));
+                                        if let Ok(msg) = breakout::create_breakout_room(uid, name, &state) {
+                                            let _ = tx.send(msg);
                                         }
                                     }
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
-                                        {
-                                            let mut locations = participant_locations_mutex.lock().unwrap();
-                                            locations.insert(uid.clone(), room_id.clone());
-                                        }
-                                        my_room_id = room_id.clone();
-
-                                        // If joining Main Room (None), resend global chat history
-                                        if my_room_id.is_none() {
-                                            let history: Vec<shared::ChatMessage> = {
-                                                let history = chat_history_mutex.lock().unwrap();
-                                                history.clone()
-                                            };
-                                            if !history.is_empty() {
-                                                let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
+                                        if let Ok((new_rid, msgs)) = breakout::join_breakout_room(uid, room_id, &state) {
+                                            my_room_id = new_rid;
+                                            for msg in msgs {
+                                                let _ = internal_tx.send(msg).await;
                                             }
                                         }
                                     }
