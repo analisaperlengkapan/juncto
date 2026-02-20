@@ -228,6 +228,7 @@ pub fn SettingsDialog(
                                     _ref=video_ref
                                     autoplay
                                     playsinline
+                                    muted
                                     style="max-width: 100%; max-height: 100%;"
                                 />
                             </div>
