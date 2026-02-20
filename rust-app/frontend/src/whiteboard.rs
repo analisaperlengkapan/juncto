@@ -2,6 +2,7 @@ use leptos::*;
 use leptos::html::Canvas;
 use shared::DrawAction;
 use wasm_bindgen::JsCast;
+use crate::i18n::t;
 
 #[component]
 pub fn Whiteboard(
@@ -97,7 +98,7 @@ pub fn Whiteboard(
     view! {
         <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 10; display: flex; flex-direction: column; align-items: center;">
             <div class="controls" style="margin: 10px; display: flex; gap: 10px; align-items: center;">
-                <label>"Color: "</label>
+                <label>{move || t("color")}</label>
                 <input
                     type="color"
                     prop:value=color

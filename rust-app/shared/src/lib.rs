@@ -17,6 +17,8 @@ pub struct RoomConfig {
     pub is_lobby_enabled: bool,
     pub max_participants: u32,
     pub host_id: Option<String>,
+    #[serde(default)]
+    pub e2ee_enabled: bool,
 }
 
 impl Default for RoomConfig {
@@ -28,6 +30,7 @@ impl Default for RoomConfig {
             is_lobby_enabled: false,
             max_participants: 100,
             host_id: None,
+            e2ee_enabled: false,
         }
     }
 }
@@ -143,7 +146,6 @@ pub enum ServerMessage {
     ChatHistory(Vec<ChatMessage>),
     Welcome { id: String },
     Knocking,
-    AccessGranted,
     AccessDenied,
     RoomEnded,
     VideoShared(String), // URL

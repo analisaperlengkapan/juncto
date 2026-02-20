@@ -1,4 +1,5 @@
 mod api;
+mod handlers;
 
 use axum::{
     routing::{get, post},

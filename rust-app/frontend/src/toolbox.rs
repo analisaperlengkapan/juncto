@@ -34,7 +34,7 @@ pub fn Toolbox(
     style: &'static str,
 ) -> impl IntoView {
     view! {
-        <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; justify-content: center; gap: 10px; {}", style)>
+        <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; {}", style)>
             <button
                 on:click=move |_| {
                     if let Some(cb) = on_leave {

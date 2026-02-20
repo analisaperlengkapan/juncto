@@ -1,4 +1,5 @@
 use leptos::*;
+use crate::i18n::t;
 
 #[component]
 pub fn VirtualBackgroundDialog(
@@ -18,7 +19,7 @@ pub fn VirtualBackgroundDialog(
             <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3>"Virtual Background"</h3>
+                        <h3>{move || t("virtual_background")}</h3>
                         <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
@@ -34,9 +35,9 @@ pub fn VirtualBackgroundDialog(
                             ", if selected.get() == "none" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: #eee; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
-                                "None"
+                                {move || t("none")}
                             </div>
-                            <span>"None"</span>
+                            <span>{move || t("none")}</span>
                         </div>
 
                         <div
@@ -50,9 +51,9 @@ pub fn VirtualBackgroundDialog(
                             ", if selected.get() == "blur" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: #eee; margin-bottom: 5px; filter: blur(2px); display: flex; align-items: center; justify-content: center;">
-                                "Blur"
+                                {move || t("blur")}
                             </div>
-                            <span>"Blur"</span>
+                            <span>{move || t("blur")}</span>
                         </div>
 
                         <div
@@ -66,7 +67,7 @@ pub fn VirtualBackgroundDialog(
                             ", if selected.get() == "image" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: url('https://via.placeholder.com/150'); background-size: cover; margin-bottom: 5px;"></div>
-                            <span>"Image"</span>
+                            <span>{move || t("image")}</span>
                         </div>
                     </div>
 
@@ -75,7 +76,7 @@ pub fn VirtualBackgroundDialog(
                             on:click=move |_| on_close.call(())
                             style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
                         >
-                            "Done"
+                            {move || t("done")}
                         </button>
                     </div>
                 </div>
@@ -86,8 +87,6 @@ pub fn VirtualBackgroundDialog(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_virtual_background_selection() {
         // Logic test for default state could be here, but visual mostly.
