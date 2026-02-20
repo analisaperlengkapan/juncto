@@ -54,7 +54,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let participants_mutex = state.participants.clone();
     let knocking_mutex = state.knocking_participants.clone();
     let room_config_mutex = state.room_config.clone();
-    // polls_mutex removed (used in handler)
+    let polls_mutex = state.polls.clone();
     let whiteboard_mutex = state.whiteboard.clone();
     let chat_history_mutex = state.chat_history.clone();
     let breakout_rooms_mutex = state.breakout_rooms.clone();
@@ -378,6 +378,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
                                     }
 
+                                    // Send Existing Polls
+                                    let polls_list: Vec<shared::Poll> = {
+                                        let polls = polls_mutex.lock().unwrap();
+                                        polls.values().cloned().collect()
+                                    };
+                                    for poll in polls_list {
+                                        let _ = internal_tx.send(ServerMessage::PollCreated(poll)).await;
+                                    }
+
                                     // Send Shared Video State
                                     let shared_url = {
                                         shared_video_mutex.lock().unwrap().clone()
@@ -438,15 +447,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::CreatePoll(poll) => {
                                     if let Some(uid) = &my_id {
-                                        if let Ok(msg) = polls::create_poll(uid, poll, &state) {
-                                            let _ = tx.send(msg);
+                                        match polls::create_poll(uid, poll, &state) {
+                                            Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
                                     }
                                 },
                                 ClientMessage::Vote { poll_id, option_id } => {
                                     if let Some(uid) = &my_id {
-                                        if let Ok(msg) = polls::vote(uid, poll_id, option_id, &state) {
-                                            let _ = tx.send(msg);
+                                        match polls::vote(uid, poll_id, option_id, &state) {
+                                            Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
                                     }
                                 },
@@ -526,18 +537,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::CreateBreakoutRoom(name) => {
                                     if let Some(uid) = &my_id {
-                                        if let Ok(msg) = breakout::create_breakout_room(uid, name, &state) {
-                                            let _ = tx.send(msg);
+                                        match breakout::create_breakout_room(uid, name, &state) {
+                                            Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
                                     }
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
-                                        if let Ok((new_rid, msgs)) = breakout::join_breakout_room(uid, room_id, &state) {
-                                            my_room_id = new_rid;
-                                            for msg in msgs {
-                                                let _ = internal_tx.send(msg).await;
-                                            }
+                                        match breakout::join_breakout_room(uid, room_id, &state) {
+                                            Ok((new_rid, msgs)) => {
+                                                my_room_id = new_rid;
+                                                for msg in msgs {
+                                                    let _ = internal_tx.send(msg).await;
+                                                }
+                                            },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
                                     }
                                 },
@@ -751,6 +766,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             };
                             if !history.is_empty() {
                                 let _ = internal_tx.send(ServerMessage::WhiteboardHistory(history)).await;
+                            }
+
+                            // Send Existing Polls
+                            let polls_list: Vec<shared::Poll> = {
+                                let polls = polls_mutex.lock().unwrap();
+                                polls.values().cloned().collect()
+                            };
+                            for poll in polls_list {
+                                let _ = internal_tx.send(ServerMessage::PollCreated(poll)).await;
                             }
 
                             // Send Shared Video State
