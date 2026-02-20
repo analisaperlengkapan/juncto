@@ -264,7 +264,11 @@ pub fn use_room_state() -> RoomState {
                                 set_breakout_rooms.set(rooms);
                             },
                             ServerMessage::PollCreated(poll) => {
-                                set_polls.update(|list| list.push(poll));
+                                set_polls.update(|list| {
+                                    if !list.iter().any(|p| p.id == poll.id) {
+                                        list.push(poll);
+                                    }
+                                });
                             },
                             ServerMessage::PollUpdated(poll) => {
                                 set_polls.update(|list| {
