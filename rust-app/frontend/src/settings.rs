@@ -4,13 +4,15 @@ use wasm_bindgen::JsCast;
 use crate::media::{enumerate_devices, get_user_media};
 use crate::i18n::t;
 
+pub type DeviceSettings = (Option<String>, Option<String>, String);
+
 #[component]
 pub fn SettingsDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_save_profile: Callback<String>,
     #[prop(optional)]
-    on_save_devices: Option<Callback<(Option<String>, Option<String>, String)>>,
+    on_save_devices: Option<Callback<DeviceSettings>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
