@@ -1,6 +1,20 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Meeting Features', () => {
+  test.beforeEach(async ({ request }) => {
+    // Reset room state
+    await request.post('/api/rooms', {
+        data: {
+            room_name: 'Test Room',
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100,
+            host_id: null,
+            e2ee_enabled: false
+        }
+    });
+  });
 
   test('Hand Raise and Screen Share Indicators', async ({ browser }) => {
     const roomName = `FeatRoom1_${Date.now()}`;
