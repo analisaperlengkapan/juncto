@@ -7,6 +7,7 @@ use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::video_grid::VideoGrid;
+use crate::components_ui::shared_video_dialog::SharedVideoDialog;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -25,6 +26,7 @@ pub fn Room() -> impl IntoView {
 
     let state = use_room_state();
     let navigate = use_navigate();
+    let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
 
     let leave_room = Callback::new(move |_| {
         navigate("/", Default::default());
@@ -139,13 +141,7 @@ pub fn Room() -> impl IntoView {
                                 on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
-                                on_share_video=Callback::new(move |_| {
-                                    if let Some(url) = web_sys::window().unwrap().prompt_with_message("Enter YouTube URL:").unwrap() {
-                                        if !url.is_empty() {
-                                            state.start_share_video.call(url);
-                                        }
-                                    }
-                                })
+                                on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
                                 on_stop_share_video=state.stop_share_video
                                 is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
@@ -170,6 +166,12 @@ pub fn Room() -> impl IntoView {
                             show=state.show_settings
                             on_close=Callback::new(move |_| state.set_show_settings.set(false))
                             on_save_profile=state.save_profile
+                            on_save_devices=state.set_input_devices
+                        />
+                        <SharedVideoDialog
+                            show=show_shared_video_dialog
+                            on_close=Callback::new(move |_| set_show_shared_video_dialog.set(false))
+                            on_submit=state.start_share_video
                         />
                         <PollsDialog
                             show=state.show_polls

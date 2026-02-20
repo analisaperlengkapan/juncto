@@ -9,6 +9,8 @@ pub fn SettingsDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_save_profile: Callback<String>,
+    #[prop(optional)]
+    on_save_devices: Option<Callback<(Option<String>, Option<String>, String)>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
@@ -233,6 +235,20 @@ pub fn SettingsDialog(
                                 />
                             </div>
                             <p style="color: #666; font-size: 0.8em; margin-top: 5px;">{move || t("preview_only")}</p>
+
+                            <div style="margin-top: 15px; text-align: right;">
+                                <button
+                                    on:click=move |_| {
+                                        if let Some(cb) = on_save_devices {
+                                            cb.call((selected_video.get(), selected_audio.get(), video_quality.get()));
+                                        }
+                                        on_close.call(());
+                                    }
+                                    style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                >
+                                    {move || t("apply_devices")}
+                                </button>
+                            </div>
                         </Show>
                     </div>
                 </div>

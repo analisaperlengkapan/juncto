@@ -64,6 +64,16 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "image") => "Gambar".to_string(),
         (Locale::En, "done") => "Done".to_string(),
         (Locale::Id, "done") => "Selesai".to_string(),
+        (Locale::En, "share_video") => "Share Video".to_string(),
+        (Locale::Id, "share_video") => "Bagikan Video".to_string(),
+        (Locale::En, "youtube_url") => "YouTube URL".to_string(),
+        (Locale::Id, "youtube_url") => "URL YouTube".to_string(),
+        (Locale::En, "cancel") => "Cancel".to_string(),
+        (Locale::Id, "cancel") => "Batal".to_string(),
+        (Locale::En, "share") => "Share".to_string(),
+        (Locale::Id, "share") => "Bagikan".to_string(),
+        (Locale::En, "apply_devices") => "Apply Devices".to_string(),
+        (Locale::Id, "apply_devices") => "Terapkan Perangkat".to_string(),
          // Add more keys as needed
         (_, k) => k.to_string(),
     }

@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Shared Video', () => {
+    test.beforeEach(async ({ request }) => {
+        // Reset room state
+        await request.post('/api/rooms', {
+            data: {
+                room_name: 'Test Room',
+                is_locked: false,
+                is_recording: false,
+                is_lobby_enabled: false,
+                max_participants: 100,
+                host_id: null,
+                e2ee_enabled: false
+            }
+        });
+    });
+
     test('Host can share a video', async ({ browser }) => {
         const roomName = `VideoRoom_${Date.now()}`;
         const contextA = await browser.newContext();
@@ -13,15 +28,14 @@ test.describe('Shared Video', () => {
         await pageA.locator('.prejoin-container input[type="text"]').fill('Alice');
         await pageA.click('button:has-text("Join Meeting")');
 
-        // Handle Prompt
-        pageA.on('dialog', async dialog => {
-            if (dialog.type() === 'prompt') {
-                await dialog.accept('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-            }
-        });
-
         // Click Share Video
         await pageA.click('button:has-text("Share Video")');
+
+        // Verify Modal appears and submit
+        await expect(pageA.locator('h3:has-text("Share Video")')).toBeVisible();
+        await pageA.locator('input[placeholder*="youtube.com"]').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        // Click Share inside the modal (exact match to avoid "Share Screen")
+        await pageA.locator('.modal-content button:has-text("Share")').click();
 
         // Verify Video Card appears
         await expect(pageA.locator('.shared-video')).toBeVisible();
