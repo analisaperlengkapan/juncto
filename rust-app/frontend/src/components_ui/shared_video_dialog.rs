@@ -38,7 +38,10 @@ pub fn SharedVideoDialog(
                         </button>
                         <button
                             on:click=move |_| {
-                                on_submit.call(url.get());
+                                let current_url = url.get();
+                                if !current_url.is_empty() {
+                                    on_submit.call(current_url);
+                                }
                                 on_close.call(());
                                 set_url.set("".to_string());
                             }
