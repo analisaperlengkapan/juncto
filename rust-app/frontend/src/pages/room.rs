@@ -167,6 +167,9 @@ pub fn Room() -> impl IntoView {
                             on_close=Callback::new(move |_| state.set_show_settings.set(false))
                             on_save_profile=state.save_profile
                             on_save_devices=state.set_input_devices
+                            current_video_id=state.selected_camera_id
+                            current_audio_id=state.selected_mic_id
+                            current_resolution=state.video_resolution
                         />
                         <SharedVideoDialog
                             show=show_shared_video_dialog

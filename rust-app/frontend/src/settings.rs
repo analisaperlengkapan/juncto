@@ -13,16 +13,27 @@ pub fn SettingsDialog(
     on_save_profile: Callback<String>,
     #[prop(optional)]
     on_save_devices: Option<Callback<DeviceSettings>>,
+    #[prop(optional)]
+    current_video_id: Option<ReadSignal<Option<String>>>,
+    #[prop(optional)]
+    current_audio_id: Option<ReadSignal<Option<String>>>,
+    #[prop(optional)]
+    current_resolution: Option<ReadSignal<String>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
 
+    // Initialize state from props if available
+    let init_video = current_video_id.map(|s| s.get_untracked()).flatten();
+    let init_audio = current_audio_id.map(|s| s.get_untracked()).flatten();
+    let init_res = current_resolution.map(|s| s.get_untracked()).unwrap_or("hd".to_string());
+
     // Devices State
     let (video_devices, set_video_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
     let (audio_devices, set_audio_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
-    let (selected_video, set_selected_video) = create_signal(None::<String>);
-    let (selected_audio, set_selected_audio) = create_signal(None::<String>);
-    let (video_quality, set_video_quality) = create_signal("hd".to_string());
+    let (selected_video, set_selected_video) = create_signal(init_video);
+    let (selected_audio, set_selected_audio) = create_signal(init_audio);
+    let (video_quality, set_video_quality) = create_signal(init_res);
     let (error_msg, set_error_msg) = create_signal(None::<String>);
     let (preview_stream, set_preview_stream) = create_signal(None::<web_sys::MediaStream>);
 
