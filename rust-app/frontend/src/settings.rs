@@ -93,6 +93,12 @@ pub fn SettingsDialog(
         }
     });
 
+    create_effect(move |_| {
+        if !show.get() {
+            stop_preview();
+        }
+    });
+
     on_cleanup(move || {
         stop_preview();
     });
