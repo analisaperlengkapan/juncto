@@ -24,8 +24,8 @@ pub fn SettingsDialog(
     let (display_name, set_display_name) = create_signal("".to_string());
 
     // Initialize state from props if available
-    let init_video = current_video_id.map(|s| s.get_untracked()).flatten();
-    let init_audio = current_audio_id.map(|s| s.get_untracked()).flatten();
+    let init_video = current_video_id.and_then(|s| s.get_untracked());
+    let init_audio = current_audio_id.and_then(|s| s.get_untracked());
     let init_res = current_resolution.map(|s| s.get_untracked()).unwrap_or("hd".to_string());
 
     // Devices State
