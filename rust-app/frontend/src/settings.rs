@@ -82,6 +82,16 @@ pub fn SettingsDialog(
 
         match get_user_media(v_id, a_id, Some(&quality)).await {
             Ok(stream) => {
+                // Check if a stream was set while we were awaiting (race condition check)
+                if let Some(existing) = preview_stream.get_untracked() {
+                    let tracks = existing.get_tracks();
+                    for i in 0..tracks.length() {
+                        if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.stop();
+                        }
+                    }
+                }
+
                 set_preview_stream.set(Some(stream.clone()));
                 if let Some(video_el) = video_ref.get() {
                     video_el.set_src_object(Some(&stream));
