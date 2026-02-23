@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Breakout Rooms', () => {
   test.beforeEach(async ({ request }) => {
     // Reset room state
-    await request.post('/api/rooms', {
+        const response = await request.post('/api/rooms', {
         data: {
             room_name: 'Test Room',
             is_locked: false,
@@ -14,6 +14,8 @@ test.describe('Breakout Rooms', () => {
             e2ee_enabled: false
         }
     });
+        expect(response.ok()).toBeTruthy();
+        expect(response.status()).toBe(201);
   });
 
   test('should create and join breakout room', async ({ browser }) => {

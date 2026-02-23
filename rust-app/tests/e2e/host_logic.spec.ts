@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Host Logic', () => {
   test.beforeEach(async ({ request }) => {
     // Reset room state
-    await request.post('/api/rooms', {
+    const response = await request.post('/api/rooms', {
         data: {
             room_name: 'Test Room',
             is_locked: false,
@@ -14,6 +14,8 @@ test.describe('Host Logic', () => {
             e2ee_enabled: false
         }
     });
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
   });
 
   test('Host Reassignment: When host leaves, next participant becomes host', async ({ browser }) => {
