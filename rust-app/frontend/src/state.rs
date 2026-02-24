@@ -252,6 +252,16 @@ pub fn use_room_state() -> RoomState {
                                     start_media_stream.call(initial_cam_on.get_untracked());
                                     set_start_media_on_join.set(false);
                                 }
+
+                                // Sync mute state after joining (important for Lobby flow)
+                                if is_muted.get_untracked() {
+                                    if let Some(socket) = ws.get_untracked() {
+                                        let msg = ClientMessage::SetMuteStatus(true);
+                                        if let Ok(json) = serde_json::to_string(&msg) {
+                                            let _ = socket.send_with_str(&json);
+                                        }
+                                    }
+                                }
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
@@ -622,21 +632,12 @@ pub fn use_room_state() -> RoomState {
         set_start_media_on_join.set(options.mic_enabled || options.camera_enabled);
         set_initial_cam_on.set(options.camera_enabled);
 
-        let mic_enabled = options.mic_enabled;
         let display_name = options.display_name;
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
-            }
-
-            // Sync mute state if initially muted
-            if !mic_enabled {
-                let msg = ClientMessage::SetMuteStatus(true);
-                if let Ok(json) = serde_json::to_string(&msg) {
-                    let _ = socket.send_with_str(&json);
-                }
             }
         }
     });
