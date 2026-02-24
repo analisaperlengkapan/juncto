@@ -39,6 +39,21 @@ pub fn SettingsDialog(
 
     let video_ref = create_node_ref::<html::Video>();
 
+    // Sync local state with global props when dialog opens
+    create_effect(move |_| {
+        if show.get() {
+            if let Some(sig) = current_video_id {
+                set_selected_video.set(sig.get_untracked());
+            }
+            if let Some(sig) = current_audio_id {
+                set_selected_audio.set(sig.get_untracked());
+            }
+            if let Some(sig) = current_resolution {
+                set_video_quality.set(sig.get_untracked());
+            }
+        }
+    });
+
     let stop_preview = move || {
         if let Some(stream) = preview_stream.get_untracked() {
             let tracks = stream.get_tracks();
