@@ -9,6 +9,8 @@ pub fn Toolbox(
     on_toggle_lock: Callback<()>,
     on_toggle_lobby: Callback<()>,
     on_toggle_recording: Callback<()>,
+    on_invite: Callback<()>,
+    on_toggle_chat: Callback<()>,
     on_settings: Callback<()>,
     on_polls: Callback<()>,
     on_shortcuts: Callback<()>,
@@ -57,6 +59,12 @@ pub fn Toolbox(
                     "End Meeting"
                 </button>
             </Show>
+            <button
+                on:click=move |_| on_invite.call(())
+                style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Invite"
+            </button>
             <button
                 on:click=move |_| on_toggle_camera.call(())
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
@@ -125,6 +133,12 @@ pub fn Toolbox(
                     {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
                 </button>
             </Show>
+            <button
+                on:click=move |_| on_toggle_chat.call(())
+                style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Chat"
+            </button>
             <button
                 on:click=move |_| on_speaker_stats.call(())
                 style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
