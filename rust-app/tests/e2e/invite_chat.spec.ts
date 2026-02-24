@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Invite and Chat Features', () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ request, context }) => {
+    // Grant clipboard permissions
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
     // Reset room state
     const response = await request.post('/api/rooms', {
         data: {

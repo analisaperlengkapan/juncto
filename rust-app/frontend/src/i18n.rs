@@ -80,6 +80,8 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "copy_link") => "Salin Tautan".to_string(),
         (Locale::En, "link_copied") => "Link Copied!".to_string(),
         (Locale::Id, "link_copied") => "Tautan Disalin!".to_string(),
+        (Locale::En, "failed_to_copy") => "Failed to copy link".to_string(),
+        (Locale::Id, "failed_to_copy") => "Gagal menyalin tautan".to_string(),
         (Locale::En, "share_link_hint") => "Share this link with others to invite them to the meeting.".to_string(),
         (Locale::Id, "share_link_hint") => "Bagikan tautan ini dengan orang lain untuk mengundang mereka.".to_string(),
         (Locale::En, "chat_panel") => "Chat".to_string(),

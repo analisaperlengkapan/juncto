@@ -20,11 +20,11 @@ pub fn InviteDialog(
             let promise = clipboard.write_text(&url);
 
             wasm_bindgen_futures::spawn_local(async move {
-                let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+                match wasm_bindgen_futures::JsFuture::from(promise).await {
+                    Ok(_) => toast.add(t("link_copied"), ToastType::Success),
+                    Err(_) => toast.add(t("failed_to_copy"), ToastType::Error),
+                }
             });
-
-            // In a real app we'd await the promise, but here fire and forget is okay for prototype.
-            toast.add(t("link_copied"), ToastType::Success);
         }
     };
 

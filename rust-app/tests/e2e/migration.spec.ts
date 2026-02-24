@@ -35,7 +35,8 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // 4. Prejoin Screen
   // "Rust Meeting" gets encoded to "Rust%20Meeting"
   await expect(page).toHaveURL(/\/room\/Rust%20Meeting/);
-  await expect(page.getByText('Join Meeting')).toBeVisible();
+  // Specify heading to avoid strict mode violation (matches button too)
+  await expect(page.getByRole('heading', { name: 'Join Meeting' })).toBeVisible();
 
   // Enter Name and Join
   const nameInput = page.locator('.prejoin-container input[type="text"]');
