@@ -1,6 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Polls', () => {
+  test.beforeEach(async ({ request }) => {
+    // Reset room state
+    const response = await request.post('/api/rooms', {
+        data: {
+            room_name: 'Test Room',
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100,
+            host_id: null,
+            e2ee_enabled: false
+        }
+    });
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
+  });
+
   test('should create a poll and allow voting', async ({ browser }) => {
     const roomName = `PollRoom_${Date.now()}`;
     const contextA = await browser.newContext();

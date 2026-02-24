@@ -45,7 +45,14 @@ pub struct RoomState {
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
+    #[allow(dead_code)]
+    pub selected_camera_id: ReadSignal<Option<String>>,
+    #[allow(dead_code)]
+    pub selected_mic_id: ReadSignal<Option<String>>,
+    #[allow(dead_code)]
+    pub video_resolution: ReadSignal<String>,
     // Setters or Actions
+    pub set_input_devices: Callback<(Option<String>, Option<String>, String)>,
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
@@ -111,6 +118,9 @@ pub fn use_room_state() -> RoomState {
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
+    let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
+    let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
+    let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
 
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
@@ -578,7 +588,60 @@ pub fn use_room_state() -> RoomState {
         } else {
             // Turn on
             spawn_local(async move {
-                if let Ok(stream) = get_user_media(None, None, None).await {
+                let v_id = selected_camera_id.get_untracked();
+                let a_id = selected_mic_id.get_untracked();
+                let res = video_resolution.get_untracked();
+
+                if let Ok(stream) = get_user_media(v_id, a_id, Some(&res)).await {
+                    // Apply existing mute state to new stream
+                    if is_muted.get_untracked() {
+                        let audio_tracks = stream.get_audio_tracks();
+                        for i in 0..audio_tracks.length() {
+                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                track.set_enabled(false);
+                            }
+                        }
+                    }
+
+                    set_local_stream.set(Some(stream.clone()));
+
+                    let on_speaking = Box::new(move |is_speaking: bool| {
+                        if let Some(socket) = ws.get_untracked() {
+                             let msg = ClientMessage::Speaking(is_speaking);
+                             if let Ok(json) = serde_json::to_string(&msg) {
+                                 let _ = socket.send_with_str(&json);
+                             }
+                        }
+                    });
+
+                    if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                        set_audio_monitor.set(Some(monitor));
+                    }
+                }
+            });
+        }
+    });
+
+    let set_input_devices = Callback::new(move |(vid, aid, res): (Option<String>, Option<String>, String)| {
+        set_selected_camera_id.set(vid.clone());
+        set_selected_mic_id.set(aid.clone());
+        set_video_resolution.set(res.clone());
+
+        // If currently streaming, restart with new settings
+        if local_stream.get_untracked().is_some() {
+             if let Some(stream) = local_stream.get_untracked() {
+                let tracks = stream.get_tracks();
+                for i in 0..tracks.length() {
+                    if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.stop();
+                    }
+                }
+            }
+            set_local_stream.set(None);
+            set_audio_monitor.set(None);
+
+            spawn_local(async move {
+                if let Ok(stream) = get_user_media(vid, aid, Some(&res)).await {
                     // Apply existing mute state to new stream
                     if is_muted.get_untracked() {
                         let audio_tracks = stream.get_audio_tracks();
@@ -680,6 +743,10 @@ pub fn use_room_state() -> RoomState {
         show_speaker_stats,
         show_virtual_background,
         rtt,
+        selected_camera_id,
+        selected_mic_id,
+        video_resolution,
+        set_input_devices,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,

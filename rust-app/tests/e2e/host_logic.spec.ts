@@ -1,7 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Host Logic', () => {
-  // We don't use beforeEach to navigate because we create fresh contexts in each test.
+  test.beforeEach(async ({ request }) => {
+    // Reset room state
+    const response = await request.post('/api/rooms', {
+        data: {
+            room_name: 'Test Room',
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100,
+            host_id: null,
+            e2ee_enabled: false
+        }
+    });
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
+  });
 
   test('Host Reassignment: When host leaves, next participant becomes host', async ({ browser }) => {
     const roomName = `HostLogicRoom1_${Date.now()}`;
