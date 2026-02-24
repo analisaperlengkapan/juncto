@@ -84,27 +84,8 @@ pub fn PrejoinScreen(
             set_local_stream.set(None);
             set_audio_monitor.set(None);
 
-            if cam_on {
-                // Request both if mic is also requested, otherwise just video?
-                // Actually get_user_media handles both options.
-                // If mic is off, we might still want the stream to have an audio track that is muted?
-                // Or we just request video only?
-                // If we request audio but mute it, we can still monitor levels (if track is enabled but gain is 0? No, track enabled=false stops data).
-                // Let's request what is needed.
-
-                // Note: If cam is OFF, we don't show preview video.
-                // If Cam is ON, show video.
-                // If Mic is ON, we want to monitor audio.
-                // If Cam is OFF but Mic is ON, we still want to monitor audio?
-                // Current logic: This effect runs if ANY change.
-
-                if cam_on || mic_on {
+            if cam_on || mic_on {
                      // We need a stream
-                     // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
-                     // We need to change get_user_media to accept "No Video".
-                     // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
-                     // Let's assume for Preview, we always want video if cam_on is true.
-
                      // Pass cam_on as enable_video flag
                      if let Ok(stream) = get_user_media(cam_on, v_id, a_id, Some("hd")).await {
                          // Apply mute state to audio track
@@ -126,7 +107,6 @@ pub fn PrejoinScreen(
                              }
                          }
                      }
-                }
             }
         });
     });
