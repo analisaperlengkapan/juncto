@@ -68,7 +68,7 @@ pub struct RoomState {
     pub toggle_recording: Callback<()>,
     pub grant_access: Callback<String>,
     pub deny_access: Callback<String>,
-    pub join_meeting: Callback<String>,
+    pub join_meeting: Callback<(String, bool, bool, Option<String>, Option<String>)>, // name, mic_on, cam_on, mic_id, cam_id
     pub save_profile: Callback<String>,
     pub send_reaction: Callback<String>,
     pub toggle_raise_hand: Callback<()>,
@@ -122,6 +122,10 @@ pub fn use_room_state() -> RoomState {
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
 
+    // Internal state to trigger media start after joining
+    let (start_media_on_join, set_start_media_on_join) = create_signal(false);
+    let (initial_cam_on, set_initial_cam_on) = create_signal(false);
+
     // We assume the first participant in the list is the host for now,
     // or we'd need to send host_id in RoomConfig.
     // The previous implementation used host_id in backend but didn't expose it to frontend.
@@ -150,6 +154,55 @@ pub fn use_room_state() -> RoomState {
         toast_ctx.add(msg, type_);
     };
 
+    // Extract start_media_stream logic
+    let start_media_stream = Callback::new(move |enable_video: bool| {
+        // Stop existing stream tracks
+        if let Some(stream) = local_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+        }
+        // Don't set to None immediately to avoid flicker if possible, but for clean state -> None
+        set_local_stream.set(None);
+        set_audio_monitor.set(None);
+
+        spawn_local(async move {
+            let v_id = selected_camera_id.get_untracked();
+            let a_id = selected_mic_id.get_untracked();
+            let res = video_resolution.get_untracked();
+
+            if let Ok(stream) = get_user_media(enable_video, v_id, a_id, Some(&res)).await {
+                // Apply existing mute state to new stream
+                if is_muted.get_untracked() {
+                    let audio_tracks = stream.get_audio_tracks();
+                    for i in 0..audio_tracks.length() {
+                        if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.set_enabled(false);
+                        }
+                    }
+                }
+
+                set_local_stream.set(Some(stream.clone()));
+
+                let on_speaking = Box::new(move |is_speaking: bool| {
+                    if let Some(socket) = ws.get_untracked() {
+                            let msg = ClientMessage::Speaking(is_speaking);
+                            if let Ok(json) = serde_json::to_string(&msg) {
+                                let _ = socket.send_with_str(&json);
+                            }
+                    }
+                });
+
+                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                    set_audio_monitor.set(Some(monitor));
+                }
+            }
+        });
+    });
+
     // Initialize WebSocket
     create_effect(move |_| {
         // Ensure my_id is reset on new connection logic if needed, but here we just connect.
@@ -176,6 +229,12 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Welcome { id } => {
                                 set_my_id.set(Some(id));
                                 set_current_state.set(RoomConnectionState::Joined);
+
+                                // Auto-start media if requested from prejoin
+                                if start_media_on_join.get_untracked() {
+                                    start_media_stream.call(initial_cam_on.get_untracked());
+                                    set_start_media_on_join.set(false);
+                                }
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
@@ -513,7 +572,16 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let join_meeting = Callback::new(move |display_name: String| {
+    let join_meeting = Callback::new(move |(display_name, mic_on, cam_on, mic_id, cam_id): (String, bool, bool, Option<String>, Option<String>)| {
+        // Set initial state
+        set_is_muted.set(!mic_on);
+        set_selected_mic_id.set(mic_id);
+        set_selected_camera_id.set(cam_id);
+
+        // Start media if either mic or cam is on
+        set_start_media_on_join.set(mic_on || cam_on);
+        set_initial_cam_on.set(cam_on);
+
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -572,54 +640,13 @@ pub fn use_room_state() -> RoomState {
     });
 
     let toggle_camera = Callback::new(move |_: ()| {
-        if local_stream.get().is_some() {
-            // Turn off
-            // Stop tracks
-            if let Some(stream) = local_stream.get() {
-                let tracks = stream.get_tracks();
-                for i in 0..tracks.length() {
-                    if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                        track.stop();
-                    }
-                }
-            }
-            set_local_stream.set(None);
-            set_audio_monitor.set(None);
+        // Check if we currently have video tracks active
+        let has_video = if let Some(stream) = local_stream.get_untracked() {
+            stream.get_video_tracks().length() > 0
         } else {
-            // Turn on
-            spawn_local(async move {
-                let v_id = selected_camera_id.get_untracked();
-                let a_id = selected_mic_id.get_untracked();
-                let res = video_resolution.get_untracked();
-
-                if let Ok(stream) = get_user_media(v_id, a_id, Some(&res)).await {
-                    // Apply existing mute state to new stream
-                    if is_muted.get_untracked() {
-                        let audio_tracks = stream.get_audio_tracks();
-                        for i in 0..audio_tracks.length() {
-                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                track.set_enabled(false);
-                            }
-                        }
-                    }
-
-                    set_local_stream.set(Some(stream.clone()));
-
-                    let on_speaking = Box::new(move |is_speaking: bool| {
-                        if let Some(socket) = ws.get_untracked() {
-                             let msg = ClientMessage::Speaking(is_speaking);
-                             if let Ok(json) = serde_json::to_string(&msg) {
-                                 let _ = socket.send_with_str(&json);
-                             }
-                        }
-                    });
-
-                    if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
-                        set_audio_monitor.set(Some(monitor));
-                    }
-                }
-            });
-        }
+            false
+        };
+        start_media_stream.call(!has_video);
     });
 
     let set_input_devices = Callback::new(move |(vid, aid, res): (Option<String>, Option<String>, String)| {
@@ -627,47 +654,23 @@ pub fn use_room_state() -> RoomState {
         set_selected_mic_id.set(aid.clone());
         set_video_resolution.set(res.clone());
 
-        // If currently streaming, restart with new settings
+        // Use same logic as toggle_camera: preserve video state?
+        // Or if user selected a camera, enable video?
+        // Usually settings dialog allows selecting device. If "None" is passed for video, maybe disable?
+        // But settings dialog passes "current selection".
+        // Let's assume if stream is running, we restart it with same video state (unless video was disabled? No, if stream running, restart with current capabilities).
+        // Actually, simpler: check if video is currently running.
+        let has_video = if let Some(stream) = local_stream.get_untracked() {
+            stream.get_video_tracks().length() > 0
+        } else {
+            false // If no stream, maybe don't start one? Or start if devices selected?
+            // If user explicitly changes devices in settings, they probably want to see them.
+            // But if they were Audio Only, and changed Mic...
+            // Let's stick to: if stream exists, restart with current video state.
+        };
+
         if local_stream.get_untracked().is_some() {
-             if let Some(stream) = local_stream.get_untracked() {
-                let tracks = stream.get_tracks();
-                for i in 0..tracks.length() {
-                    if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                        track.stop();
-                    }
-                }
-            }
-            set_local_stream.set(None);
-            set_audio_monitor.set(None);
-
-            spawn_local(async move {
-                if let Ok(stream) = get_user_media(vid, aid, Some(&res)).await {
-                    // Apply existing mute state to new stream
-                    if is_muted.get_untracked() {
-                        let audio_tracks = stream.get_audio_tracks();
-                        for i in 0..audio_tracks.length() {
-                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                track.set_enabled(false);
-                            }
-                        }
-                    }
-
-                    set_local_stream.set(Some(stream.clone()));
-
-                    let on_speaking = Box::new(move |is_speaking: bool| {
-                        if let Some(socket) = ws.get_untracked() {
-                             let msg = ClientMessage::Speaking(is_speaking);
-                             if let Ok(json) = serde_json::to_string(&msg) {
-                                 let _ = socket.send_with_str(&json);
-                             }
-                        }
-                    });
-
-                    if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
-                        set_audio_monitor.set(Some(monitor));
-                    }
-                }
-            });
+            start_media_stream.call(has_video);
         }
     });
 

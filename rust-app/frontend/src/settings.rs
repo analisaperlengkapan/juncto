@@ -95,7 +95,8 @@ pub fn SettingsDialog(
         let a_id = selected_audio.get();
         let quality = video_quality.get();
 
-        match get_user_media(v_id, a_id, Some(&quality)).await {
+        // Always enable video for settings preview
+        match get_user_media(true, v_id, a_id, Some(&quality)).await {
             Ok(stream) => {
                 // Check if a stream was set while we were awaiting (race condition check)
                 if let Some(existing) = preview_stream.get_untracked() {
@@ -271,7 +272,7 @@ pub fn SettingsDialog(
 
                             <div class="preview" style="margin-top: 20px; border: 1px solid #ccc; height: 200px; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden;">
                                 <video
-                                    _ref=video_ref
+                                    node_ref=video_ref
                                     autoplay
                                     playsinline
                                     muted

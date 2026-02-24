@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: {
     // Build frontend first, then run backend
-    command: 'cd ../.. && ./build.sh && cargo run -p backend',
+    command: 'export PATH=$HOME/.cargo/bin:$PATH && cd ../.. && ./build.sh && cargo run -p backend',
     port: 3000,
     reuseExistingServer: !process.env.CI,
     timeout: 300000, // Increase timeout for build
