@@ -93,6 +93,8 @@ pub struct RoomState {
     pub toggle_camera: Callback<()>,
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
+    pub mute_participant: Callback<String>,
+    pub transfer_host: Callback<String>,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -250,6 +252,16 @@ pub fn use_room_state() -> RoomState {
                                     start_media_stream.call(initial_cam_on.get_untracked());
                                     set_start_media_on_join.set(false);
                                 }
+
+                                // Sync mute state after joining (important for Lobby flow)
+                                if is_muted.get_untracked() {
+                                    if let Some(socket) = ws.get_untracked() {
+                                        let msg = ClientMessage::SetMuteStatus(true);
+                                        if let Ok(json) = serde_json::to_string(&msg) {
+                                            let _ = socket.send_with_str(&json);
+                                        }
+                                    }
+                                }
                             },
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
@@ -305,6 +317,29 @@ pub fn use_room_state() -> RoomState {
                                     if my == target_id {
                                         add_toast("You have been kicked from the room.".to_string(), ToastType::Error);
                                         set_current_state.set(RoomConnectionState::Prejoin);
+                                    }
+                                }
+                            },
+                            ServerMessage::MutedByHost(target_id) => {
+                                if let Some(my) = my_id.get() {
+                                    if my == target_id {
+                                        add_toast("You have been muted by the host.".to_string(), ToastType::Info);
+                                        set_is_muted.set(true);
+                                        if let Some(stream) = local_stream.get_untracked() {
+                                            let audio_tracks = stream.get_audio_tracks();
+                                            for i in 0..audio_tracks.length() {
+                                                if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    track.set_enabled(false);
+                                                }
+                                            }
+                                        }
+                                        // Confirm state to server
+                                        if let Some(socket) = ws.get_untracked() {
+                                            let msg = ClientMessage::SetMuteStatus(true);
+                                            if let Ok(json) = serde_json::to_string(&msg) {
+                                                let _ = socket.send_with_str(&json);
+                                            }
+                                        }
                                     }
                                 }
                             },
@@ -597,8 +632,10 @@ pub fn use_room_state() -> RoomState {
         set_start_media_on_join.set(options.mic_enabled || options.camera_enabled);
         set_initial_cam_on.set(options.camera_enabled);
 
+        let display_name = options.display_name;
+
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Join(options.display_name);
+            let msg = ClientMessage::Join(display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -639,6 +676,24 @@ pub fn use_room_state() -> RoomState {
     let kick_participant = Callback::new(move |id: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::KickParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let mute_participant = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let transfer_host = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::TransferHost(id);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -719,6 +774,13 @@ pub fn use_room_state() -> RoomState {
                 }
             }
         }
+
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetMuteStatus(new_state);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
     });
 
     let send_ping = Callback::new(move |_: ()| {
@@ -793,6 +855,8 @@ pub fn use_room_state() -> RoomState {
         toggle_camera,
         toggle_mic,
         end_meeting,
+        mute_participant,
+        transfer_host,
         start_share_video,
         stop_share_video,
     }

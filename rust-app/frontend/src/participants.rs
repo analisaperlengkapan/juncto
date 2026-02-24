@@ -23,6 +23,8 @@ pub fn ParticipantsList(
     on_allow: Callback<String>,
     on_deny: Callback<String>,
     on_kick: Callback<String>,
+    on_mute: Callback<String>,
+    on_transfer_host: Callback<String>,
 ) -> impl IntoView {
     let format_time = |ms: u64| {
         let seconds = ms / 1000;
@@ -84,7 +86,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen)
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted)
                     children=move |p| {
                         let id_kick = p.id.clone();
                         // Use reactive check for host status
@@ -110,20 +112,51 @@ pub fn ParticipantsList(
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
+                                    {if p.is_muted {
+                                        view! { <span style="margin-right: 5px;">"🔇"</span> }.into_view()
+                                    } else {
+                                        view! { <span></span> }.into_view()
+                                    }}
                                     <Show when={
                                         let id_check = id_kick.clone();
                                         move || is_host.get() && my_id.get() != Some(id_check.clone())
                                     }>
                                         {
-                                            let id_action = id_kick.clone();
+                                            let id_kick = id_kick.clone();
+                                            let id_mute = id_kick.clone();
+                                            let id_transfer = id_kick.clone();
+                                            let is_muted = p.is_muted;
                                             view! {
-                                                <button
-                                                    on:click=move |_| on_kick.call(id_action.clone())
-                                                    style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                                    title="Kick Participant"
-                                                >
-                                                    "Kick"
-                                                </button>
+                                                <div style="display: flex; gap: 5px;">
+                                                    <Show when=move || !is_muted>
+                                                        {
+                                                            let id_mute = id_mute.clone();
+                                                            view! {
+                                                                <button
+                                                                    on:click=move |_| on_mute.call(id_mute.clone())
+                                                                    style="background: none; border: 1px solid #ccc; color: orange; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                                    title="Mute Participant"
+                                                                >
+                                                                    "Mute"
+                                                                </button>
+                                                            }
+                                                        }
+                                                    </Show>
+                                                    <button
+                                                        on:click=move |_| on_transfer_host.call(id_transfer.clone())
+                                                        style="background: none; border: 1px solid #ccc; color: blue; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                        title="Make Host"
+                                                    >
+                                                        "Host"
+                                                    </button>
+                                                    <button
+                                                        on:click=move |_| on_kick.call(id_kick.clone())
+                                                        style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                        title="Kick Participant"
+                                                    >
+                                                        "Kick"
+                                                    </button>
+                                                </div>
                                             }
                                         }
                                     </Show>
@@ -149,6 +182,7 @@ mod tests {
             name: "Charlie".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
+            is_muted: false,
             speaking_time: 0,
         };
         let p2 = Participant {
@@ -156,6 +190,7 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: true, // Hand raised should be first
             is_sharing_screen: false,
+            is_muted: false,
             speaking_time: 0,
         };
         let p3 = Participant {
@@ -163,6 +198,7 @@ mod tests {
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
+            is_muted: false,
             speaking_time: 0,
         };
 
