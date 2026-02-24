@@ -1,6 +1,7 @@
 use leptos::*;
 use crate::i18n::t;
 use crate::components_ui::toast::{use_toast, ToastType};
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn InviteDialog(
@@ -12,19 +13,35 @@ pub fn InviteDialog(
 
     let copy_link = move |_| {
         let url = room_url.get();
+        // Capture translated strings here to ensure correct locale context
+        // This fixes Bug 2: Locale defaults to English inside spawn_local async block
+        let msg_success = t("link_copied");
+        let msg_error = t("failed_to_copy");
+
         if let Some(window) = web_sys::window() {
             let navigator = window.navigator();
-            // web-sys types Navigator.clipboard as returning Clipboard, not Option<Clipboard>
-            // Ideally we should check if it's undefined using js-sys, but for now we trust the binding/environment.
-            let clipboard = navigator.clipboard();
-            let promise = clipboard.write_text(&url);
 
-            wasm_bindgen_futures::spawn_local(async move {
-                match wasm_bindgen_futures::JsFuture::from(promise).await {
-                    Ok(_) => toast.add(t("link_copied"), ToastType::Success),
-                    Err(_) => toast.add(t("failed_to_copy"), ToastType::Error),
+            // Defensively check for clipboard API (it might be undefined in insecure contexts)
+            // This fixes Bug 1: Navigator.clipboard() will panic in insecure (HTTP) contexts
+            let clipboard_prop = js_sys::Reflect::get(&navigator, &"clipboard".into());
+
+            if let Ok(val) = clipboard_prop {
+                if !val.is_undefined() && !val.is_null() {
+                    if let Ok(clipboard) = val.dyn_into::<web_sys::Clipboard>() {
+                        let promise = clipboard.write_text(&url);
+                        wasm_bindgen_futures::spawn_local(async move {
+                            match wasm_bindgen_futures::JsFuture::from(promise).await {
+                                Ok(_) => toast.add(msg_success, ToastType::Success),
+                                Err(_) => toast.add(msg_error, ToastType::Error),
+                            }
+                        });
+                        return;
+                    }
                 }
-            });
+            }
+
+            // Fallback if clipboard API is not available
+            toast.add("Clipboard API not available (Secure context required)".to_string(), ToastType::Error);
         }
     };
 
