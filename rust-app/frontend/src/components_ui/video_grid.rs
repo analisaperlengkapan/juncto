@@ -132,7 +132,11 @@ pub fn VideoGrid(
             } else {
                  "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
             }>
-                <Show when=move || local_stream.get().is_some() fallback=move || view! {
+                <Show when=move || {
+                    local_stream.get()
+                        .map(|s| s.get_video_tracks().length() > 0)
+                        .unwrap_or(false)
+                } fallback=move || view! {
                     <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white;">
                         "Camera Off"
                     </div>

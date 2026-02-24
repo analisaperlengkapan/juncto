@@ -1,7 +1,15 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{MediaDeviceInfo, MediaStream, MediaStreamConstraints, AudioContext, AnalyserNode};
+use web_sys::{MediaDeviceInfo, MediaStream, MediaStreamConstraints, AudioContext, AnalyserNode, MediaDeviceKind};
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DeviceInfo {
+    pub device_id: String,
+    pub label: String,
+    pub kind: String,
+}
 
 pub async fn enumerate_devices() -> Result<Vec<MediaDeviceInfo>, JsValue> {
     let window = web_sys::window().ok_or(JsValue::from_str("No global window"))?;
@@ -24,7 +32,39 @@ pub async fn enumerate_devices() -> Result<Vec<MediaDeviceInfo>, JsValue> {
     Ok(devices)
 }
 
+pub async fn get_video_input_devices() -> Result<Vec<DeviceInfo>, JsValue> {
+    let devices = enumerate_devices().await?;
+    let mut result = Vec::new();
+    for device in devices {
+        if device.kind() == MediaDeviceKind::Videoinput {
+            result.push(DeviceInfo {
+                device_id: device.device_id(),
+                label: device.label(),
+                kind: "videoinput".to_string(),
+            });
+        }
+    }
+    Ok(result)
+}
+
+pub async fn get_audio_input_devices() -> Result<Vec<DeviceInfo>, JsValue> {
+    let devices = enumerate_devices().await?;
+    let mut result = Vec::new();
+    for device in devices {
+        if device.kind() == MediaDeviceKind::Audioinput {
+            result.push(DeviceInfo {
+                device_id: device.device_id(),
+                label: device.label(),
+                kind: "audioinput".to_string(),
+            });
+        }
+    }
+    Ok(result)
+}
+
 pub async fn get_user_media(
+    enable_video: bool,
+    enable_audio: bool,
     video_device_id: Option<String>,
     audio_device_id: Option<String>,
     video_resolution: Option<&str>
@@ -36,31 +76,39 @@ pub async fn get_user_media(
     let constraints = MediaStreamConstraints::new();
 
     // Video constraints
-    let video_obj = js_sys::Object::new();
-    if let Some(id) = video_device_id {
-         let _ = js_sys::Reflect::set(&video_obj, &"deviceId".into(), &id.into());
-    }
-
-    if let Some(res) = video_resolution {
-        if res == "hd" {
-            let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &1280.into());
-            let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &720.into());
-        } else if res == "sd" {
-            let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &640.into());
-            let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &360.into());
+    let video_val = if enable_video {
+        let video_obj = js_sys::Object::new();
+        if let Some(id) = video_device_id {
+             let _ = js_sys::Reflect::set(&video_obj, &"deviceId".into(), &id.into());
         }
-    }
 
-    let video_val = wasm_bindgen::JsValue::from(video_obj);
+        if let Some(res) = video_resolution {
+            if res == "hd" {
+                let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &1280.into());
+                let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &720.into());
+            } else if res == "sd" {
+                let _ = js_sys::Reflect::set(&video_obj, &"width".into(), &640.into());
+                let _ = js_sys::Reflect::set(&video_obj, &"height".into(), &360.into());
+            }
+        }
+        wasm_bindgen::JsValue::from(video_obj)
+    } else {
+        wasm_bindgen::JsValue::FALSE
+    };
+
     constraints.set_video(&video_val);
 
     // Audio constraints
-    let audio_val = if let Some(id) = audio_device_id {
-         let audio_obj = js_sys::Object::new();
-         let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
-         wasm_bindgen::JsValue::from(audio_obj)
+    let audio_val = if enable_audio {
+        if let Some(id) = audio_device_id {
+             let audio_obj = js_sys::Object::new();
+             let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
+             wasm_bindgen::JsValue::from(audio_obj)
+        } else {
+            wasm_bindgen::JsValue::TRUE
+        }
     } else {
-        wasm_bindgen::JsValue::TRUE
+        wasm_bindgen::JsValue::FALSE
     };
     constraints.set_audio(&audio_val);
 
@@ -159,8 +207,22 @@ impl Drop for AudioMonitor {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn test_compilation() {
-        assert_eq!(1 + 1, 2);
+    fn test_device_info_serialization() {
+        let device = DeviceInfo {
+            device_id: "test-id".to_string(),
+            label: "Test Device".to_string(),
+            kind: "videoinput".to_string(),
+        };
+
+        let json = serde_json::to_string(&device).expect("Failed to serialize");
+        assert!(json.contains("test-id"));
+        assert!(json.contains("Test Device"));
+        assert!(json.contains("videoinput"));
+
+        let deserialized: DeviceInfo = serde_json::from_str(&json).expect("Failed to deserialize");
+        assert_eq!(deserialized, device);
     }
 }
