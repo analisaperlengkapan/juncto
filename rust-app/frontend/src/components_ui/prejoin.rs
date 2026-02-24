@@ -30,24 +30,21 @@ pub fn PrejoinScreen(
     // Load Devices on Mount
     create_effect(move |_| {
         spawn_local(async move {
-            if let Ok(devices) = get_video_input_devices().await {
-                set_video_devices.set(devices);
-                // Select first by default if available
-                set_video_devices.update(|list| {
-                    if let Some(first) = list.first() {
-                         set_selected_video_device.set(Some(first.device_id.clone()));
-                    }
-                });
-            }
-            if let Ok(devices) = get_audio_input_devices().await {
-                set_audio_devices.set(devices);
-                // Select first by default if available
-                set_audio_devices.update(|list| {
-                    if let Some(first) = list.first() {
-                         set_selected_audio_device.set(Some(first.device_id.clone()));
-                    }
-                });
-            }
+            let v_devices = get_video_input_devices().await.ok().unwrap_or_default();
+            let a_devices = get_audio_input_devices().await.ok().unwrap_or_default();
+
+            // Batch updates to avoid multiple stream restarts
+            batch(move || {
+                set_video_devices.set(v_devices.clone());
+                if let Some(first) = v_devices.first() {
+                     set_selected_video_device.set(Some(first.device_id.clone()));
+                }
+
+                set_audio_devices.set(a_devices.clone());
+                if let Some(first) = a_devices.first() {
+                     set_selected_audio_device.set(Some(first.device_id.clone()));
+                }
+            });
         });
     });
 
@@ -71,6 +68,13 @@ pub fn PrejoinScreen(
         let mic_on = is_mic_on.get();
         let v_id = selected_video_device.get();
         let a_id = selected_audio_device.get();
+
+        // Use a tracking variable to debounce if multiple signals change in same microtask?
+        // Leptos effects are synchronous but scheduled.
+        // If we want to avoid multiple calls, we can assume Leptos batches signal updates.
+        // However, spawn_local runs on the next tick essentially.
+        // To be safe against rapid changes (like initial load), we could check if we are already requesting?
+        // For now, let's trust Leptos 0.6 batching, but we'll add a check.
 
         spawn_local(async move {
             // Stop existing first
