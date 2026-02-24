@@ -8,6 +8,7 @@ use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::components_ui::shared_video_dialog::SharedVideoDialog;
+use crate::components_ui::invite::InviteDialog;
 use crate::settings::SettingsDialog;
 use crate::reactions::ReactionDisplay;
 use crate::polls::PollsDialog;
@@ -27,6 +28,16 @@ pub fn Room() -> impl IntoView {
     let state = use_room_state();
     let navigate = use_navigate();
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
+    let (show_invite, set_show_invite) = create_signal(false);
+    let (show_chat, set_show_chat) = create_signal(true);
+
+    let invite_url = Signal::derive(move || {
+        if let Some(window) = web_sys::window() {
+            window.location().href().unwrap_or_default()
+        } else {
+            "".to_string()
+        }
+    });
 
     let leave_room = Callback::new(move |_| {
         navigate("/", Default::default());
@@ -136,6 +147,8 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_lock=state.toggle_lock
                                 on_toggle_lobby=state.toggle_lobby
                                 on_toggle_recording=state.toggle_recording
+                                on_invite=Callback::new(move |_| set_show_invite.set(true))
+                                on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
@@ -155,14 +168,21 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=state.end_meeting
                             />
                         </div>
-                        <Chat
-                            messages=state.messages
-                            typing_users=state.typing_users
-                            participants=state.participants
-                            on_send=state.send_message
-                            on_typing=state.set_is_typing
-                            is_connected=state.is_connected
-                            my_id=state.my_id
+                        <div style=move || if show_chat.get() { "display: block;" } else { "display: none;" }>
+                            <Chat
+                                messages=state.messages
+                                typing_users=state.typing_users
+                                participants=state.participants
+                                on_send=state.send_message
+                                on_typing=state.set_is_typing
+                                is_connected=state.is_connected
+                                my_id=state.my_id
+                            />
+                        </div>
+                        <InviteDialog
+                            show=show_invite
+                            on_close=Callback::new(move |_| set_show_invite.set(false))
+                            room_url=invite_url
                         />
                         <SettingsDialog
                             show=state.show_settings
