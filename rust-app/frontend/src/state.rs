@@ -6,12 +6,22 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use crate::media::{get_user_media, get_display_media, AudioMonitor};
 use crate::components_ui::toast::{use_toast, ToastType};
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
     Prejoin,
     Lobby,
     Joined,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct JoinOptions {
+    pub display_name: String,
+    pub mic_enabled: bool,
+    pub camera_enabled: bool,
+    pub audio_device_id: Option<String>,
+    pub video_device_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -68,7 +78,7 @@ pub struct RoomState {
     pub toggle_recording: Callback<()>,
     pub grant_access: Callback<String>,
     pub deny_access: Callback<String>,
-    pub join_meeting: Callback<(String, bool, bool, Option<String>, Option<String>)>, // name, mic_on, cam_on, mic_id, cam_id
+    pub join_meeting: Callback<JoinOptions>,
     pub save_profile: Callback<String>,
     pub send_reaction: Callback<String>,
     pub toggle_raise_hand: Callback<()>,
@@ -572,18 +582,18 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let join_meeting = Callback::new(move |(display_name, mic_on, cam_on, mic_id, cam_id): (String, bool, bool, Option<String>, Option<String>)| {
+    let join_meeting = Callback::new(move |options: JoinOptions| {
         // Set initial state
-        set_is_muted.set(!mic_on);
-        set_selected_mic_id.set(mic_id);
-        set_selected_camera_id.set(cam_id);
+        set_is_muted.set(!options.mic_enabled);
+        set_selected_mic_id.set(options.audio_device_id);
+        set_selected_camera_id.set(options.video_device_id);
 
         // Start media if either mic or cam is on
-        set_start_media_on_join.set(mic_on || cam_on);
-        set_initial_cam_on.set(cam_on);
+        set_start_media_on_join.set(options.mic_enabled || options.camera_enabled);
+        set_initial_cam_on.set(options.camera_enabled);
 
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Join(display_name);
+            let msg = ClientMessage::Join(options.display_name);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
