@@ -6,7 +6,7 @@ test('Speaker Stats, Virtual Background, and Connection Stats', async ({ page })
   await page.click('button:has-text("Start Meeting")');
 
   // Wait for Prejoin
-  await expect(page.locator('h2:has-text("Ready to join?")')).toBeVisible();
+  await expect(page.locator('h2:has-text("Join Meeting")')).toBeVisible();
 
   await page.fill('input', 'Tester');
   await page.click('button:has-text("Join Meeting")');

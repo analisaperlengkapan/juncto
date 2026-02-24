@@ -222,7 +222,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         name,
                                         is_hand_raised: false,
                                         is_sharing_screen: false,
-                                        is_muted: false,
                                         speaking_time: 0,
                                     };
 
@@ -623,65 +622,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             user_id: uid.clone(),
                                             speaking: is_speaking,
                                         });
-                                    }
-                                },
-                                ClientMessage::SetMuteStatus(muted) => {
-                                    if let Some(uid) = &my_id {
-                                        let updated_participant = {
-                                            let mut participants = participants_mutex.lock().unwrap();
-                                            if let Some(p) = participants.get_mut(uid) {
-                                                p.is_muted = muted;
-                                                Some(p.clone())
-                                            } else {
-                                                None
-                                            }
-                                        };
-                                        if let Some(p) = updated_participant {
-                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
-                                        }
-                                    }
-                                },
-                                ClientMessage::MuteParticipant(target_id) => {
-                                    if let Some(uid) = &my_id {
-                                        let is_host = {
-                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
-                                        };
-                                        if is_host {
-                                            let updated_participant = {
-                                                let mut participants = participants_mutex.lock().unwrap();
-                                                if let Some(p) = participants.get_mut(&target_id) {
-                                                    p.is_muted = true;
-                                                    Some(p.clone())
-                                                } else {
-                                                    None
-                                                }
-                                            };
-                                            if let Some(p) = updated_participant {
-                                                let _ = tx.send(ServerMessage::ParticipantUpdated(p));
-                                                let _ = tx.send(ServerMessage::MutedByHost(target_id));
-                                            }
-                                        }
-                                    }
-                                },
-                                ClientMessage::TransferHost(target_id) => {
-                                    if let Some(uid) = &my_id {
-                                        let is_host = {
-                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
-                                        };
-                                        if is_host {
-                                            let target_exists = {
-                                                let participants = participants_mutex.lock().unwrap();
-                                                participants.contains_key(&target_id)
-                                            };
-                                            if target_exists {
-                                                let new_config = {
-                                                    let mut config = room_config_mutex.lock().unwrap();
-                                                    config.host_id = Some(target_id);
-                                                    config.clone()
-                                                };
-                                                let _ = tx.send(ServerMessage::RoomUpdated(new_config));
-                                            }
-                                        }
                                     }
                                 },
                                 ClientMessage::Ping => {

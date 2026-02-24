@@ -71,8 +71,6 @@ pub struct Participant {
     pub is_hand_raised: bool,
     pub is_sharing_screen: bool,
     #[serde(default)]
-    pub is_muted: bool,
-    #[serde(default)]
     pub speaking_time: u64, // Total milliseconds spoken
 }
 
@@ -109,9 +107,6 @@ pub enum ClientMessage {
     GrantAccess(String),
     DenyAccess(String),
     KickParticipant(String), // Target ID
-    MuteParticipant(String), // Target ID
-    TransferHost(String), // Target ID
-    SetMuteStatus(bool),
     EndMeeting,
     CreateBreakoutRoom(String), // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
@@ -135,7 +130,6 @@ pub enum ServerMessage {
     Chat { message: ChatMessage, room_id: Option<String> },
     PeerTyping { user_id: String, is_typing: bool, room_id: Option<String> },
     Kicked(String), // Target ID
-    MutedByHost(String), // Target ID (Broadcasted, filtered by client)
     BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
     ParticipantLeft(String), // ID

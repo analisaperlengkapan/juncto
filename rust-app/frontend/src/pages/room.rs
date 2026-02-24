@@ -79,8 +79,6 @@ pub fn Room() -> impl IntoView {
                             on_allow=state.grant_access
                             on_deny=state.deny_access
                             on_kick=state.kick_participant
-                            on_mute=state.mute_participant
-                            on_transfer_host=state.transfer_host
                         />
                         <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
                             <BreakoutRooms

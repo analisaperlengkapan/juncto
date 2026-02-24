@@ -35,7 +35,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // 4. Prejoin Screen
   // "Rust Meeting" gets encoded to "Rust%20Meeting"
   await expect(page).toHaveURL(/\/room\/Rust%20Meeting/);
-  await expect(page.getByText('Ready to join?')).toBeVisible();
+  await expect(page.getByText('Join Meeting')).toBeVisible();
 
   // Enter Name and Join
   const nameInput = page.locator('.prejoin-container input[type="text"]');
@@ -448,7 +448,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   await guestItem.getByRole('button', { name: 'Kick' }).click();
 
   // Guest should be redirected to Prejoin
-  await expect(guestPage.getByText('Ready to join?')).toBeVisible();
+  await expect(guestPage.getByText('Join Meeting')).toBeVisible();
 
   // Host list should not have Guest
   await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
