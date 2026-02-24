@@ -18,10 +18,13 @@ pub fn InviteDialog(
             // Ideally we should check if it's undefined using js-sys, but for now we trust the binding/environment.
             let clipboard = navigator.clipboard();
             let promise = clipboard.write_text(&url);
-            let _ = wasm_bindgen_futures::JsFuture::from(promise);
-
-            // In a real app we'd await the promise, but here fire and forget is okay for prototype.
-            toast.add(t("link_copied"), ToastType::Success);
+            let toast_inner = toast;
+            wasm_bindgen_futures::spawn_local(async move {
+                match wasm_bindgen_futures::JsFuture::from(promise).await {
+                    Ok(_) => toast_inner.add(t("link_copied"), ToastType::Success),
+                    Err(_) => toast_inner.add("Failed to copy link".to_string(), ToastType::Error),
+                }
+            });
         }
     };
 
