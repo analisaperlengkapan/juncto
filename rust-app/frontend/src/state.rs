@@ -1,12 +1,14 @@
+use crate::components_ui::toast::{use_toast, ToastType};
+use crate::media::{get_display_media, get_user_media, AudioMonitor};
 use leptos::*;
-use shared::{ChatMessage, Participant, ServerMessage, ClientMessage, Poll, DrawAction, FileAttachment};
-use web_sys::{MessageEvent, WebSocket, MediaStream};
+use serde::{Deserialize, Serialize};
+use shared::{
+    ChatMessage, ClientMessage, DrawAction, FileAttachment, Participant, Poll, ServerMessage,
+};
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::media::{get_user_media, get_display_media, AudioMonitor};
-use crate::components_ui::toast::{use_toast, ToastType};
-use serde::{Serialize, Deserialize};
+use web_sys::{MediaStream, MessageEvent, WebSocket};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RoomConnectionState {
@@ -54,6 +56,7 @@ pub struct RoomState {
     pub speaking_peers: ReadSignal<HashSet<String>>,
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
+    pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
     #[allow(dead_code)]
     pub selected_camera_id: ReadSignal<Option<String>>,
@@ -69,6 +72,7 @@ pub struct RoomState {
     pub set_show_whiteboard: WriteSignal<bool>,
     pub set_show_speaker_stats: WriteSignal<bool>,
     pub set_show_virtual_background: WriteSignal<bool>,
+    pub set_show_feedback: WriteSignal<bool>,
     pub send_ping: Callback<()>,
     pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
@@ -105,7 +109,8 @@ pub fn use_room_state() -> RoomState {
     let (breakout_rooms, set_breakout_rooms) = create_signal(Vec::<shared::BreakoutRoom>::new());
     let (current_room_id, set_current_room_id) = create_signal(None::<String>);
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
-    let (knocking_participants, set_knocking_participants) = create_signal(Vec::<Participant>::new());
+    let (knocking_participants, set_knocking_participants) =
+        create_signal(Vec::<Participant>::new());
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
@@ -128,6 +133,7 @@ pub fn use_room_state() -> RoomState {
     let (_audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
     let (show_speaker_stats, set_show_speaker_stats) = create_signal(false);
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
+    let (show_feedback, set_show_feedback) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
     let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
@@ -148,9 +154,7 @@ pub fn use_room_state() -> RoomState {
     // We need to store the current room config to access host_id.
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
 
-    let host_id = Signal::derive(move || {
-        room_config.get().host_id
-    });
+    let host_id = Signal::derive(move || room_config.get().host_id);
 
     let is_host = Signal::derive(move || {
         let h = host_id.get();
@@ -196,7 +200,9 @@ pub fn use_room_state() -> RoomState {
                 if is_muted.get_untracked() {
                     let audio_tracks = stream.get_audio_tracks();
                     for i in 0..audio_tracks.length() {
-                        if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        if let Ok(track) =
+                            audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                        {
                             track.set_enabled(false);
                         }
                     }
@@ -206,10 +212,10 @@ pub fn use_room_state() -> RoomState {
 
                 let on_speaking = Box::new(move |is_speaking: bool| {
                     if let Some(socket) = ws.get_untracked() {
-                            let msg = ClientMessage::Speaking(is_speaking);
-                            if let Ok(json) = serde_json::to_string(&msg) {
-                                let _ = socket.send_with_str(&json);
-                            }
+                        let msg = ClientMessage::Speaking(is_speaking);
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            let _ = socket.send_with_str(&json);
+                        }
                     }
                 });
 
@@ -232,7 +238,11 @@ pub fn use_room_state() -> RoomState {
         // Derived signal updates automatically based on deps.
 
         let location = web_sys::window().unwrap().location();
-        let protocol = if location.protocol().unwrap() == "https:" { "wss:" } else { "ws:" };
+        let protocol = if location.protocol().unwrap() == "https:" {
+            "wss:"
+        } else {
+            "ws:"
+        };
         let host = location.host().unwrap();
         let url = format!("{}//{}/ws/chat", protocol, host);
 
@@ -262,7 +272,7 @@ pub fn use_room_state() -> RoomState {
                                         }
                                     }
                                 }
-                            },
+                            }
                             ServerMessage::RoomUpdated(config) => {
                                 set_is_locked.set(config.is_locked);
 
@@ -279,56 +289,69 @@ pub fn use_room_state() -> RoomState {
 
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
                                 set_room_config.set(config);
-                            },
+                            }
                             ServerMessage::Chat { message, .. } => {
                                 set_messages.update(|msgs| msgs.push(message));
-                            },
+                            }
                             ServerMessage::ChatHistory(history) => {
                                 set_messages.set(history);
-                            },
+                            }
                             ServerMessage::ParticipantJoined(p) => {
-                                set_knocking_participants.update(|list| list.retain(|x| x.id != p.id));
+                                set_knocking_participants
+                                    .update(|list| list.retain(|x| x.id != p.id));
                                 set_participants.update(|list| {
                                     if !list.iter().any(|x| x.id == p.id) {
                                         list.push(p);
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::KnockingParticipantLeft(id) => {
-                                set_knocking_participants.update(|list| list.retain(|x| x.id != id));
-                            },
+                                set_knocking_participants
+                                    .update(|list| list.retain(|x| x.id != id));
+                            }
                             ServerMessage::ParticipantLeft(id) => {
                                 set_participants.update(|list| list.retain(|p| p.id != id));
                                 // Remove from typing users if present
-                                set_typing_users.update(|users| { users.remove(&id); });
-                            },
+                                set_typing_users.update(|users| {
+                                    users.remove(&id);
+                                });
+                            }
                             ServerMessage::ParticipantList(list) => {
                                 set_participants.set(list);
-                            },
+                            }
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
-                            },
+                            }
                             ServerMessage::AccessDenied => {
                                 add_toast("Access Denied".to_string(), ToastType::Error);
                                 set_current_state.set(RoomConnectionState::Prejoin);
-                            },
+                            }
                             ServerMessage::Kicked(target_id) => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
-                                        add_toast("You have been kicked from the room.".to_string(), ToastType::Error);
+                                        add_toast(
+                                            "You have been kicked from the room.".to_string(),
+                                            ToastType::Error,
+                                        );
                                         set_current_state.set(RoomConnectionState::Prejoin);
                                     }
                                 }
-                            },
+                            }
                             ServerMessage::MutedByHost(target_id) => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
-                                        add_toast("You have been muted by the host.".to_string(), ToastType::Info);
+                                        add_toast(
+                                            "You have been muted by the host.".to_string(),
+                                            ToastType::Info,
+                                        );
                                         set_is_muted.set(true);
                                         if let Some(stream) = local_stream.get_untracked() {
                                             let audio_tracks = stream.get_audio_tracks();
                                             for i in 0..audio_tracks.length() {
-                                                if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                if let Ok(track) = audio_tracks
+                                                    .get(i)
+                                                    .dyn_into::<web_sys::MediaStreamTrack>(
+                                                ) {
                                                     track.set_enabled(false);
                                                 }
                                             }
@@ -342,35 +365,47 @@ pub fn use_room_state() -> RoomState {
                                         }
                                     }
                                 }
-                            },
+                            }
                             ServerMessage::RoomEnded => {
-                                add_toast("The meeting has ended by the host.".to_string(), ToastType::Info);
+                                add_toast(
+                                    "The meeting has ended by the host.".to_string(),
+                                    ToastType::Info,
+                                );
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
                                 set_is_connected.set(false);
-                            },
+                            }
                             ServerMessage::KnockingParticipant(p) => {
                                 set_knocking_participants.update(|list| {
                                     if !list.iter().any(|x| x.id == p.id) {
                                         list.push(p);
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::ParticipantUpdated(p) => {
                                 set_participants.update(|list| {
                                     if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
                                         // Check for hand raise
                                         if p.is_hand_raised && !existing.is_hand_raised {
-                                            add_toast(format!("{} raised their hand", p.name), ToastType::Info);
+                                            add_toast(
+                                                format!("{} raised their hand", p.name),
+                                                ToastType::Info,
+                                            );
                                         }
                                         *existing = p;
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::Reaction { sender_id, emoji } => {
-                                set_last_reaction.set(Some((sender_id, emoji, js_sys::Date::now() as u64)));
-                            },
-                            ServerMessage::PeerTyping { user_id, is_typing, .. } => {
+                                set_last_reaction.set(Some((
+                                    sender_id,
+                                    emoji,
+                                    js_sys::Date::now() as u64,
+                                )));
+                            }
+                            ServerMessage::PeerTyping {
+                                user_id, is_typing, ..
+                            } => {
                                 set_typing_users.update(|users| {
                                     if is_typing {
                                         users.insert(user_id);
@@ -378,40 +413,42 @@ pub fn use_room_state() -> RoomState {
                                         users.remove(&user_id);
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::BreakoutRoomsList(rooms) => {
                                 set_breakout_rooms.set(rooms);
-                            },
+                            }
                             ServerMessage::PollCreated(poll) => {
                                 set_polls.update(|list| {
                                     if !list.iter().any(|p| p.id == poll.id) {
                                         list.push(poll);
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::PollUpdated(poll) => {
                                 set_polls.update(|list| {
-                                    if let Some(existing) = list.iter_mut().find(|x| x.id == poll.id) {
+                                    if let Some(existing) =
+                                        list.iter_mut().find(|x| x.id == poll.id)
+                                    {
                                         *existing = poll;
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::PollsList(list) => {
                                 set_polls.set(list);
-                            },
+                            }
                             ServerMessage::Draw(action) => {
                                 set_last_draw_action.set(Some(action.clone()));
                                 set_whiteboard_history.update(|h| h.push(action));
-                            },
+                            }
                             ServerMessage::WhiteboardHistory(history) => {
                                 set_whiteboard_history.set(history);
-                            },
+                            }
                             ServerMessage::VideoShared(url) => {
                                 set_shared_video_url.set(Some(url));
-                            },
+                            }
                             ServerMessage::VideoStopped => {
                                 set_shared_video_url.set(None);
-                            },
+                            }
                             ServerMessage::PeerSpeaking { user_id, speaking } => {
                                 set_speaking_peers.update(|s| {
                                     if speaking {
@@ -420,7 +457,7 @@ pub fn use_room_state() -> RoomState {
                                         s.remove(&user_id);
                                     }
                                 });
-                            },
+                            }
                             ServerMessage::Pong { .. } => {
                                 let now = js_sys::Date::now();
                                 let start = last_ping_time.get_untracked();
@@ -428,7 +465,7 @@ pub fn use_room_state() -> RoomState {
                                     let latency = (now - start) as u64;
                                     set_rtt.set(latency);
                                 }
-                            },
+                            }
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
                             }
@@ -470,14 +507,24 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let send_message = Callback::new(move |(content, recipient_id, attachment): (String, Option<String>, Option<FileAttachment>)| {
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Chat { content, recipient_id, attachment };
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
+    let send_message = Callback::new(
+        move |(content, recipient_id, attachment): (
+            String,
+            Option<String>,
+            Option<FileAttachment>,
+        )| {
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::Chat {
+                    content,
+                    recipient_id,
+                    attachment,
+                };
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
             }
-        }
-    });
+        },
+    );
 
     let toggle_lock = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
@@ -586,7 +633,7 @@ pub fn use_room_state() -> RoomState {
                                 let _ = socket.send_with_str(&json);
                             }
                         }
-                    },
+                    }
                     Err(e) => {
                         web_sys::console::error_1(&e);
                     }
@@ -719,30 +766,32 @@ pub fn use_room_state() -> RoomState {
         start_media_stream.call(!has_video);
     });
 
-    let set_input_devices = Callback::new(move |(vid, aid, res): (Option<String>, Option<String>, String)| {
-        set_selected_camera_id.set(vid.clone());
-        set_selected_mic_id.set(aid.clone());
-        set_video_resolution.set(res.clone());
+    let set_input_devices = Callback::new(
+        move |(vid, aid, res): (Option<String>, Option<String>, String)| {
+            set_selected_camera_id.set(vid.clone());
+            set_selected_mic_id.set(aid.clone());
+            set_video_resolution.set(res.clone());
 
-        // Use same logic as toggle_camera: preserve video state?
-        // Or if user selected a camera, enable video?
-        // Usually settings dialog allows selecting device. If "None" is passed for video, maybe disable?
-        // But settings dialog passes "current selection".
-        // Let's assume if stream is running, we restart it with same video state (unless video was disabled? No, if stream running, restart with current capabilities).
-        // Actually, simpler: check if video is currently running.
-        let has_video = if let Some(stream) = local_stream.get_untracked() {
-            stream.get_video_tracks().length() > 0
-        } else {
-            false // If no stream, maybe don't start one? Or start if devices selected?
-            // If user explicitly changes devices in settings, they probably want to see them.
-            // But if they were Audio Only, and changed Mic...
-            // Let's stick to: if stream exists, restart with current video state.
-        };
+            // Use same logic as toggle_camera: preserve video state?
+            // Or if user selected a camera, enable video?
+            // Usually settings dialog allows selecting device. If "None" is passed for video, maybe disable?
+            // But settings dialog passes "current selection".
+            // Let's assume if stream is running, we restart it with same video state (unless video was disabled? No, if stream running, restart with current capabilities).
+            // Actually, simpler: check if video is currently running.
+            let has_video = if let Some(stream) = local_stream.get_untracked() {
+                stream.get_video_tracks().length() > 0
+            } else {
+                false // If no stream, maybe don't start one? Or start if devices selected?
+                      // If user explicitly changes devices in settings, they probably want to see them.
+                      // But if they were Audio Only, and changed Mic...
+                      // Let's stick to: if stream exists, restart with current video state.
+            };
 
-        if local_stream.get_untracked().is_some() {
-            start_media_stream.call(has_video);
-        }
-    });
+            if local_stream.get_untracked().is_some() {
+                start_media_stream.call(has_video);
+            }
+        },
+    );
 
     let start_share_video = Callback::new(move |url: String| {
         if let Some(socket) = ws.get() {
@@ -822,6 +871,7 @@ pub fn use_room_state() -> RoomState {
         speaking_peers,
         show_speaker_stats,
         show_virtual_background,
+        show_feedback,
         rtt,
         selected_camera_id,
         selected_mic_id,
@@ -833,6 +883,7 @@ pub fn use_room_state() -> RoomState {
         set_show_whiteboard,
         set_show_speaker_stats,
         set_show_virtual_background,
+        set_show_feedback,
         send_ping,
         send_message,
         toggle_lock,

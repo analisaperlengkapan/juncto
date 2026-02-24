@@ -1,28 +1,28 @@
-mod components_ui;
-mod pages;
-mod state;
-mod utils;
 mod chat;
-mod participants;
-mod toolbox;
-mod settings;
-mod reactions;
-mod polls;
-mod whiteboard;
-mod media;
-mod shortcuts;
-mod speaker_stats;
-mod virtual_background;
+mod components_ui;
 mod connection_stats;
 mod i18n;
+mod media;
+mod pages;
+mod participants;
+mod polls;
+mod reactions;
+mod settings;
+mod shortcuts;
+mod speaker_stats;
+mod state;
+mod toolbox;
+mod utils;
+mod virtual_background;
+mod whiteboard;
 
+use crate::components_ui::toast::{provide_toast_context, ToastContainer};
+use crate::i18n::provide_i18n_context;
 use leptos::*;
 use leptos_router::*;
 use pages::home::Home;
 use pages::room::Room;
 use wasm_bindgen::prelude::*;
-use crate::components_ui::toast::{provide_toast_context, ToastContainer};
-use crate::i18n::provide_i18n_context;
 
 #[component]
 fn App() -> impl IntoView {

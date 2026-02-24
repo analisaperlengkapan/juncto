@@ -82,11 +82,27 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "link_copied") => "Tautan Disalin!".to_string(),
         (Locale::En, "failed_to_copy") => "Failed to copy link".to_string(),
         (Locale::Id, "failed_to_copy") => "Gagal menyalin tautan".to_string(),
-        (Locale::En, "share_link_hint") => "Share this link with others to invite them to the meeting.".to_string(),
-        (Locale::Id, "share_link_hint") => "Bagikan tautan ini dengan orang lain untuk mengundang mereka.".to_string(),
+        (Locale::En, "share_link_hint") => {
+            "Share this link with others to invite them to the meeting.".to_string()
+        }
+        (Locale::Id, "share_link_hint") => {
+            "Bagikan tautan ini dengan orang lain untuk mengundang mereka.".to_string()
+        }
         (Locale::En, "chat_panel") => "Chat".to_string(),
         (Locale::Id, "chat_panel") => "Obrolan".to_string(),
-         // Add more keys as needed
+        (Locale::En, "feedback") => "Feedback".to_string(),
+        (Locale::Id, "feedback") => "Umpan Balik".to_string(),
+        (Locale::En, "feedback_submitted") => "Feedback Submitted!".to_string(),
+        (Locale::Id, "feedback_submitted") => "Umpan Balik Terkirim!".to_string(),
+        (Locale::En, "feedback_error") => "Error Submitting Feedback".to_string(),
+        (Locale::Id, "feedback_error") => "Gagal Mengirim Umpan Balik".to_string(),
+        (Locale::En, "feedback_placeholder") => "Tell us about your experience...".to_string(),
+        (Locale::Id, "feedback_placeholder") => "Ceritakan pengalaman Anda...".to_string(),
+        (Locale::En, "please_select_rating") => "Please select a rating".to_string(),
+        (Locale::Id, "please_select_rating") => "Silakan pilih peringkat".to_string(),
+        (Locale::En, "submit") => "Submit".to_string(),
+        (Locale::Id, "submit") => "Kirim".to_string(),
+        // Add more keys as needed
         (_, k) => k.to_string(),
     }
 }

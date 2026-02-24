@@ -5,12 +5,12 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tower_http::services::{ServeDir, ServeFile};
-use std::net::SocketAddr;
-use tokio::sync::{broadcast, oneshot};
-use std::sync::{Arc, Mutex};
+use shared::{BreakoutRoom, DrawAction, Participant, Poll, RoomConfig, ServerMessage};
 use std::collections::HashMap;
-use shared::{ServerMessage, Participant, RoomConfig, Poll, DrawAction, BreakoutRoom};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use tokio::sync::{broadcast, oneshot};
+use tower_http::services::{ServeDir, ServeFile};
 
 type KnockingMap = HashMap<String, (Participant, Option<oneshot::Sender<bool>>)>;
 
@@ -29,6 +29,7 @@ pub struct AppState {
     pub participant_locations: Arc<Mutex<HashMap<String, Option<String>>>>,
     pub shared_video_url: Arc<Mutex<Option<String>>>,
     pub speaking_start_times: Arc<Mutex<HashMap<String, u64>>>,
+    pub feedback: Arc<Mutex<Vec<shared::Feedback>>>,
 }
 
 #[tokio::main]
@@ -52,6 +53,7 @@ async fn main() {
     let participant_locations = Arc::new(Mutex::new(HashMap::new()));
     let shared_video_url = Arc::new(Mutex::new(None));
     let speaking_start_times = Arc::new(Mutex::new(HashMap::new()));
+    let feedback = Arc::new(Mutex::new(Vec::new()));
 
     let app_state = Arc::new(AppState {
         tx,
@@ -65,14 +67,16 @@ async fn main() {
         participant_locations,
         shared_video_url,
         speaking_start_times,
+        feedback,
     });
 
     // Define the router
-    let serve_dir = ServeDir::new("frontend/pkg")
-        .not_found_service(ServeFile::new("frontend/pkg/index.html"));
+    let serve_dir =
+        ServeDir::new("frontend/pkg").not_found_service(ServeFile::new("frontend/pkg/index.html"));
 
     let app = Router::new()
         .route("/api/rooms", post(api::create_room))
+        .route("/api/feedback", post(api::submit_feedback))
         .route("/health", get(api::health_check))
         .route("/ws/chat", get(api::chat_handler))
         .fallback_service(serve_dir)

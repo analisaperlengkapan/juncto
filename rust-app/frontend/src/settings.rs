@@ -1,8 +1,8 @@
-use leptos::*;
-use web_sys::{MediaDeviceInfo, MediaDeviceKind};
-use wasm_bindgen::JsCast;
-use crate::media::{enumerate_devices, get_user_media};
 use crate::i18n::t;
+use crate::media::{enumerate_devices, get_user_media};
+use leptos::*;
+use wasm_bindgen::JsCast;
+use web_sys::{MediaDeviceInfo, MediaDeviceKind};
 
 pub type DeviceSettings = (Option<String>, Option<String>, String);
 
@@ -11,14 +11,10 @@ pub fn SettingsDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_save_profile: Callback<String>,
-    #[prop(optional)]
-    on_save_devices: Option<Callback<DeviceSettings>>,
-    #[prop(optional)]
-    current_video_id: Option<ReadSignal<Option<String>>>,
-    #[prop(optional)]
-    current_audio_id: Option<ReadSignal<Option<String>>>,
-    #[prop(optional)]
-    current_resolution: Option<ReadSignal<String>>,
+    #[prop(optional)] on_save_devices: Option<Callback<DeviceSettings>>,
+    #[prop(optional)] current_video_id: Option<ReadSignal<Option<String>>>,
+    #[prop(optional)] current_audio_id: Option<ReadSignal<Option<String>>>,
+    #[prop(optional)] current_resolution: Option<ReadSignal<String>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
@@ -26,7 +22,9 @@ pub fn SettingsDialog(
     // Initialize state from props if available
     let init_video = current_video_id.and_then(|s| s.get_untracked());
     let init_audio = current_audio_id.and_then(|s| s.get_untracked());
-    let init_res = current_resolution.map(|s| s.get_untracked()).unwrap_or("hd".to_string());
+    let init_res = current_resolution
+        .map(|s| s.get_untracked())
+        .unwrap_or("hd".to_string());
 
     // Devices State
     let (video_devices, set_video_devices) = create_signal(Vec::<MediaDeviceInfo>::new());
@@ -80,7 +78,7 @@ pub fn SettingsDialog(
                 }
                 set_video_devices.set(vid);
                 set_audio_devices.set(aud);
-            },
+            }
             Err(e) => {
                 set_error_msg.set(Some(format!("Error enumerating devices: {:?}", e)));
             }
@@ -114,7 +112,7 @@ pub fn SettingsDialog(
                     let _ = video_el.play();
                 }
                 set_error_msg.set(None);
-            },
+            }
             Err(e) => {
                 set_error_msg.set(Some(format!("Error accessing media: {:?}", e)));
             }

@@ -1,15 +1,18 @@
+use super::breakout;
+use super::chat;
+use super::polls;
+use super::whiteboard;
+use crate::AppState;
 use axum::{
-    extract::{State, ws::{WebSocketUpgrade, WebSocket, Message}},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::IntoResponse,
 };
-use shared::{RoomConfig, ServerMessage, Participant, ClientMessage};
-use std::sync::Arc;
-use crate::AppState;
 use futures::{sink::SinkExt, stream::StreamExt};
-use super::chat;
-use super::whiteboard;
-use super::polls;
-use super::breakout;
+use shared::{ClientMessage, Participant, RoomConfig, ServerMessage};
+use std::sync::Arc;
 
 pub async fn chat_handler(
     ws: WebSocketUpgrade,
@@ -33,7 +36,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     }
 
     // Explicitly send RoomUpdated to self to trigger frontend state logic (like is_host)
-    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config.clone())).await;
+    let _ = internal_tx
+        .send(ServerMessage::RoomUpdated(current_config.clone()))
+        .await;
 
     // Channel for control messages from async tasks to the loop
     let (control_tx, mut control_rx) = tokio::sync::mpsc::channel::<bool>(1); // true = granted, false = denied
@@ -76,7 +81,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     };
     if !rooms.is_empty() {
         // Send via internal_tx to avoid "borrow of moved value: sender"
-        let _ = internal_tx.send(ServerMessage::BreakoutRoomsList(rooms)).await;
+        let _ = internal_tx
+            .send(ServerMessage::BreakoutRoomsList(rooms))
+            .await;
     }
 
     loop {
@@ -859,7 +866,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     send_task.abort();
 
     // Cleanup
-    if let Some(t) = broadcast_task { t.abort(); }
+    if let Some(t) = broadcast_task {
+        t.abort();
+    }
 
     if let Some(id) = my_id {
         // Update speaking time before removal
@@ -900,9 +909,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         };
 
         if new_host_assigned {
-            let new_config = {
-                room_config_mutex.lock().unwrap().clone()
-            };
+            let new_config = { room_config_mutex.lock().unwrap().clone() };
             let _ = tx.send(ServerMessage::RoomUpdated(new_config));
         }
 

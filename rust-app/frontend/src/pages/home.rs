@@ -1,6 +1,6 @@
+use crate::utils::create_room_url;
 use leptos::*;
 use leptos_router::*;
-use crate::utils::create_room_url;
 
 #[component]
 pub fn Home() -> impl IntoView {

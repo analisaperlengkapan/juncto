@@ -206,7 +206,7 @@ mod tests {
         let sorted = sort_participants(unsorted);
 
         assert_eq!(sorted[0].name, "Alice"); // Raised hand
-        assert_eq!(sorted[1].name, "Bob");   // Alphabetical
+        assert_eq!(sorted[1].name, "Bob"); // Alphabetical
         assert_eq!(sorted[2].name, "Charlie");
     }
 }

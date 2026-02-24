@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub fn process_draw_action(
     user_id: &str,
     mut action: DrawAction,
-    state: &Arc<AppState>
+    state: &Arc<AppState>,
 ) -> ServerMessage {
     action.sender_id = user_id.to_string();
     {
@@ -19,9 +19,9 @@ pub fn process_draw_action(
 mod tests {
     use super::*;
     use shared::RoomConfig;
-    use tokio::sync::broadcast;
     use std::collections::HashMap;
     use std::sync::Mutex;
+    use tokio::sync::broadcast;
 
     // Helper to create mock state
     fn create_mock_state() -> Arc<AppState> {
@@ -38,6 +38,7 @@ mod tests {
             participant_locations: Arc::new(Mutex::new(HashMap::new())),
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
+            feedback: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -60,7 +61,7 @@ mod tests {
             ServerMessage::Draw(a) => {
                 assert_eq!(a.sender_id, "user1");
                 assert_eq!(a.end_x, 10.0);
-            },
+            }
             _ => panic!("Wrong message type"),
         }
 

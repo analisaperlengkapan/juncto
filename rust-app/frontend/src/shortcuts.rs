@@ -51,7 +51,10 @@ pub fn KeyboardShortcuts(
         on_cleanup(move || {
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
-            let _ = document.remove_event_listener_with_callback("keydown", handle_keydown.as_ref().unchecked_ref());
+            let _ = document.remove_event_listener_with_callback(
+                "keydown",
+                handle_keydown.as_ref().unchecked_ref(),
+            );
             // handle_keydown is moved into this closure, so it lives until cleanup is called.
             // After cleanup, it drops and the Closure is properly freed.
         });
@@ -66,10 +69,7 @@ pub fn KeyboardShortcuts(
 }
 
 #[component]
-pub fn ShortcutsDialog(
-    show: ReadSignal<bool>,
-    on_close: Callback<()>,
-) -> impl IntoView {
+pub fn ShortcutsDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl IntoView {
     view! {
         <Show when=move || show.get()>
             <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000;">

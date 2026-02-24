@@ -1,8 +1,11 @@
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{MediaDeviceInfo, MediaStream, MediaStreamConstraints, AudioContext, AnalyserNode, MediaDeviceKind};
-use serde::{Serialize, Deserialize};
+use web_sys::{
+    AnalyserNode, AudioContext, MediaDeviceInfo, MediaDeviceKind, MediaStream,
+    MediaStreamConstraints,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DeviceInfo {
@@ -67,7 +70,7 @@ pub async fn get_user_media(
     enable_audio: bool,
     video_device_id: Option<String>,
     audio_device_id: Option<String>,
-    video_resolution: Option<&str>
+    video_resolution: Option<&str>,
 ) -> Result<MediaStream, JsValue> {
     let window = web_sys::window().ok_or(JsValue::from_str("No global window"))?;
     let navigator = window.navigator();
@@ -79,7 +82,7 @@ pub async fn get_user_media(
     let video_val = if enable_video {
         let video_obj = js_sys::Object::new();
         if let Some(id) = video_device_id {
-             let _ = js_sys::Reflect::set(&video_obj, &"deviceId".into(), &id.into());
+            let _ = js_sys::Reflect::set(&video_obj, &"deviceId".into(), &id.into());
         }
 
         if let Some(res) = video_resolution {
@@ -101,9 +104,9 @@ pub async fn get_user_media(
     // Audio constraints
     let audio_val = if enable_audio {
         if let Some(id) = audio_device_id {
-             let audio_obj = js_sys::Object::new();
-             let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
-             wasm_bindgen::JsValue::from(audio_obj)
+            let audio_obj = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
+            wasm_bindgen::JsValue::from(audio_obj)
         } else {
             wasm_bindgen::JsValue::TRUE
         }
@@ -115,7 +118,9 @@ pub async fn get_user_media(
     let promise = media_devices.get_user_media_with_constraints(&constraints)?;
     let result: JsValue = JsFuture::from(promise).await?;
 
-    result.dyn_into::<MediaStream>().map_err(|_| JsValue::from_str("Not a MediaStream"))
+    result
+        .dyn_into::<MediaStream>()
+        .map_err(|_| JsValue::from_str("Not a MediaStream"))
 }
 
 pub async fn get_display_media() -> Result<MediaStream, JsValue> {
@@ -132,7 +137,9 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
 
     let result: JsValue = JsFuture::from(js_sys::Promise::from(promise)).await?;
 
-    result.dyn_into::<MediaStream>().map_err(|_| JsValue::from_str("Not a MediaStream"))
+    result
+        .dyn_into::<MediaStream>()
+        .map_err(|_| JsValue::from_str("Not a MediaStream"))
 }
 
 pub struct AudioMonitor {
@@ -161,9 +168,9 @@ impl AudioMonitor {
 
         let closure = Closure::wrap(Box::new(move || {
             let mut array = data_array.clone(); // Clone for safety in loop, ideally we reuse buffer but closure ownership is tricky
-            // Wait, copying vec every frame is bad. But with `move` closure, we own `data_array`.
-            // `get_byte_frequency_data` takes `&mut [u8]`.
-            // We need `data_array` to be mutable inside closure.
+                                                // Wait, copying vec every frame is bad. But with `move` closure, we own `data_array`.
+                                                // `get_byte_frequency_data` takes `&mut [u8]`.
+                                                // We need `data_array` to be mutable inside closure.
 
             analyser_clone.get_byte_frequency_data(&mut array);
 
