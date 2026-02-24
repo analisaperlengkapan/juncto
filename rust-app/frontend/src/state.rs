@@ -184,7 +184,12 @@ pub fn use_room_state() -> RoomState {
             let a_id = selected_mic_id.get_untracked();
             let res = video_resolution.get_untracked();
 
-            if let Ok(stream) = get_user_media(enable_video, v_id, a_id, Some(&res)).await {
+            // Always request audio (true) unless explicitly unwanted, but here we assume "meeting" means audio capacity.
+            // If user is muted, we still request audio but mute track.
+            // If user has NO microphone, this might fail?
+            // Assuming typical WebRTC flow: request audio=true.
+
+            if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
                 // Apply existing mute state to new stream
                 if is_muted.get_untracked() {
                     let audio_tracks = stream.get_audio_tracks();

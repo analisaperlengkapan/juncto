@@ -96,7 +96,7 @@ pub fn SettingsDialog(
         let quality = video_quality.get();
 
         // Always enable video for settings preview
-        match get_user_media(true, v_id, a_id, Some(&quality)).await {
+        match get_user_media(true, true, v_id, a_id, Some(&quality)).await {
             Ok(stream) => {
                 // Check if a stream was set while we were awaiting (race condition check)
                 if let Some(existing) = preview_stream.get_untracked() {

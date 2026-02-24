@@ -107,7 +107,7 @@ pub fn PrejoinScreen(
                      // Let's assume for Preview, we always want video if cam_on is true.
 
                      // Pass cam_on as enable_video flag
-                     if let Ok(stream) = get_user_media(cam_on, v_id, a_id, Some("hd")).await {
+                     if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
                          // Apply mute state to audio track
                          let audio_tracks = stream.get_audio_tracks();
                          for i in 0..audio_tracks.length() {

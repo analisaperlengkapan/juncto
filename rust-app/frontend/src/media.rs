@@ -64,6 +64,7 @@ pub async fn get_audio_input_devices() -> Result<Vec<DeviceInfo>, JsValue> {
 
 pub async fn get_user_media(
     enable_video: bool,
+    enable_audio: bool,
     video_device_id: Option<String>,
     audio_device_id: Option<String>,
     video_resolution: Option<&str>
@@ -98,12 +99,16 @@ pub async fn get_user_media(
     constraints.set_video(&video_val);
 
     // Audio constraints
-    let audio_val = if let Some(id) = audio_device_id {
-         let audio_obj = js_sys::Object::new();
-         let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
-         wasm_bindgen::JsValue::from(audio_obj)
+    let audio_val = if enable_audio {
+        if let Some(id) = audio_device_id {
+             let audio_obj = js_sys::Object::new();
+             let _ = js_sys::Reflect::set(&audio_obj, &"deviceId".into(), &id.into());
+             wasm_bindgen::JsValue::from(audio_obj)
+        } else {
+            wasm_bindgen::JsValue::TRUE
+        }
     } else {
-        wasm_bindgen::JsValue::TRUE
+        wasm_bindgen::JsValue::FALSE
     };
     constraints.set_audio(&audio_val);
 
