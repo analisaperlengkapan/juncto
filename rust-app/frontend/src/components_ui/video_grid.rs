@@ -220,7 +220,7 @@ pub fn VideoGrid(
                                         if streams.len() > 1 {
                                             Some(streams[1].clone())
                                         } else {
-                                            streams.first().cloned()
+                                            None
                                         }
                                     } else {
                                         // User card: use the first stream
