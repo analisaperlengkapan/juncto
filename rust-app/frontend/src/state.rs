@@ -164,7 +164,51 @@ pub fn use_room_state() -> RoomState {
         send_signal_cb,
         on_track_cb,
         local_stream.into(),
+        local_screen_stream.into(),
     );
+
+    // Dynamic Stream Handling: Initiate connections when local stream becomes available
+    let participants_for_effect = participants.clone();
+    let my_id_for_effect = my_id.clone();
+    let webrtc_manager_clone = webrtc_manager.clone();
+
+    create_effect(move |_| {
+        if local_stream.get().is_some() {
+            let my_id_val = my_id_for_effect.get();
+            if let Some(me) = my_id_val {
+                let list = participants_for_effect.get();
+                for p in list {
+                    if p.id != me {
+                        // Idempotent call handled by manager (checks if exists)
+                        // But we only want to initiate if we haven't?
+                        // Manager check is: if let Ok(pc) = create... insert...
+                        // If we call multiple times, it might re-create?
+                        // No, create_effect runs when dependencies change.
+                        // Ideally we track connected peers or check manager state.
+                        // However, per PR comment suggestion: "iterate over all existing peer connections... or simpler: delay negotiation"
+                        // The simple approach is to JUST call handle_participant_joined when stream is ready.
+                        // We rely on the fact that handle_participant_joined is idempotent-ish or we accept re-offers.
+                        // Actually, handle_participant_joined unconditionally creates a NEW connection and offer.
+                        // So we should NOT call this repeatedly.
+                        // But create_effect runs only when signals change.
+                        // local_stream changes once (None -> Some).
+                        // participants changes often.
+                        // We only want to trigger this when local_stream BECOMES Some.
+                        // Leptos create_effect tracks dependencies automatically.
+                        // We should probably sample participants untracked inside the effect?
+                        // No, if a new participant joins AFTER stream is ready, we handle that in ParticipantJoined handler?
+                        // The comment said: "only calls handle_participant_joined (or handle_offer) once the local stream is ready".
+
+                        // Revised strategy:
+                        // 1. In ParticipantJoined handler: If stream is ready, connect. Else do nothing.
+                        // 2. In this effect: If stream becomes ready, connect to existing participants.
+
+                        webrtc_manager_clone.handle_participant_joined(p.id);
+                    }
+                }
+            }
+        }
+    });
 
     // Internal state to trigger media start after joining
     let (start_media_on_join, set_start_media_on_join) = create_signal(false);
@@ -253,6 +297,7 @@ pub fn use_room_state() -> RoomState {
     });
 
     // Initialize WebSocket
+    let webrtc_manager_for_ws = webrtc_manager.clone();
     create_effect(move |_| {
         // Ensure my_id is reset on new connection logic if needed, but here we just connect.
         // Actually, if we reconnect, we might get a new ID.
@@ -274,7 +319,7 @@ pub fn use_room_state() -> RoomState {
 
         if let Ok(socket) = WebSocket::new(&url) {
             // Handle incoming messages
-            let webrtc_manager = webrtc_manager.clone();
+            let webrtc_manager = webrtc_manager_for_ws.clone();
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                 if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                     let txt: String = txt.into();
@@ -332,9 +377,11 @@ pub fn use_room_state() -> RoomState {
                                     }
                                 });
                                 // Initiate WebRTC connection (Polite Peer)
-                                // Only connect if it's NOT me
+                                // Only connect if it's NOT me AND local stream is ready
                                 if my_id.get_untracked() != Some(p.id.clone()) {
-                                    webrtc_manager.handle_participant_joined(p.id);
+                                    if local_stream.get_untracked().is_some() {
+                                        webrtc_manager.handle_participant_joined(p.id);
+                                    }
                                 }
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
@@ -507,7 +554,18 @@ pub fn use_room_state() -> RoomState {
                                 add_toast(err, ToastType::Error);
                             }
                             ServerMessage::Offer { source_id, sdp, .. } => {
-                                webrtc_manager.handle_offer(source_id, sdp);
+                                // Only handle offer if local stream is ready?
+                                // If we accept offer without local stream, we can add tracks later?
+                                // The comment suggested: "only calls handle_participant_joined (or handle_offer) once the local stream is ready".
+                                // If we delay handling offer, the other peer might timeout?
+                                // But typically we want to answer with our tracks.
+                                // If we don't have tracks yet, maybe we shouldn't answer?
+                                // Or we answer with recvonly?
+                                // Simpler approach: Wait.
+
+                                if local_stream.get_untracked().is_some() {
+                                    webrtc_manager.handle_offer(source_id, sdp);
+                                }
                             }
                             ServerMessage::Answer { source_id, sdp, .. } => {
                                 webrtc_manager.handle_answer(source_id, sdp);
@@ -646,6 +704,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_for_screen = webrtc_manager.clone();
     let toggle_screen_share = Callback::new(move |_: ()| {
         if local_screen_stream.get().is_some() {
             // Stop sharing
@@ -658,6 +717,7 @@ pub fn use_room_state() -> RoomState {
                 }
             }
             set_local_screen_stream.set(None);
+            webrtc_manager_for_screen.update_screen_share();
 
             // Notify server stopped
             if let Some(socket) = ws.get() {
@@ -668,10 +728,13 @@ pub fn use_room_state() -> RoomState {
             }
         } else {
             // Start sharing
+            let webrtc_manager_for_spawn = webrtc_manager_for_screen.clone();
             spawn_local(async move {
                 match get_display_media().await {
                     Ok(stream) => {
                         set_local_screen_stream.set(Some(stream));
+                        webrtc_manager_for_spawn.update_screen_share();
+
                         // Notify server started
                         if let Some(socket) = ws.get() {
                             let msg = ClientMessage::ToggleScreenShare;

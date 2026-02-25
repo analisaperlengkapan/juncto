@@ -18,6 +18,7 @@ pub struct WebRTCManager {
     send_signal: Rc<dyn Fn(shared::ClientMessage)>,
     on_track: Rc<dyn Fn(PeerId, MediaStream)>,
     local_stream: Signal<Option<MediaStream>>,
+    local_screen_stream: Signal<Option<MediaStream>>,
 }
 
 impl WebRTCManager {
@@ -25,12 +26,14 @@ impl WebRTCManager {
         send_signal: impl Fn(shared::ClientMessage) + 'static,
         on_track: impl Fn(PeerId, MediaStream) + 'static,
         local_stream: Signal<Option<MediaStream>>,
+        local_screen_stream: Signal<Option<MediaStream>>,
     ) -> Self {
         Self {
             peers: Rc::new(RefCell::new(HashMap::new())),
             send_signal: Rc::new(send_signal),
             on_track: Rc::new(on_track),
             local_stream,
+            local_screen_stream,
         }
     }
 
@@ -47,14 +50,25 @@ impl WebRTCManager {
 
         let pc = RtcPeerConnection::new_with_configuration(&config)?;
 
-        // Add local tracks
+        // Add local tracks (camera)
         if let Some(stream) = self.local_stream.get_untracked() {
             let tracks = stream.get_tracks();
-            for i in 0..tracks.length() {
-                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                    let streams = js_sys::Array::new();
-                    pc.add_track(&track, &stream, &streams);
-                }
+            for track in tracks.iter() {
+                let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                let streams = js_sys::Array::new();
+                streams.push(&stream);
+                let _ = pc.add_track(track, &stream, &streams);
+            }
+        }
+
+        // Add local screen tracks (screen share)
+        if let Some(stream) = self.local_screen_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for track in tracks.iter() {
+                let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                let streams = js_sys::Array::new();
+                streams.push(&stream);
+                let _ = pc.add_track(track, &stream, &streams);
             }
         }
 
@@ -130,8 +144,6 @@ impl WebRTCManager {
         if let Some(pc) = self.peers.borrow_mut().remove(peer_id) {
             pc.close();
         }
-        // NOTE: We rely on state.rs to remove the stream from signal list based on ParticipantLeft message,
-        // but ideally we should also clean up here if needed.
     }
 
     pub fn handle_offer(&self, source_id: String, sdp: String) {
@@ -204,9 +216,122 @@ impl WebRTCManager {
                 }
 
                 if let Ok(cand) = RtcIceCandidate::new(&init) {
-                    // add_ice_candidate_with_opt_rtc_ice_candidate returns Promise<void>
                     let promise = pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&cand));
                     let _ = JsFuture::from(promise).await;
+                }
+            }
+        });
+    }
+
+    pub fn update_screen_share(&self) {
+        let peers = self.peers.clone();
+        let this = self.clone();
+
+        spawn_local(async move {
+            let peers_map = peers.borrow();
+
+            // Iterate over all connected peers
+            for (peer_id, pc) in peers_map.iter() {
+                let peer_id = peer_id.clone();
+                let pc = pc.clone();
+                let this = this.clone();
+
+                let camera_stream = this.local_stream.get_untracked();
+                let screen_stream = this.local_screen_stream.get_untracked();
+
+                // Collect valid track IDs
+                let mut valid_track_ids = Vec::new();
+                if let Some(s) = &camera_stream {
+                    let tracks = s.get_tracks();
+                    for track in tracks.iter() {
+                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                         valid_track_ids.push(track.id());
+                    }
+                }
+                if let Some(s) = &screen_stream {
+                    let tracks = s.get_tracks();
+                    for track in tracks.iter() {
+                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                         valid_track_ids.push(track.id());
+                    }
+                }
+
+                // Remove invalid senders
+                let senders = pc.get_senders();
+                for sender in senders.iter() {
+                    let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
+                    if let Some(track) = sender.track() {
+                        if !valid_track_ids.contains(&track.id()) {
+                             let _ = pc.remove_track(&sender);
+                        }
+                    }
+                }
+
+                // Add missing tracks (Camera)
+                if let Some(s) = &camera_stream {
+                     let tracks = s.get_tracks();
+                     for track in tracks.iter() {
+                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                         // Check if already sending
+                         let mut already_sending = false;
+                         for sender in senders.iter() {
+                             let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
+                             if let Some(t) = sender.track() {
+                                 if t.id() == track.id() {
+                                     already_sending = true;
+                                     break;
+                                 }
+                             }
+                         }
+                         if !already_sending {
+                             let streams = js_sys::Array::new();
+                             streams.push(s);
+                             let _ = pc.add_track(track, s, &streams);
+                         }
+                     }
+                }
+
+                // Add missing tracks (Screen)
+                if let Some(s) = &screen_stream {
+                     let tracks = s.get_tracks();
+                     for track in tracks.iter() {
+                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                         // Check if already sending
+                         let mut already_sending = false;
+                         for sender in senders.iter() {
+                             let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
+                             if let Some(t) = sender.track() {
+                                 if t.id() == track.id() {
+                                     already_sending = true;
+                                     break;
+                                 }
+                             }
+                         }
+                         if !already_sending {
+                             let streams = js_sys::Array::new();
+                             streams.push(s);
+                             let _ = pc.add_track(track, s, &streams);
+                         }
+                     }
+                }
+
+                // Trigger renegotiation (Offer)
+                let options = web_sys::RtcOfferOptions::new();
+                options.set_offer_to_receive_audio(true);
+                options.set_offer_to_receive_video(true);
+
+                if let Ok(offer) = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
+                    let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
+                    if JsFuture::from(pc.set_local_description(&sdp)).await.is_ok() {
+                        if let Some(desc) = pc.local_description() {
+                            let sdp_str = desc.sdp();
+                            let msg = shared::ClientMessage::Offer {
+                                target_id: peer_id,
+                                sdp: sdp_str,
+                            };
+                            (this.send_signal)(msg);
+                        }
+                    }
                 }
             }
         });
@@ -217,18 +342,16 @@ impl WebRTCManager {
 mod tests {
     use super::*;
 
-    // Mock struct for WebRTCManager logic testing (if we can mock web-sys)
-    // Unfortunately web-sys structs are hard to mock without a browser environment.
-    // We can test basic structure instantiation.
-
     #[test]
     fn test_manager_instantiation() {
-        // Just verify we can create it
+        let _runtime = create_runtime();
         let (local_stream, _) = create_signal(None);
+        let (local_screen_stream, _) = create_signal(None);
         let _manager = WebRTCManager::new(
             |_| {},
             |_, _| {},
             local_stream.into(),
+            local_screen_stream.into(),
         );
     }
 }
