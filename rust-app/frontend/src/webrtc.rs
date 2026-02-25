@@ -35,7 +35,7 @@ impl WebRTCManager {
     }
 
     fn create_peer_connection(&self, peer_id: &str) -> Result<RtcPeerConnection, JsValue> {
-        let mut config = web_sys::RtcConfiguration::new();
+        let config = web_sys::RtcConfiguration::new();
         let ice_servers = js_sys::Array::new();
         // Use Google STUN for now
         let stun = web_sys::RtcIceServer::new();
@@ -79,7 +79,7 @@ impl WebRTCManager {
         let on_track_cb = self.on_track.clone();
         let peer_id_clone_2 = peer_id.to_string();
         let on_track = Closure::wrap(Box::new(move |ev: RtcTrackEvent| {
-            if let Some(streams) = ev.streams().get(0).dyn_into::<MediaStream>().ok() {
+            if let Ok(streams) = ev.streams().get(0).dyn_into::<MediaStream>() {
                 (on_track_cb)(peer_id_clone_2.clone(), streams);
             }
         }) as Box<dyn FnMut(RtcTrackEvent)>);
@@ -106,7 +106,7 @@ impl WebRTCManager {
                     Ok(offer) => {
                         let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
                         let set_local_promise = pc.set_local_description(&sdp);
-                        if let Ok(_) = JsFuture::from(set_local_promise).await {
+                        if JsFuture::from(set_local_promise).await.is_ok() {
                              // Send Offer
                              if let Some(desc) = pc.local_description() {
                                  let sdp_str = desc.sdp();
@@ -140,25 +140,23 @@ impl WebRTCManager {
         spawn_local(async move {
             let pc = if let Some(pc) = peers.borrow().get(&source_id) {
                 pc.clone()
+            } else if let Ok(pc) = this.create_peer_connection(&source_id) {
+                peers.borrow_mut().insert(source_id.clone(), pc.clone());
+                pc
             } else {
-                if let Ok(pc) = this.create_peer_connection(&source_id) {
-                    peers.borrow_mut().insert(source_id.clone(), pc.clone());
-                    pc
-                } else {
-                    return;
-                }
+                return;
             };
 
-            let mut desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
+            let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
             desc_init.set_sdp(&sdp);
 
             let set_remote_promise = pc.set_remote_description(&desc_init);
-            if let Ok(_) = JsFuture::from(set_remote_promise).await {
+            if JsFuture::from(set_remote_promise).await.is_ok() {
                 let create_answer_promise = pc.create_answer();
                 if let Ok(answer) = JsFuture::from(create_answer_promise).await {
                     let answer_sdp = answer.unchecked_into::<RtcSessionDescriptionInit>();
                     let set_local_promise = pc.set_local_description(&answer_sdp);
-                    if let Ok(_) = JsFuture::from(set_local_promise).await {
+                    if JsFuture::from(set_local_promise).await.is_ok() {
                         if let Some(desc) = pc.local_description() {
                             let sdp_str = desc.sdp();
                             let msg = shared::ClientMessage::Answer {
@@ -176,8 +174,9 @@ impl WebRTCManager {
     pub fn handle_answer(&self, source_id: String, sdp: String) {
         let peers = self.peers.clone();
         spawn_local(async move {
-            if let Some(pc) = peers.borrow().get(&source_id) {
-                let mut desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
+            let pc = peers.borrow().get(&source_id).cloned();
+            if let Some(pc) = pc {
+                let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
                 desc_init.set_sdp(&sdp);
                 let promise = pc.set_remote_description(&desc_init);
                 let _ = JsFuture::from(promise).await;
@@ -194,8 +193,9 @@ impl WebRTCManager {
     ) {
         let peers = self.peers.clone();
         spawn_local(async move {
-            if let Some(pc) = peers.borrow().get(&source_id) {
-                let mut init = RtcIceCandidateInit::new(&candidate);
+            let pc = peers.borrow().get(&source_id).cloned();
+            if let Some(pc) = pc {
+                let init = RtcIceCandidateInit::new(&candidate);
                 if let Some(mid) = sdp_mid {
                     init.set_sdp_mid(Some(&mid));
                 }

@@ -145,7 +145,7 @@ pub fn use_room_state() -> RoomState {
     let (remote_streams, set_remote_streams) = create_signal(HashMap::<String, MediaStream>::new());
 
     // WebRTC Manager Setup
-    let ws_clone_for_webrtc = ws.clone();
+    let ws_clone_for_webrtc = ws;
     let send_signal_cb = move |msg: ClientMessage| {
         if let Some(socket) = ws_clone_for_webrtc.get_untracked() {
              if let Ok(json) = serde_json::to_string(&msg) {
