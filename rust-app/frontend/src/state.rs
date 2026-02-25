@@ -332,7 +332,10 @@ pub fn use_room_state() -> RoomState {
                                     }
                                 });
                                 // Initiate WebRTC connection (Polite Peer)
-                                webrtc_manager.handle_participant_joined(p.id);
+                                // Only connect if it's NOT me
+                                if my_id.get_untracked() != Some(p.id.clone()) {
+                                    webrtc_manager.handle_participant_joined(p.id);
+                                }
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
                                 set_knocking_participants
