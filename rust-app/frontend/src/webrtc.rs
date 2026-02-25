@@ -202,15 +202,11 @@ impl WebRTCManager {
                     // Impolite peer ignores the offer
                     return;
                 }
-                // Polite peer accepts offer (rollback happens implicitly if we just set remote? Or need explicit rollback?)
-                // Spec says: "If the new offer is set... any local offer is implicitly rolled back."
-                // But some implementations might need explicit rollback.
-                // Promise.all([
-                //   pc.setLocalDescription({type: "rollback"}),
-                //   pc.setRemoteDescription(offer)
-                // ]);
-                // For simplicity, let's try setting remote directly. If it fails, we might need rollback.
-                // But let's assume standard behavior for now.
+                // Polite peer must rollback local offer before accepting remote offer
+                let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
+                if JsFuture::from(pc.set_local_description(&rollback)).await.is_err() {
+                    return;
+                }
             }
 
             let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
