@@ -11,10 +11,14 @@ pub async fn submit_feedback(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<Feedback>,
 ) -> impl IntoResponse {
+    if payload.stars == 0 || payload.stars > 5 {
+        return (StatusCode::BAD_REQUEST, "Stars must be between 1 and 5").into_response();
+    }
+
     let mut feedback_store = state.feedback.lock().unwrap();
     feedback_store.push(payload);
 
-    (StatusCode::OK, "Feedback received")
+    (StatusCode::OK, "Feedback received").into_response()
 }
 
 #[cfg(test)]
