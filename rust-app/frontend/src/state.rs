@@ -362,9 +362,10 @@ pub fn use_room_state() -> RoomState {
                                 // Initiate WebRTC connection (Polite Peer)
                                 // Only connect if it's NOT me AND local stream is ready
                                 if my_id.get_untracked() != Some(p.id.clone()) {
-                                    if local_stream.get_untracked().is_some() {
+                                    if local_stream.get_untracked().is_some() && !webrtc_manager.has_peer(&p.id) {
                                         webrtc_manager.handle_participant_joined(p.id);
                                     }
+                                }
                                 }
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
