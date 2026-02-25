@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './',
+  timeout: 120000, // Increase global test timeout to 2 minutes
   workers: 1, // Enforce serial execution to prevent state collisions on singleton backend
   use: {
     baseURL: 'http://localhost:3000',

@@ -332,9 +332,7 @@ pub fn use_room_state() -> RoomState {
                                     }
                                 });
                                 // Initiate WebRTC connection (Polite Peer)
-                                if my_id.get() != Some(p.id.clone()) {
-                                    webrtc_manager.handle_participant_joined(p.id);
-                                }
+                                webrtc_manager.handle_participant_joined(p.id);
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
                                 set_knocking_participants
