@@ -371,14 +371,8 @@ impl WebRTCManager {
                 }
 
                 // Trigger renegotiation (Offer) if state is stable to avoid glare
-                // AND only if we are the impolite peer (higher ID) to avoid race/collision
-                let should_renegotiate = if let Some(my) = this.my_id.get_untracked() {
-                    my.as_str() > peer_id.as_str()
-                } else {
-                    false
-                };
-
-                if should_renegotiate && pc.signaling_state() == web_sys::RtcSignalingState::Stable {
+                // Both peers can renegotiate when tracks change. Glare is handled in handle_offer.
+                if pc.signaling_state() == web_sys::RtcSignalingState::Stable {
                     let options = web_sys::RtcOfferOptions::new();
                     options.set_offer_to_receive_audio(true);
                     options.set_offer_to_receive_video(true);

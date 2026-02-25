@@ -215,57 +215,16 @@ pub fn VideoGrid(
                             let stream_signal = Signal::derive(move || {
                                 if let Some(streams) = remote_streams.get().get(&id_clone_2) {
                                     if is_screen {
-                                        // Find a stream that looks like a screen share (has displaySurface setting)
-                                        let screen_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    // use Reflect to check displaySurface prop safely
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return true;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            false
-                                        });
-
-                                        if let Some(s) = screen_stream {
-                                            return Some(s.clone());
-                                        }
-
-                                        // Fallback: use second stream if available
+                                        // displaySurface is not reliable on receiver side.
+                                        // Fallback: use second stream if available (assuming order: camera, screen)
                                         if streams.len() > 1 {
                                             Some(streams[1].clone())
                                         } else {
                                             streams.first().cloned()
                                         }
                                     } else {
-                                        // User card (Camera): Find a stream that is NOT a screen share
-                                         let camera_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return false; // This is a screen
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            true // Assume camera if no displaySurface
-                                        });
-
-                                        if let Some(s) = camera_stream {
-                                            Some(s.clone())
-                                        } else {
-                                            streams.first().cloned()
-                                        }
+                                        // User card: use the first stream
+                                        streams.first().cloned()
                                     }
                                 } else {
                                     None
