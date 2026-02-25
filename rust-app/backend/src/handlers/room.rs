@@ -50,9 +50,12 @@ pub async fn create_room(
         let mut v = state.shared_video_url.lock().unwrap();
         *v = None;
     }
-    {
         let mut s = state.speaking_start_times.lock().unwrap();
         s.clear();
+    }
+    {
+        let mut fb = state.feedback.lock().unwrap();
+        fb.clear();
     }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
