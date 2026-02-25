@@ -50,6 +50,7 @@ pub async fn create_room(
         let mut v = state.shared_video_url.lock().unwrap();
         *v = None;
     }
+    {
         let mut s = state.speaking_start_times.lock().unwrap();
         s.clear();
     }
