@@ -165,6 +165,7 @@ pub fn use_room_state() -> RoomState {
         on_track_cb,
         local_stream.into(),
         local_screen_stream.into(),
+        my_id.into(),
     );
 
     // Dynamic Stream Handling: Initiate connections when local stream becomes available
