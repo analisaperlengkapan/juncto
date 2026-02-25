@@ -56,7 +56,7 @@ pub fn FeedbackDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl In
 
                     <div style="margin-bottom: 20px; display: flex; justify-content: center; gap: 10px;">
                         <For
-                            each=move || (1..=5)
+                            each=move || 1..=5
                             key=|i| *i
                             children=move |i| {
                                 view! {
