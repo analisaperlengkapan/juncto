@@ -260,23 +260,31 @@ pub fn VideoGrid(
 
                             view! {
                                 <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
-                                    <Show when=move || is_screen fallback=move || view!{
-                                        <Show when=move || stream_signal.get().is_some() fallback=move || view! {
-                                            <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                                {initial_char.with_value(|c| c.clone())}
-                                            </div>
-                                        }>
-                                            <video
-                                                node_ref=remote_video_ref
-                                                autoplay
-                                                playsinline
-                                                style="width: 100%; height: 100%; object-fit: cover;"
-                                            />
-                                        </Show>
+                                    <Show when=move || stream_signal.get().is_some() fallback=move || {
+                                        if is_screen {
+                                            view! {
+                                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
+                                                    "Waiting for screen..."
+                                                </div>
+                                            }.into_view()
+                                        } else {
+                                            view! {
+                                                <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                                    {initial_char.with_value(|c| c.clone())}
+                                                </div>
+                                            }.into_view()
+                                        }
                                     }>
-                                        <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
-                                            "Remote Screen"
-                                        </div>
+                                        <video
+                                            node_ref=remote_video_ref
+                                            autoplay
+                                            playsinline
+                                            style=move || if is_screen {
+                                                "width: 100%; height: 100%; object-fit: contain;"
+                                            } else {
+                                                "width: 100%; height: 100%; object-fit: cover;"
+                                            }
+                                        />
                                     </Show>
 
                                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
