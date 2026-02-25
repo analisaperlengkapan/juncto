@@ -232,12 +232,13 @@ impl WebRTCManager {
         let this = self.clone();
 
         spawn_local(async move {
-            let peers_map = peers.borrow();
+            let peer_entries: Vec<(String, RtcPeerConnection)> = {
+                let peers_map = peers.borrow();
+                peers_map.iter().map(|(id, pc)| (id.clone(), pc.clone())).collect()
+            };
 
             // Iterate over all connected peers
-            for (peer_id, pc) in peers_map.iter() {
-                let peer_id = peer_id.clone();
-                let pc = pc.clone();
+            for (peer_id, pc) in peer_entries {
                 let this = this.clone();
 
                 let camera_stream = this.local_stream.get_untracked();
