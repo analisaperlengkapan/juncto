@@ -223,18 +223,19 @@ impl WebRTCManager {
         });
     }
 
-    pub fn update_screen_share(&self) {
+    pub fn has_peer(&self, peer_id: &str) -> bool {
+        self.peers.borrow().contains_key(peer_id)
+    }
+
+    pub fn update_local_tracks(&self) {
         let peers = self.peers.clone();
         let this = self.clone();
 
         spawn_local(async move {
-            let peers_vec: Vec<(String, RtcPeerConnection)> = {
-                let peers_map = peers.borrow();
-                peers_map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-            };
+            let peers_map = peers.borrow();
 
             // Iterate over all connected peers
-            for (peer_id, pc) in peers_vec.iter() {
+            for (peer_id, pc) in peers_map.iter() {
                 let peer_id = peer_id.clone();
                 let pc = pc.clone();
                 let this = this.clone();
