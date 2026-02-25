@@ -46,7 +46,7 @@ pub fn VideoGrid(
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
-    remote_streams: ReadSignal<HashMap<String, MediaStream>>,
+    remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -216,7 +216,35 @@ pub fn VideoGrid(
                             // Remote Stream Logic
                             let remote_video_ref = create_node_ref::<html::Video>();
                             let stream_signal = Signal::derive(move || {
-                                remote_streams.get().get(&id_clone_2).cloned()
+                                if let Some(streams) = remote_streams.get().get(&id_clone_2) {
+                                    // For now, if user is sharing screen, try to find the second stream?
+                                    // Or simply:
+                                    // If GridItem is RemoteScreen, we want the screen stream.
+                                    // If GridItem is User, we want the camera stream.
+                                    // But we don't distinguish streams by metadata easily here yet.
+                                    // Assuming: Stream 0 is Camera, Stream 1 is Screen (if added later).
+                                    // This is brittle but requested by the change to support multiple streams.
+
+                                    // Ideally, we'd check track content.
+                                    // Let's assume:
+                                    // If is_screen is true, we want the LAST added stream? Or the one with video?
+
+                                    if is_screen {
+                                        // Try to get the last stream, or a stream that looks like a screen?
+                                        // If we have > 1 streams, maybe the second one is screen.
+                                        if streams.len() > 1 {
+                                            Some(streams[1].clone())
+                                        } else {
+                                            // Fallback: use the only stream (might be camera if state de-synced)
+                                            streams.first().cloned()
+                                        }
+                                    } else {
+                                        // User card: use the first stream
+                                        streams.first().cloned()
+                                    }
+                                } else {
+                                    None
+                                }
                             });
 
                             create_effect(move |_| {

@@ -59,7 +59,7 @@ pub struct RoomState {
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
-    pub remote_streams: ReadSignal<HashMap<String, MediaStream>>,
+    pub remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     #[allow(dead_code)]
     pub selected_camera_id: ReadSignal<Option<String>>,
     #[allow(dead_code)]
@@ -142,7 +142,7 @@ pub fn use_room_state() -> RoomState {
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
 
-    let (remote_streams, set_remote_streams) = create_signal(HashMap::<String, MediaStream>::new());
+    let (remote_streams, set_remote_streams) = create_signal(HashMap::<String, Vec<MediaStream>>::new());
 
     // WebRTC Manager Setup
     let ws_clone_for_webrtc = ws;
@@ -156,7 +156,8 @@ pub fn use_room_state() -> RoomState {
 
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
         set_remote_streams.update(|map| {
-            map.insert(peer_id, stream);
+            // Append the new stream to the list for this peer
+            map.entry(peer_id).or_insert_with(Vec::new).push(stream);
         });
     };
 
@@ -362,10 +363,9 @@ pub fn use_room_state() -> RoomState {
                                 // Initiate WebRTC connection (Polite Peer)
                                 // Only connect if it's NOT me AND local stream is ready
                                 if my_id.get_untracked() != Some(p.id.clone()) {
-                                    if local_stream.get_untracked().is_some() && !webrtc_manager.has_peer(&p.id) {
+                                    if local_stream.get_untracked().is_some() {
                                         webrtc_manager.handle_participant_joined(p.id);
                                     }
-                                }
                                 }
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
