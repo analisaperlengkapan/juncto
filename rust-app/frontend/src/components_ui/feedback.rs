@@ -17,6 +17,9 @@ pub fn FeedbackDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl In
         }
         let c = comment.get();
 
+        let msg_submitted = t("feedback_submitted");
+        let msg_error = t("feedback_error");
+
         spawn_local(async move {
             let feedback = Feedback {
                 stars: s,
@@ -30,17 +33,17 @@ pub fn FeedbackDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl In
                 Ok(req) => match req.send().await {
                     Ok(resp) => {
                         if resp.ok() {
-                            toast.add(t("feedback_submitted"), ToastType::Success);
+                            toast.add(msg_submitted, ToastType::Success);
                             on_close.call(());
                             set_stars.set(0);
                             set_comment.set("".to_string());
                         } else {
-                            toast.add(t("feedback_error"), ToastType::Error);
+                            toast.add(msg_error.clone(), ToastType::Error);
                         }
                     }
-                    Err(_) => toast.add(t("feedback_error"), ToastType::Error),
+                    Err(_) => toast.add(msg_error.clone(), ToastType::Error),
                 },
-                Err(_) => toast.add(t("feedback_error"), ToastType::Error),
+                Err(_) => toast.add(msg_error, ToastType::Error),
             }
         });
     };
