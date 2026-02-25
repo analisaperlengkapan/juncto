@@ -55,7 +55,10 @@ fn test_server_message_serialization() {
     let deserialized_update: ServerMessage = serde_json::from_str(&json_update).unwrap();
     assert_eq!(msg_update, deserialized_update);
 
-    let msg_reaction = ServerMessage::Reaction { sender_id: "123".to_string(), emoji: "👍".to_string() };
+    let msg_reaction = ServerMessage::Reaction {
+        sender_id: "123".to_string(),
+        emoji: "👍".to_string(),
+    };
     let json_reaction = serde_json::to_string(&msg_reaction).unwrap();
     let deserialized_reaction: ServerMessage = serde_json::from_str(&json_reaction).unwrap();
     assert_eq!(msg_reaction, deserialized_reaction);
@@ -114,8 +117,16 @@ fn test_poll_serialization() {
         id: "poll1".to_string(),
         question: "Color?".to_string(),
         options: vec![
-            PollOption { id: 0, text: "Red".to_string(), votes: 0 },
-            PollOption { id: 1, text: "Blue".to_string(), votes: 5 },
+            PollOption {
+                id: 0,
+                text: "Red".to_string(),
+                votes: 0,
+            },
+            PollOption {
+                id: 1,
+                text: "Blue".to_string(),
+                votes: 5,
+            },
         ],
         voters: std::collections::HashSet::new(),
     };
@@ -150,7 +161,10 @@ fn test_speaking_message() {
     let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
 
-    let msg = ServerMessage::PeerSpeaking { user_id: "u1".to_string(), speaking: true };
+    let msg = ServerMessage::PeerSpeaking {
+        user_id: "u1".to_string(),
+        speaking: true,
+    };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);

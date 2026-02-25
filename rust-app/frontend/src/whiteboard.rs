@@ -1,8 +1,8 @@
-use leptos::*;
+use crate::i18n::t;
 use leptos::html::Canvas;
+use leptos::*;
 use shared::DrawAction;
 use wasm_bindgen::JsCast;
-use crate::i18n::t;
 
 #[component]
 pub fn Whiteboard(

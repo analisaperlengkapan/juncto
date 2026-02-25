@@ -16,6 +16,7 @@ pub fn Toolbox(
     on_shortcuts: Callback<()>,
     on_speaker_stats: Callback<()>,
     on_virtual_background: Callback<()>,
+    on_feedback: Callback<()>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
     on_share_video: Callback<()>,
@@ -26,14 +27,10 @@ pub fn Toolbox(
     on_toggle_camera: Callback<()>,
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
-    #[prop(optional)]
-    on_leave: Option<Callback<()>>,
-    #[prop(optional)]
-    on_end_meeting: Option<Callback<()>>,
-    #[prop(optional)]
-    class: &'static str,
-    #[prop(optional)]
-    style: &'static str,
+    #[prop(optional)] on_leave: Option<Callback<()>>,
+    #[prop(optional)] on_end_meeting: Option<Callback<()>>,
+    #[prop(optional)] class: &'static str,
+    #[prop(optional)] style: &'static str,
 ) -> impl IntoView {
     view! {
         <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; {}", style)>
@@ -150,6 +147,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #fd7e14; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Background"
+            </button>
+            <button
+                on:click=move |_| on_feedback.call(())
+                style="padding: 8px 16px; background-color: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Feedback"
             </button>
             <button
                 on:click=move |_| on_settings.call(())

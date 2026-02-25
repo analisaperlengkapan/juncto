@@ -1,13 +1,13 @@
+use crate::media::{
+    get_audio_input_devices, get_user_media, get_video_input_devices, AudioMonitor, DeviceInfo,
+};
+use crate::state::JoinOptions;
 use leptos::*;
 use wasm_bindgen::JsCast;
 use web_sys::MediaStream;
-use crate::media::{get_video_input_devices, get_audio_input_devices, get_user_media, DeviceInfo, AudioMonitor};
-use crate::state::JoinOptions;
 
 #[component]
-pub fn PrejoinScreen(
-    on_join: Callback<JoinOptions>,
-) -> impl IntoView {
+pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
     let (display_name, set_display_name) = create_signal("Guest".to_string());
 
     // Device Lists
@@ -37,12 +37,12 @@ pub fn PrejoinScreen(
             batch(move || {
                 set_video_devices.set(v_devices.clone());
                 if let Some(first) = v_devices.first() {
-                     set_selected_video_device.set(Some(first.device_id.clone()));
+                    set_selected_video_device.set(Some(first.device_id.clone()));
                 }
 
                 set_audio_devices.set(a_devices.clone());
                 if let Some(first) = a_devices.first() {
-                     set_selected_audio_device.set(Some(first.device_id.clone()));
+                    set_selected_audio_device.set(Some(first.device_id.clone()));
                 }
             });
         });
@@ -104,33 +104,35 @@ pub fn PrejoinScreen(
                 // Current logic: This effect runs if ANY change.
 
                 if cam_on || mic_on {
-                     // We need a stream
-                     // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
-                     // We need to change get_user_media to accept "No Video".
-                     // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
-                     // Let's assume for Preview, we always want video if cam_on is true.
+                    // We need a stream
+                    // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
+                    // We need to change get_user_media to accept "No Video".
+                    // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
+                    // Let's assume for Preview, we always want video if cam_on is true.
 
-                     // Pass cam_on as enable_video flag
-                     if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
-                         // Apply mute state to audio track
-                         let audio_tracks = stream.get_audio_tracks();
-                         for i in 0..audio_tracks.length() {
-                             if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                 track.set_enabled(mic_on);
-                             }
-                         }
+                    // Pass cam_on as enable_video flag
+                    if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
+                        // Apply mute state to audio track
+                        let audio_tracks = stream.get_audio_tracks();
+                        for i in 0..audio_tracks.length() {
+                            if let Ok(track) =
+                                audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                            {
+                                track.set_enabled(mic_on);
+                            }
+                        }
 
-                         set_local_stream.set(Some(stream.clone()));
+                        set_local_stream.set(Some(stream.clone()));
 
-                         if mic_on {
-                             let on_speaking = Box::new(move |speaking: bool| {
-                                 set_is_speaking.set(speaking);
-                             });
-                             if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
-                                 set_audio_monitor.set(Some(monitor));
-                             }
-                         }
-                     }
+                        if mic_on {
+                            let on_speaking = Box::new(move |speaking: bool| {
+                                set_is_speaking.set(speaking);
+                            });
+                            if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                                set_audio_monitor.set(Some(monitor));
+                            }
+                        }
+                    }
                 }
             }
         });

@@ -1,5 +1,5 @@
 use crate::AppState;
-use shared::{ChatMessage, ServerMessage, FileAttachment};
+use shared::{ChatMessage, FileAttachment, ServerMessage};
 use std::sync::Arc;
 
 pub fn process_chat_message(
@@ -8,7 +8,7 @@ pub fn process_chat_message(
     content: String,
     recipient_id: Option<String>,
     attachment: Option<FileAttachment>,
-    state: &Arc<AppState>
+    state: &Arc<AppState>,
 ) -> Result<ServerMessage, String> {
     if let Some(att) = &attachment {
         // Limit 3MB
@@ -33,7 +33,7 @@ pub fn process_chat_message(
 
     Ok(ServerMessage::Chat {
         message: chat_msg,
-        room_id: room_id.clone()
+        room_id: room_id.clone(),
     })
 }
 
@@ -41,9 +41,9 @@ pub fn process_chat_message(
 mod tests {
     use super::*;
     use shared::RoomConfig;
-    use tokio::sync::broadcast;
     use std::collections::HashMap;
     use std::sync::Mutex;
+    use tokio::sync::broadcast;
 
     // Helper to create mock state
     fn create_mock_state() -> Arc<AppState> {
@@ -60,15 +60,14 @@ mod tests {
             participant_locations: Arc::new(Mutex::new(HashMap::new())),
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
+            feedback: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
     #[test]
     fn test_process_chat_valid() {
         let state = create_mock_state();
-        let res = process_chat_message(
-            "user1", &None, "hello".to_string(), None, None, &state
-        );
+        let res = process_chat_message("user1", &None, "hello".to_string(), None, None, &state);
         assert!(res.is_ok());
         if let Ok(ServerMessage::Chat { message, .. }) = res {
             assert_eq!(message.content, "hello");
@@ -93,9 +92,8 @@ mod tests {
             content_base64: big_data,
         });
 
-        let res = process_chat_message(
-            "user1", &None, "file".to_string(), None, attachment, &state
-        );
+        let res =
+            process_chat_message("user1", &None, "file".to_string(), None, attachment, &state);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), "File too large");
     }

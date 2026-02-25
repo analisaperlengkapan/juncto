@@ -1,16 +1,16 @@
+use crate::AppState;
 use axum::{
     extract::{Json, State},
-    response::IntoResponse,
     http::StatusCode,
+    response::IntoResponse,
 };
 use serde_json::json;
 use shared::RoomConfig;
 use std::sync::Arc;
-use crate::AppState;
 
 pub async fn create_room(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<RoomConfig>
+    Json(payload): Json<RoomConfig>,
 ) -> impl IntoResponse {
     {
         let mut config = state.room_config.lock().unwrap();
@@ -71,9 +71,9 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use tower::ServiceExt;
-    use axum::Router;
     use axum::routing::post;
+    use axum::Router;
+    use tower::ServiceExt;
 
     #[tokio::test]
     async fn test_create_room() {
@@ -82,15 +82,20 @@ mod tests {
         let app_state = Arc::new(AppState {
             tx,
             participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-            knocking_participants: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            knocking_participants: Arc::new(
+                std::sync::Mutex::new(std::collections::HashMap::new()),
+            ),
             room_config: Arc::new(std::sync::Mutex::new(RoomConfig::default())),
             polls: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             whiteboard: Arc::new(std::sync::Mutex::new(Vec::new())),
             chat_history: Arc::new(std::sync::Mutex::new(Vec::new())),
             breakout_rooms: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-            participant_locations: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            participant_locations: Arc::new(
+                std::sync::Mutex::new(std::collections::HashMap::new()),
+            ),
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
             speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            feedback: Arc::new(std::sync::Mutex::new(Vec::new())),
         });
 
         let config = RoomConfig {
@@ -103,7 +108,14 @@ mod tests {
             .with_state(app_state);
 
         let response = app
-            .oneshot(Request::builder().uri("/api/rooms").method("POST").header("Content-Type", "application/json").body(Body::from(serde_json::to_string(&config).unwrap())).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/rooms")
+                    .method("POST")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_string(&config).unwrap()))
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

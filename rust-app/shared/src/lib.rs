@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Feedback {
+    pub stars: u8, // 1-5
+    pub comment: String,
+    pub user_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileAttachment {
     pub filename: String,
     pub mime_type: String,
@@ -96,13 +103,20 @@ pub struct Poll {
 #[serde(tag = "type", content = "payload")]
 pub enum ClientMessage {
     CreatePoll(Poll),
-    Vote { poll_id: String, option_id: u32 },
+    Vote {
+        poll_id: String,
+        option_id: u32,
+    },
     Join(String), // Display Name
-    Chat { content: String, recipient_id: Option<String>, attachment: Option<FileAttachment> },
+    Chat {
+        content: String,
+        recipient_id: Option<String>,
+        attachment: Option<FileAttachment>,
+    },
     ToggleRoomLock,
     ToggleRecording,
     UpdateProfile(String), // New Name
-    Reaction(String), // Emoji
+    Reaction(String),      // Emoji
     ToggleRaiseHand,
     ToggleScreenShare,
     ToggleLobby,
@@ -110,10 +124,10 @@ pub enum ClientMessage {
     DenyAccess(String),
     KickParticipant(String), // Target ID
     MuteParticipant(String), // Target ID
-    TransferHost(String), // Target ID
+    TransferHost(String),    // Target ID
     SetMuteStatus(bool),
     EndMeeting,
-    CreateBreakoutRoom(String), // Room Name
+    CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
     Typing(bool),
@@ -132,9 +146,16 @@ pub struct BreakoutRoom {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ServerMessage {
-    Chat { message: ChatMessage, room_id: Option<String> },
-    PeerTyping { user_id: String, is_typing: bool, room_id: Option<String> },
-    Kicked(String), // Target ID
+    Chat {
+        message: ChatMessage,
+        room_id: Option<String>,
+    },
+    PeerTyping {
+        user_id: String,
+        is_typing: bool,
+        room_id: Option<String>,
+    },
+    Kicked(String),      // Target ID
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
     BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
@@ -144,21 +165,31 @@ pub enum ServerMessage {
     KnockingParticipantLeft(String), // ID
     RoomUpdated(RoomConfig),
     ParticipantUpdated(Participant),
-    Reaction { sender_id: String, emoji: String },
+    Reaction {
+        sender_id: String,
+        emoji: String,
+    },
     PollCreated(Poll),
     PollUpdated(Poll),
     PollsList(Vec<Poll>),
     Draw(DrawAction),
     WhiteboardHistory(Vec<DrawAction>),
     ChatHistory(Vec<ChatMessage>),
-    Welcome { id: String },
+    Welcome {
+        id: String,
+    },
     Knocking,
     AccessDenied,
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,
-    PeerSpeaking { user_id: String, speaking: bool },
-    Pong { timestamp: u64 },
+    PeerSpeaking {
+        user_id: String,
+        speaking: bool,
+    },
+    Pong {
+        timestamp: u64,
+    },
     Error(String),
 }
 

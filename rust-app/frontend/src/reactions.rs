@@ -20,18 +20,17 @@ pub fn ReactionDisplay(
             let id = js_sys::Date::now() as u64 + (js_sys::Math::random() * 1000.0) as u64;
             let left = 10.0 + (js_sys::Math::random() * 80.0); // Random horizontal position 10-90%
 
-            let reaction = ActiveReaction {
-                id,
-                emoji,
-                left,
-            };
+            let reaction = ActiveReaction { id, emoji, left };
 
             set_reactions.update(|list| list.push(reaction));
 
             // Remove after animation (e.g., 2 seconds)
-            set_timeout(move || {
-                set_reactions.update(|list| list.retain(|r| r.id != id));
-            }, std::time::Duration::from_secs(2));
+            set_timeout(
+                move || {
+                    set_reactions.update(|list| list.retain(|r| r.id != id));
+                },
+                std::time::Duration::from_secs(2),
+            );
         }
     });
 

@@ -1,6 +1,6 @@
-use leptos::*;
-use crate::i18n::t;
 use crate::components_ui::toast::{use_toast, ToastType};
+use crate::i18n::t;
+use leptos::*;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -41,7 +41,10 @@ pub fn InviteDialog(
             }
 
             // Fallback if clipboard API is not available
-            toast.add("Clipboard API not available (Secure context required)".to_string(), ToastType::Error);
+            toast.add(
+                "Clipboard API not available (Secure context required)".to_string(),
+                ToastType::Error,
+            );
         }
     };
 
@@ -91,6 +94,5 @@ mod tests {
         // In a unit test environment without DOM, we can mainly check if logic compiles.
         // Leptos components are functions, so we can technically call it, but without a reactive root it panics.
         // We will rely on E2E for render verification.
-        assert!(true);
     }
 }

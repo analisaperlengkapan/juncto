@@ -1,11 +1,8 @@
-use leptos::*;
 use gloo_timers::callback::Interval;
+use leptos::*;
 
 #[component]
-pub fn ConnectionStats(
-    on_ping: Callback<()>,
-    rtt: ReadSignal<u64>,
-) -> impl IntoView {
+pub fn ConnectionStats(on_ping: Callback<()>, rtt: ReadSignal<u64>) -> impl IntoView {
     create_effect(move |_| {
         let handle = Interval::new(2000, move || {
             on_ping.call(());

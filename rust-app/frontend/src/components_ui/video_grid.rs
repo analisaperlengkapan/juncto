@@ -1,7 +1,7 @@
 use leptos::*;
 use shared::Participant;
-use web_sys::MediaStream;
 use std::collections::HashSet;
+use web_sys::MediaStream;
 
 #[derive(Clone, PartialEq)]
 enum GridItem {

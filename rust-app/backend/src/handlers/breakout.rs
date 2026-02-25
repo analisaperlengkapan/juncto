@@ -1,8 +1,12 @@
 use crate::AppState;
-use shared::{ServerMessage, BreakoutRoom};
+use shared::{BreakoutRoom, ServerMessage};
 use std::sync::Arc;
 
-pub fn create_breakout_room(user_id: &str, name: String, state: &Arc<AppState>) -> Result<ServerMessage, String> {
+pub fn create_breakout_room(
+    user_id: &str,
+    name: String,
+    state: &Arc<AppState>,
+) -> Result<ServerMessage, String> {
     let is_host = {
         let config = state.room_config.lock().unwrap();
         config.host_id.as_deref() == Some(user_id)
@@ -31,13 +35,17 @@ pub fn create_breakout_room(user_id: &str, name: String, state: &Arc<AppState>) 
     Ok(ServerMessage::BreakoutRoomsList(all_rooms))
 }
 
-pub fn join_breakout_room(user_id: &str, room_id: Option<String>, state: &Arc<AppState>) -> Result<(Option<String>, Vec<ServerMessage>), String> {
+pub fn join_breakout_room(
+    user_id: &str,
+    room_id: Option<String>,
+    state: &Arc<AppState>,
+) -> Result<(Option<String>, Vec<ServerMessage>), String> {
     // Check if room exists if not None
     if let Some(rid) = &room_id {
-         let rooms = state.breakout_rooms.lock().unwrap();
-         if !rooms.contains_key(rid) {
-             return Err("Breakout room not found".to_string());
-         }
+        let rooms = state.breakout_rooms.lock().unwrap();
+        if !rooms.contains_key(rid) {
+            return Err("Breakout room not found".to_string());
+        }
     }
 
     {
@@ -83,6 +91,7 @@ mod tests {
             participant_locations: Arc::new(Mutex::new(HashMap::new())),
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
+            feedback: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -114,7 +123,13 @@ mod tests {
         // Pre-populate room
         {
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert(room_id.to_string(), BreakoutRoom { id: room_id.to_string(), name: "A".to_string() });
+            rooms.insert(
+                room_id.to_string(),
+                BreakoutRoom {
+                    id: room_id.to_string(),
+                    name: "A".to_string(),
+                },
+            );
         }
 
         let res = join_breakout_room(user_id, Some(room_id.to_string()), &state);
@@ -137,14 +152,14 @@ mod tests {
 
         // Add some chat history
         {
-             let mut hist = state.chat_history.lock().unwrap();
-             hist.push(shared::ChatMessage {
-                 user_id: "other".to_string(),
-                 content: "hi".to_string(),
-                 recipient_id: None,
-                 timestamp: 0,
-                 attachment: None
-             });
+            let mut hist = state.chat_history.lock().unwrap();
+            hist.push(shared::ChatMessage {
+                user_id: "other".to_string(),
+                content: "hi".to_string(),
+                recipient_id: None,
+                timestamp: 0,
+                attachment: None,
+            });
         }
 
         let res = join_breakout_room(user_id, None, &state);

@@ -1,24 +1,25 @@
+use crate::chat::Chat;
+use crate::components_ui::breakout::BreakoutRooms;
+use crate::components_ui::feedback::FeedbackDialog;
+use crate::components_ui::invite::InviteDialog;
+use crate::components_ui::lobby::LobbyScreen;
+use crate::components_ui::prejoin::PrejoinScreen;
+use crate::components_ui::shared_video_dialog::SharedVideoDialog;
+use crate::components_ui::video_grid::VideoGrid;
+use crate::connection_stats::ConnectionStats;
+use crate::participants::ParticipantsList;
+use crate::polls::PollsDialog;
+use crate::reactions::ReactionDisplay;
+use crate::settings::SettingsDialog;
+use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
+use crate::speaker_stats::SpeakerStatsDialog;
+use crate::state::{use_room_state, RoomConnectionState};
+use crate::toolbox::Toolbox;
+use crate::virtual_background::VirtualBackgroundDialog;
+use crate::whiteboard::Whiteboard;
+use gloo_timers::callback::Interval;
 use leptos::*;
 use leptos_router::*;
-use crate::chat::Chat;
-use crate::participants::ParticipantsList;
-use crate::toolbox::Toolbox;
-use crate::components_ui::prejoin::PrejoinScreen;
-use crate::components_ui::lobby::LobbyScreen;
-use crate::components_ui::breakout::BreakoutRooms;
-use crate::components_ui::video_grid::VideoGrid;
-use crate::components_ui::shared_video_dialog::SharedVideoDialog;
-use crate::components_ui::invite::InviteDialog;
-use crate::settings::SettingsDialog;
-use crate::reactions::ReactionDisplay;
-use crate::polls::PollsDialog;
-use crate::whiteboard::Whiteboard;
-use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
-use crate::state::{use_room_state, RoomConnectionState};
-use crate::speaker_stats::SpeakerStatsDialog;
-use crate::virtual_background::VirtualBackgroundDialog;
-use crate::connection_stats::ConnectionStats;
-use gloo_timers::callback::Interval;
 
 #[component]
 pub fn Room() -> impl IntoView {
@@ -154,6 +155,7 @@ pub fn Room() -> impl IntoView {
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
                                 on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
+                                on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
                                 on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
@@ -220,6 +222,10 @@ pub fn Room() -> impl IntoView {
                             on_change=Callback::new(move |mode| {
                                 web_sys::console::log_1(&format!("Background changed to: {}", mode).into());
                             })
+                        />
+                        <FeedbackDialog
+                            show=state.show_feedback
+                            on_close=Callback::new(move |_| state.set_show_feedback.set(false))
                         />
                     </div>
                 }.into_view()

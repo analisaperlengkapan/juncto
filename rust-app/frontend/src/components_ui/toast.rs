@@ -26,16 +26,21 @@ impl ToastContext {
         let id = self.counter.get() + 1;
         self.counter.set(id);
 
-        self.toasts.update(|t| t.push(Toast {
-            id,
-            message,
-            toast_type,
-        }));
+        self.toasts.update(|t| {
+            t.push(Toast {
+                id,
+                message,
+                toast_type,
+            })
+        });
 
         let toasts = self.toasts;
-        set_timeout(move || {
-            toasts.update(|t| t.retain(|item| item.id != id));
-        }, std::time::Duration::from_secs(3));
+        set_timeout(
+            move || {
+                toasts.update(|t| t.retain(|item| item.id != id));
+            },
+            std::time::Duration::from_secs(3),
+        );
     }
 
     pub fn remove(&self, id: u64) {

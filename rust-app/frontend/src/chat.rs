@@ -1,6 +1,6 @@
-use leptos::*;
-use shared::{ChatMessage, Participant, FileAttachment};
 use gloo_timers::callback::Timeout;
+use leptos::*;
+use shared::{ChatMessage, FileAttachment, Participant};
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -17,7 +17,11 @@ fn extract_base64_from_data_url(data_url: &str) -> Option<String> {
     }
 }
 
-fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant], my_id: &Option<String>) -> String {
+fn format_typing_indicator(
+    users: &HashSet<String>,
+    participants: &[Participant],
+    my_id: &Option<String>,
+) -> String {
     let mut users_to_show = users.clone();
     if let Some(uid) = my_id {
         users_to_show.remove(uid);
@@ -27,9 +31,16 @@ fn format_typing_indicator(users: &HashSet<String>, participants: &[Participant]
         "".to_string()
     } else {
         // Lookup names
-        let names: Vec<String> = users_to_show.iter().map(|uid| {
-            participants.iter().find(|p| &p.id == uid).map(|p| p.name.clone()).unwrap_or(uid.clone())
-        }).collect();
+        let names: Vec<String> = users_to_show
+            .iter()
+            .map(|uid| {
+                participants
+                    .iter()
+                    .find(|p| &p.id == uid)
+                    .map(|p| p.name.clone())
+                    .unwrap_or(uid.clone())
+            })
+            .collect();
 
         if names.len() == 1 {
             format!("{} is typing...", names[0])
@@ -76,7 +87,8 @@ pub fn Chat(
             let on_typing = on_typing;
             Timeout::new(3000, move || {
                 on_typing.call(false);
-            }).forget();
+            })
+            .forget();
         }
     };
 
@@ -97,7 +109,9 @@ pub fn Chat(
                 let size = file.size() as u64;
 
                 if size > MAX_FILE_SIZE {
-                    let _ = web_sys::window().unwrap().alert_with_message("File too large. Max size is 2MB.");
+                    let _ = web_sys::window()
+                        .unwrap()
+                        .alert_with_message("File too large. Max size is 2MB.");
                     input.set_value("");
                     return;
                 }
@@ -312,7 +326,7 @@ mod tests {
                 is_sharing_screen: false,
                 is_muted: false,
                 speaking_time: 0,
-            }
+            },
         ];
 
         let my_id = Some("u1".to_string());
@@ -325,17 +339,23 @@ mod tests {
         assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "");
 
         typing.insert("u2".to_string());
-        assert_eq!(format_typing_indicator(&typing, &participants, &my_id), "Bob is typing...");
+        assert_eq!(
+            format_typing_indicator(&typing, &participants, &my_id),
+            "Bob is typing..."
+        );
 
         typing.insert("u3".to_string()); // Unknown user
         let res = format_typing_indicator(&typing, &participants, &my_id);
-        assert!(res == "2 users are typing..." || res == "2 users are typing...");
+        assert_eq!(res, "2 users are typing...");
     }
 
     #[test]
     fn test_extract_base64() {
         let data_url = "data:text/plain;base64,SGVsbG8=";
-        assert_eq!(extract_base64_from_data_url(data_url), Some("SGVsbG8=".to_string()));
+        assert_eq!(
+            extract_base64_from_data_url(data_url),
+            Some("SGVsbG8=".to_string())
+        );
 
         let invalid = "invalid_data";
         assert_eq!(extract_base64_from_data_url(invalid), None);

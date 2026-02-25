@@ -26,8 +26,16 @@ pub fn PollsDialog(
                 id: "".to_string(), // Backend assigns ID
                 question: q,
                 options: vec![
-                    PollOption { id: 0, text: o1, votes: 0 },
-                    PollOption { id: 1, text: o2, votes: 0 },
+                    PollOption {
+                        id: 0,
+                        text: o1,
+                        votes: 0,
+                    },
+                    PollOption {
+                        id: 1,
+                        text: o2,
+                        votes: 0,
+                    },
                 ],
                 voters: std::collections::HashSet::new(),
             };
