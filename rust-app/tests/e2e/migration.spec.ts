@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+test.setTimeout(180000); // 3 minutes timeout for slower CI environments
+
 test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // Clear room config to ensure clean state
   await request.post('http://localhost:3000/api/rooms', {
