@@ -1,6 +1,6 @@
 use leptos::*;
 use shared::Participant;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use web_sys::MediaStream;
 
 #[derive(Clone, PartialEq)]
@@ -46,6 +46,7 @@ pub fn VideoGrid(
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
+    remote_streams: ReadSignal<HashMap<String, MediaStream>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -206,16 +207,44 @@ pub fn VideoGrid(
                             let is_screen = item.is_screen();
                             let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
                             let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                            let initial_char = store_value(initial_char);
                             let is_hand_raised = p.is_hand_raised;
                             let id_clone = p.id.clone();
+                            let id_clone_2 = id_clone.clone();
                             let is_speaking = move || speaking_peers.get().contains(&id_clone);
 
+                            // Remote Stream Logic
+                            let remote_video_ref = create_node_ref::<html::Video>();
+                            let stream_signal = Signal::derive(move || {
+                                remote_streams.get().get(&id_clone_2).cloned()
+                            });
+
+                            create_effect(move |_| {
+                                if let Some(video) = remote_video_ref.get() {
+                                    if let Some(s) = stream_signal.get() {
+                                        video.set_src_object(Some(&s));
+                                        let _ = video.play();
+                                    } else {
+                                        video.set_src_object(None);
+                                    }
+                                }
+                            });
+
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
                                     <Show when=move || is_screen fallback=move || view!{
-                                        <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                            {initial_char.clone()}
-                                        </div>
+                                        <Show when=move || stream_signal.get().is_some() fallback=move || view! {
+                                            <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                                {initial_char.with_value(|c| c.clone())}
+                                            </div>
+                                        }>
+                                            <video
+                                                node_ref=remote_video_ref
+                                                autoplay
+                                                playsinline
+                                                style="width: 100%; height: 100%; object-fit: cover;"
+                                            />
+                                        </Show>
                                     }>
                                         <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
                                             "Remote Screen"

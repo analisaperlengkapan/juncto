@@ -126,6 +126,7 @@ pub fn Room() -> impl IntoView {
                                             my_id=state.my_id
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
+                                            remote_streams=state.remote_streams
                                         />
                                     </div>
                                 </div>

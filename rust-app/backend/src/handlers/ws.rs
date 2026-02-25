@@ -350,6 +350,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             };
                                                             *room_id == my_loc
                                                         },
+                                                        ServerMessage::Offer { target_id, .. }
+                                                        | ServerMessage::Answer { target_id, .. }
+                                                        | ServerMessage::IceCandidate { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
                                                         _ => true,
                                                     };
 
@@ -693,6 +698,35 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Ping => {
                                     let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
+                                },
+                                ClientMessage::Offer { target_id, sdp } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::Offer {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            sdp,
+                                        });
+                                    }
+                                },
+                                ClientMessage::Answer { target_id, sdp } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::Answer {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            sdp,
+                                        });
+                                    }
+                                },
+                                ClientMessage::IceCandidate { target_id, candidate, sdp_mid, sdp_m_line_index } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::IceCandidate {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            candidate,
+                                            sdp_mid,
+                                            sdp_m_line_index,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -789,6 +823,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
                                                     *room_id == my_loc
+                                                },
+                                                ServerMessage::Offer { target_id, .. }
+                                                | ServerMessage::Answer { target_id, .. }
+                                                | ServerMessage::IceCandidate { target_id, .. } => {
+                                                    *target_id == my_id_clone
                                                 },
                                                 _ => true,
                                             };

@@ -15,6 +15,7 @@ mod toolbox;
 mod utils;
 mod virtual_background;
 mod whiteboard;
+mod webrtc;
 
 use crate::components_ui::toast::{provide_toast_context, ToastContainer};
 use crate::i18n::provide_i18n_context;

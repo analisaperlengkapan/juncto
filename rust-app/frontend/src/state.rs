@@ -1,11 +1,12 @@
 use crate::components_ui::toast::{use_toast, ToastType};
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
+use crate::webrtc::WebRTCManager;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use shared::{
     ChatMessage, ClientMessage, DrawAction, FileAttachment, Participant, Poll, ServerMessage,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MediaStream, MessageEvent, WebSocket};
@@ -58,6 +59,7 @@ pub struct RoomState {
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
+    pub remote_streams: ReadSignal<HashMap<String, MediaStream>>,
     #[allow(dead_code)]
     pub selected_camera_id: ReadSignal<Option<String>>,
     #[allow(dead_code)]
@@ -139,6 +141,30 @@ pub fn use_room_state() -> RoomState {
     let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
+
+    let (remote_streams, set_remote_streams) = create_signal(HashMap::<String, MediaStream>::new());
+
+    // WebRTC Manager Setup
+    let ws_clone_for_webrtc = ws.clone();
+    let send_signal_cb = move |msg: ClientMessage| {
+        if let Some(socket) = ws_clone_for_webrtc.get_untracked() {
+             if let Ok(json) = serde_json::to_string(&msg) {
+                 let _ = socket.send_with_str(&json);
+             }
+        }
+    };
+
+    let on_track_cb = move |peer_id: String, stream: MediaStream| {
+        set_remote_streams.update(|map| {
+            map.insert(peer_id, stream);
+        });
+    };
+
+    let webrtc_manager = WebRTCManager::new(
+        send_signal_cb,
+        on_track_cb,
+        local_stream.into(),
+    );
 
     // Internal state to trigger media start after joining
     let (start_media_on_join, set_start_media_on_join) = create_signal(false);
@@ -248,6 +274,7 @@ pub fn use_room_state() -> RoomState {
 
         if let Ok(socket) = WebSocket::new(&url) {
             // Handle incoming messages
+            let webrtc_manager = webrtc_manager.clone();
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                 if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                     let txt: String = txt.into();
@@ -301,9 +328,11 @@ pub fn use_room_state() -> RoomState {
                                     .update(|list| list.retain(|x| x.id != p.id));
                                 set_participants.update(|list| {
                                     if !list.iter().any(|x| x.id == p.id) {
-                                        list.push(p);
+                                        list.push(p.clone());
                                     }
                                 });
+                                // Initiate WebRTC connection (Polite Peer)
+                                webrtc_manager.handle_participant_joined(p.id);
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
                                 set_knocking_participants
@@ -314,6 +343,11 @@ pub fn use_room_state() -> RoomState {
                                 // Remove from typing users if present
                                 set_typing_users.update(|users| {
                                     users.remove(&id);
+                                });
+                                // Cleanup WebRTC
+                                webrtc_manager.handle_participant_left(&id);
+                                set_remote_streams.update(|map| {
+                                    map.remove(&id);
                                 });
                             }
                             ServerMessage::ParticipantList(list) => {
@@ -468,6 +502,15 @@ pub fn use_room_state() -> RoomState {
                             }
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
+                            }
+                            ServerMessage::Offer { source_id, sdp, .. } => {
+                                webrtc_manager.handle_offer(source_id, sdp);
+                            }
+                            ServerMessage::Answer { source_id, sdp, .. } => {
+                                webrtc_manager.handle_answer(source_id, sdp);
+                            }
+                            ServerMessage::IceCandidate { source_id, candidate, sdp_mid, sdp_m_line_index, .. } => {
+                                webrtc_manager.handle_ice_candidate(source_id, candidate, sdp_mid, sdp_m_line_index);
                             }
                         }
                     }
@@ -873,6 +916,7 @@ pub fn use_room_state() -> RoomState {
         show_virtual_background,
         show_feedback,
         rtt,
+        remote_streams,
         selected_camera_id,
         selected_mic_id,
         video_resolution,

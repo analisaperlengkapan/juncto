@@ -135,6 +135,21 @@ pub enum ClientMessage {
     StopShareVideo,
     Speaking(bool),
     Ping,
+    // WebRTC Signaling
+    Offer {
+        target_id: String,
+        sdp: String,
+    },
+    Answer {
+        target_id: String,
+        sdp: String,
+    },
+    IceCandidate {
+        target_id: String,
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_m_line_index: Option<u16>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -189,6 +204,24 @@ pub enum ServerMessage {
     },
     Pong {
         timestamp: u64,
+    },
+    // WebRTC Signaling
+    Offer {
+        source_id: String,
+        target_id: String,
+        sdp: String,
+    },
+    Answer {
+        source_id: String,
+        target_id: String,
+        sdp: String,
+    },
+    IceCandidate {
+        source_id: String,
+        target_id: String,
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_m_line_index: Option<u16>,
     },
     Error(String),
 }
