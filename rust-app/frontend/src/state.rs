@@ -156,8 +156,12 @@ pub fn use_room_state() -> RoomState {
 
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
         set_remote_streams.update(|map| {
-            // Append the new stream to the list for this peer
-            map.entry(peer_id).or_insert_with(Vec::new).push(stream);
+            // Append the new stream to the list for this peer, checking for duplicates
+            let streams = map.entry(peer_id).or_insert_with(Vec::new);
+            let stream_id = stream.id();
+            if !streams.iter().any(|s| s.id() == stream_id) {
+                streams.push(stream);
+            }
         });
     };
 
@@ -401,6 +405,9 @@ pub fn use_room_state() -> RoomState {
                                             "You have been kicked from the room.".to_string(),
                                             ToastType::Error,
                                         );
+                                        // Clean up WebRTC
+                                        webrtc_manager.close_all_peers();
+                                        set_remote_streams.set(HashMap::new());
                                         set_current_state.set(RoomConnectionState::Prejoin);
                                     }
                                 }
@@ -439,6 +446,9 @@ pub fn use_room_state() -> RoomState {
                                     "The meeting has ended by the host.".to_string(),
                                     ToastType::Info,
                                 );
+                                // Clean up WebRTC
+                                webrtc_manager.close_all_peers();
+                                set_remote_streams.set(HashMap::new());
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
                                 set_is_connected.set(false);

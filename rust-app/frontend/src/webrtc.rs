@@ -156,6 +156,14 @@ impl WebRTCManager {
         }
     }
 
+    pub fn close_all_peers(&self) {
+        let mut peers = self.peers.borrow_mut();
+        for (_, pc) in peers.iter() {
+            pc.close();
+        }
+        peers.clear();
+    }
+
     pub fn handle_offer(&self, source_id: String, sdp: String) {
         let peers = self.peers.clone();
         let this = self.clone();
