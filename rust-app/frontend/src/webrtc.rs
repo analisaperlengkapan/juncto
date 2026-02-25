@@ -228,10 +228,13 @@ impl WebRTCManager {
         let this = self.clone();
 
         spawn_local(async move {
-            let peers_map = peers.borrow();
+            let peers_vec: Vec<(String, RtcPeerConnection)> = {
+                let peers_map = peers.borrow();
+                peers_map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            };
 
             // Iterate over all connected peers
-            for (peer_id, pc) in peers_map.iter() {
+            for (peer_id, pc) in peers_vec.iter() {
                 let peer_id = peer_id.clone();
                 let pc = pc.clone();
                 let this = this.clone();
