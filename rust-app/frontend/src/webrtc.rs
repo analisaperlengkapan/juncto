@@ -202,15 +202,11 @@ impl WebRTCManager {
                     // Impolite peer ignores the offer
                     return;
                 }
-                // Polite peer accepts offer (rollback happens implicitly if we just set remote? Or need explicit rollback?)
-                // Spec says: "If the new offer is set... any local offer is implicitly rolled back."
-                // But some implementations might need explicit rollback.
-                // Promise.all([
-                //   pc.setLocalDescription({type: "rollback"}),
-                //   pc.setRemoteDescription(offer)
-                // ]);
-                // For simplicity, let's try setting remote directly. If it fails, we might need rollback.
-                // But let's assume standard behavior for now.
+                // Polite peer accepts offer. Explicit rollback for compatibility/robustness.
+                if signaling_state == web_sys::RtcSignalingState::HaveLocalOffer {
+                    let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
+                    let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
+                }
             }
 
             let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
@@ -375,7 +371,14 @@ impl WebRTCManager {
                 }
 
                 // Trigger renegotiation (Offer) if state is stable to avoid glare
-                if pc.signaling_state() == web_sys::RtcSignalingState::Stable {
+                // AND only if we are the impolite peer (higher ID) to avoid race/collision
+                let should_renegotiate = if let Some(my) = this.my_id.get_untracked() {
+                    my.as_str() > peer_id.as_str()
+                } else {
+                    false
+                };
+
+                if should_renegotiate && pc.signaling_state() == web_sys::RtcSignalingState::Stable {
                     let options = web_sys::RtcOfferOptions::new();
                     options.set_offer_to_receive_audio(true);
                     options.set_offer_to_receive_video(true);

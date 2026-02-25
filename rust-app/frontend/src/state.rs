@@ -399,10 +399,9 @@ pub fn use_room_state() -> RoomState {
                                 if let Some(me) = my_id.get_untracked() {
                                     if local_stream.get_untracked().is_some() {
                                         for p in list {
-                                            if me > p.id && !webrtc_manager.has_peer(&p.id) {
+                                            if me > p.id {
                                                 webrtc_manager.handle_participant_joined(p.id);
                                             }
-                                        }
                                         }
                                     }
                                 }
