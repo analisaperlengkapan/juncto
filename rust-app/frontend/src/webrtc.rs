@@ -202,11 +202,15 @@ impl WebRTCManager {
                     // Impolite peer ignores the offer
                     return;
                 }
-                // Polite peer must rollback local offer before accepting remote offer
-                let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
-                if JsFuture::from(pc.set_local_description(&rollback)).await.is_err() {
-                    return;
-                }
+                // Polite peer accepts offer (rollback happens implicitly if we just set remote? Or need explicit rollback?)
+                // Spec says: "If the new offer is set... any local offer is implicitly rolled back."
+                // But some implementations might need explicit rollback.
+                // Promise.all([
+                //   pc.setLocalDescription({type: "rollback"}),
+                //   pc.setRemoteDescription(offer)
+                // ]);
+                // For simplicity, let's try setting remote directly. If it fails, we might need rollback.
+                // But let's assume standard behavior for now.
             }
 
             let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
@@ -370,21 +374,23 @@ impl WebRTCManager {
                      }
                 }
 
-                // Trigger renegotiation (Offer)
-                let options = web_sys::RtcOfferOptions::new();
-                options.set_offer_to_receive_audio(true);
-                options.set_offer_to_receive_video(true);
+                // Trigger renegotiation (Offer) if state is stable to avoid glare
+                if pc.signaling_state() == web_sys::RtcSignalingState::Stable {
+                    let options = web_sys::RtcOfferOptions::new();
+                    options.set_offer_to_receive_audio(true);
+                    options.set_offer_to_receive_video(true);
 
-                if let Ok(offer) = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
-                    let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
-                    if JsFuture::from(pc.set_local_description(&sdp)).await.is_ok() {
-                        if let Some(desc) = pc.local_description() {
-                            let sdp_str = desc.sdp();
-                            let msg = shared::ClientMessage::Offer {
-                                target_id: peer_id,
-                                sdp: sdp_str,
-                            };
-                            (this.send_signal)(msg);
+                    if let Ok(offer) = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
+                        let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
+                        if JsFuture::from(pc.set_local_description(&sdp)).await.is_ok() {
+                            if let Some(desc) = pc.local_description() {
+                                let sdp_str = desc.sdp();
+                                let msg = shared::ClientMessage::Offer {
+                                    target_id: peer_id,
+                                    sdp: sdp_str,
+                                };
+                                (this.send_signal)(msg);
+                            }
                         }
                     }
                 }

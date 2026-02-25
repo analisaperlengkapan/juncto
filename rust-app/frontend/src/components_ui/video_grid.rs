@@ -1,6 +1,7 @@
 use leptos::*;
 use shared::Participant;
 use std::collections::{HashMap, HashSet};
+use wasm_bindgen::JsCast;
 use web_sys::MediaStream;
 
 #[derive(Clone, PartialEq)]
@@ -176,10 +177,6 @@ pub fn VideoGrid(
                                 "".to_string()
                             };
 
-                            // Bug 9 Fix: Basic handling for non-YouTube
-                            // If video_id is empty but we have a url, maybe show error or just ignore.
-                            // For now, if empty, we won't render iframe source correctly.
-
                             let embed_url = if !video_id.is_empty() {
                                 format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
                             } else {
@@ -217,30 +214,58 @@ pub fn VideoGrid(
                             let remote_video_ref = create_node_ref::<html::Video>();
                             let stream_signal = Signal::derive(move || {
                                 if let Some(streams) = remote_streams.get().get(&id_clone_2) {
-                                    // For now, if user is sharing screen, try to find the second stream?
-                                    // Or simply:
-                                    // If GridItem is RemoteScreen, we want the screen stream.
-                                    // If GridItem is User, we want the camera stream.
-                                    // But we don't distinguish streams by metadata easily here yet.
-                                    // Assuming: Stream 0 is Camera, Stream 1 is Screen (if added later).
-                                    // This is brittle but requested by the change to support multiple streams.
-
-                                    // Ideally, we'd check track content.
-                                    // Let's assume:
-                                    // If is_screen is true, we want the LAST added stream? Or the one with video?
-
                                     if is_screen {
-                                        // Try to get the last stream, or a stream that looks like a screen?
-                                        // If we have > 1 streams, maybe the second one is screen.
+                                        // Find a stream that looks like a screen share (has displaySurface setting)
+                                        let screen_stream = streams.iter().find(|s| {
+                                            let tracks = s.get_video_tracks();
+                                            for i in 0..tracks.length() {
+                                                let track_val = tracks.get(i);
+                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    let settings = track.get_settings();
+                                                    // use Reflect to check displaySurface prop safely
+                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                        if !val.is_undefined() {
+                                                            return true;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            false
+                                        });
+
+                                        if let Some(s) = screen_stream {
+                                            return Some(s.clone());
+                                        }
+
+                                        // Fallback: use second stream if available
                                         if streams.len() > 1 {
                                             Some(streams[1].clone())
                                         } else {
-                                            // Fallback: use the only stream (might be camera if state de-synced)
                                             streams.first().cloned()
                                         }
                                     } else {
-                                        // User card: use the first stream
-                                        streams.first().cloned()
+                                        // User card (Camera): Find a stream that is NOT a screen share
+                                         let camera_stream = streams.iter().find(|s| {
+                                            let tracks = s.get_video_tracks();
+                                            for i in 0..tracks.length() {
+                                                let track_val = tracks.get(i);
+                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    let settings = track.get_settings();
+                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                        if !val.is_undefined() {
+                                                            return false; // This is a screen
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            true // Assume camera if no displaySurface
+                                        });
+
+                                        if let Some(s) = camera_stream {
+                                            Some(s.clone())
+                                        } else {
+                                            streams.first().cloned()
+                                        }
                                     }
                                 } else {
                                     None

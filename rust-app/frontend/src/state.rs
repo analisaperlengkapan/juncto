@@ -188,8 +188,8 @@ pub fn use_room_state() -> RoomState {
                 let list = participants_for_effect.get_untracked();
                 for p in list {
                     if p.id != me {
-                        // Only initiate connection if one doesn't exist
-                        if !webrtc_manager_clone.has_peer(&p.id) {
+                        // Only initiate connection if one doesn't exist AND I am the impolite peer (higher ID)
+                        if !webrtc_manager_clone.has_peer(&p.id) && me > p.id {
                             webrtc_manager_clone.handle_participant_joined(p.id);
                         }
                     }
@@ -364,11 +364,15 @@ pub fn use_room_state() -> RoomState {
                                         list.push(p.clone());
                                     }
                                 });
+
                                 // Initiate WebRTC connection (Polite Peer)
-                                // Only connect if it's NOT me AND local stream is ready
-                                if my_id.get_untracked() != Some(p.id.clone()) {
-                                    if local_stream.get_untracked().is_some() {
-                                        webrtc_manager.handle_participant_joined(p.id);
+                                // Only connect if it's NOT me AND local stream is ready.
+                                // Deterministic initiation: Higher ID initiates.
+                                if let Some(me) = my_id.get_untracked() {
+                                    if me != p.id && me > p.id {
+                                        if local_stream.get_untracked().is_some() {
+                                            webrtc_manager.handle_participant_joined(p.id);
+                                        }
                                     }
                                 }
                             }
@@ -389,7 +393,18 @@ pub fn use_room_state() -> RoomState {
                                 });
                             }
                             ServerMessage::ParticipantList(list) => {
-                                set_participants.set(list);
+                                set_participants.set(list.clone());
+
+                                // Initiate connections to existing peers if I am impolite (higher ID)
+                                if let Some(me) = my_id.get_untracked() {
+                                    if local_stream.get_untracked().is_some() {
+                                        for p in list {
+                                            if me > p.id {
+                                                webrtc_manager.handle_participant_joined(p.id);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
@@ -591,10 +606,12 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_cleanup = webrtc_manager.clone();
     on_cleanup(move || {
         if let Some(socket) = ws.get() {
             let _ = socket.close();
         }
+        webrtc_manager_cleanup.close_all_peers();
     });
 
     let send_message = Callback::new(

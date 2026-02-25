@@ -350,10 +350,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             };
                                                             *room_id == my_loc
                                                         },
-                                                        ServerMessage::Offer { target_id, .. }
-                                                        | ServerMessage::Answer { target_id, .. }
-                                                        | ServerMessage::IceCandidate { target_id, .. } => {
-                                                            *target_id == my_id_clone
+                                                        ServerMessage::Offer { source_id, target_id, .. }
+                                                        | ServerMessage::Answer { source_id, target_id, .. }
+                                                        | ServerMessage::IceCandidate { source_id, target_id, .. } => {
+                                                            if *target_id == my_id_clone {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(source_id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            } else {
+                                                                false
+                                                            }
                                                         },
                                                         _ => true,
                                                     };
@@ -824,10 +831,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     };
                                                     *room_id == my_loc
                                                 },
-                                                ServerMessage::Offer { target_id, .. }
-                                                | ServerMessage::Answer { target_id, .. }
-                                                | ServerMessage::IceCandidate { target_id, .. } => {
-                                                    *target_id == my_id_clone
+                                                ServerMessage::Offer { source_id, target_id, .. }
+                                                | ServerMessage::Answer { source_id, target_id, .. }
+                                                | ServerMessage::IceCandidate { source_id, target_id, .. } => {
+                                                    if *target_id == my_id_clone {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                        let source_loc = locs.get(source_id).cloned().flatten();
+                                                        my_loc == source_loc
+                                                    } else {
+                                                        false
+                                                    }
                                                 },
                                                 _ => true,
                                             };
