@@ -154,7 +154,35 @@ pub fn use_room_state() -> RoomState {
         }
     };
 
+    let on_track_cb_clone = set_remote_streams.clone();
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
+        // Add cleanup listener for tracks
+        let tracks = stream.get_tracks();
+        for i in 0..tracks.length() {
+            if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                let peer_id_clone = peer_id.clone();
+                let stream_id = stream.id();
+                let set_remote_streams = on_track_cb_clone; // captured
+
+                let onended = Closure::wrap(Box::new(move || {
+                    set_remote_streams.update(|map| {
+                        if let Some(streams) = map.get_mut(&peer_id_clone) {
+                            streams.retain(|s| {
+                                // If the stream matches the one ending, check if it's still active
+                                if s.id() == stream_id {
+                                    s.active()
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    });
+                }) as Box<dyn FnMut()>);
+                track.set_onended(Some(onended.as_ref().unchecked_ref()));
+                onended.forget();
+            }
+        }
+
         set_remote_streams.update(|map| {
             // Append the new stream to the list for this peer, checking for duplicates
             let streams = map.entry(peer_id).or_insert_with(Vec::new);
@@ -821,8 +849,12 @@ pub fn use_room_state() -> RoomState {
 
     let join_breakout_room = Callback::new(move |room_id: Option<String>| {
         set_current_room_id.set(room_id.clone());
-        // Clear messages when switching rooms? Maybe.
+        // Clear messages when switching rooms
         set_messages.set(Vec::new());
+
+        // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
+        webrtc_manager.close_all_peers();
+        set_remote_streams.set(HashMap::new());
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::JoinBreakoutRoom(room_id);
