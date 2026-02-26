@@ -15,6 +15,7 @@ type PeerId = String;
 #[derive(Clone)]
 pub struct WebRTCManager {
     peers: Rc<RefCell<HashMap<PeerId, RtcPeerConnection>>>,
+    pending_candidates: Rc<RefCell<HashMap<PeerId, Vec<RtcIceCandidateInit>>>>,
     send_signal: Rc<dyn Fn(shared::ClientMessage)>,
     on_track: Rc<dyn Fn(PeerId, MediaStream)>,
     local_stream: Signal<Option<MediaStream>>,
@@ -32,6 +33,7 @@ impl WebRTCManager {
     ) -> Self {
         Self {
             peers: Rc::new(RefCell::new(HashMap::new())),
+            pending_candidates: Rc::new(RefCell::new(HashMap::new())),
             send_signal: Rc::new(send_signal),
             on_track: Rc::new(on_track),
             local_stream,
@@ -168,6 +170,7 @@ impl WebRTCManager {
         let peers = self.peers.clone();
         let this = self.clone();
         let my_id = self.my_id.get_untracked();
+        let pending_candidates = self.pending_candidates.clone();
 
         spawn_local(async move {
             let pc = if let Some(pc) = peers.borrow().get(&source_id) {
@@ -191,10 +194,6 @@ impl WebRTCManager {
             };
 
             let signaling_state = pc.signaling_state();
-            // web_sys::RtcSignalingState enum: Stable, HaveLocalOffer, ...
-            // Wait, signaling_state() returns RtcSignalingState enum object in JS,
-            // but in Rust web-sys it returns RtcSignalingState enum which we can compare?
-            // Actually it returns the enum type.
 
             // Checks for collision: we have sent an offer (have-local-offer) but received one.
             if signaling_state != web_sys::RtcSignalingState::Stable {
@@ -214,6 +213,15 @@ impl WebRTCManager {
 
             let set_remote_promise = pc.set_remote_description(&desc_init);
             if JsFuture::from(set_remote_promise).await.is_ok() {
+                // Flush pending candidates
+                if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
+                    for cand in candidates {
+                        if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
+                            let _ = JsFuture::from(pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&rtc_cand))).await;
+                        }
+                    }
+                }
+
                 let create_answer_promise = pc.create_answer();
                 if let Ok(answer) = JsFuture::from(create_answer_promise).await {
                     let answer_sdp = answer.unchecked_into::<RtcSessionDescriptionInit>();
@@ -235,13 +243,23 @@ impl WebRTCManager {
 
     pub fn handle_answer(&self, source_id: String, sdp: String) {
         let peers = self.peers.clone();
+        let pending_candidates = self.pending_candidates.clone();
         spawn_local(async move {
             let pc = peers.borrow().get(&source_id).cloned();
             if let Some(pc) = pc {
                 let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
                 desc_init.set_sdp(&sdp);
                 let promise = pc.set_remote_description(&desc_init);
-                let _ = JsFuture::from(promise).await;
+                if JsFuture::from(promise).await.is_ok() {
+                    // Flush pending candidates
+                    if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
+                        for cand in candidates {
+                            if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
+                                let _ = JsFuture::from(pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&rtc_cand))).await;
+                            }
+                        }
+                    }
+                }
             }
         });
     }
@@ -254,6 +272,7 @@ impl WebRTCManager {
         sdp_m_line_index: Option<u16>,
     ) {
         let peers = self.peers.clone();
+        let pending_candidates = self.pending_candidates.clone();
         spawn_local(async move {
             let pc = peers.borrow().get(&source_id).cloned();
             if let Some(pc) = pc {
@@ -265,9 +284,16 @@ impl WebRTCManager {
                     init.set_sdp_m_line_index(Some(idx));
                 }
 
-                if let Ok(cand) = RtcIceCandidate::new(&init) {
-                    let promise = pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&cand));
-                    let _ = JsFuture::from(promise).await;
+                if pc.remote_description().is_some() {
+                    if let Ok(cand) = RtcIceCandidate::new(&init) {
+                        let promise = pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&cand));
+                        let _ = JsFuture::from(promise).await;
+                    }
+                } else {
+                    pending_candidates.borrow_mut()
+                        .entry(source_id)
+                        .or_insert_with(Vec::new)
+                        .push(init);
                 }
             }
         });
