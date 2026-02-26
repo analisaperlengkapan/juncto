@@ -120,7 +120,10 @@ impl WebRTCManager {
         let this = self.clone();
         spawn_local(async move {
             if let Ok(pc) = this.create_peer_connection(&peer_id) {
-                peers.borrow_mut().insert(peer_id.clone(), pc.clone());
+                // Ensure we close any existing connection before overwriting
+                if let Some(old_pc) = peers.borrow_mut().insert(peer_id.clone(), pc.clone()) {
+                    old_pc.close();
+                }
 
                 // Create Offer
                 let options = web_sys::RtcOfferOptions::new();
@@ -165,6 +168,7 @@ impl WebRTCManager {
             pc.close();
         }
         peers.clear();
+        self.pending_candidates.borrow_mut().clear();
     }
 
     pub fn handle_offer(&self, source_id: String, sdp: String) {
