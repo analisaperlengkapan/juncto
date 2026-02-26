@@ -156,6 +156,7 @@ impl WebRTCManager {
         if let Some(pc) = self.peers.borrow_mut().remove(peer_id) {
             pc.close();
         }
+        self.pending_candidates.borrow_mut().remove(peer_id);
     }
 
     pub fn close_all_peers(&self) {
