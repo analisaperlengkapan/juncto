@@ -847,19 +847,36 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_for_breakout = webrtc_manager.clone();
     let join_breakout_room = Callback::new(move |room_id: Option<String>| {
         set_current_room_id.set(room_id.clone());
         // Clear messages when switching rooms
         set_messages.set(Vec::new());
 
         // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
-        webrtc_manager.close_all_peers();
+        webrtc_manager_for_breakout.close_all_peers();
         set_remote_streams.set(HashMap::new());
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::JoinBreakoutRoom(room_id);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
+            }
+        }
+
+        // Re-initiate connections for existing peers in the (new) room logic
+        // Ideally, we wait for a ParticipantList update, but if the list is shared, we should reconnect.
+        // We reconnect to "Impolite" peers (higher ID) to ensure deterministic connection establishment.
+        // NOTE: This assumes 'participants' signal still holds relevant peers. If the backend filters 'ParticipantList' by room,
+        // we might need to wait for that message. But assuming we need to trigger it now:
+        if let Some(me) = my_id.get_untracked() {
+            if local_stream.get_untracked().is_some() {
+               let list = participants.get_untracked();
+               for p in list {
+                   if me > p.id {
+                       webrtc_manager_for_breakout.handle_participant_joined(p.id);
+                   }
+               }
             }
         }
     });
