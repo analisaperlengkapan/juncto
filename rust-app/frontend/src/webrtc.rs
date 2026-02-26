@@ -117,10 +117,6 @@ impl WebRTCManager {
         let peers = self.peers.clone();
         let this = self.clone();
         spawn_local(async move {
-            // Close existing connection if any to avoid resource leak
-            if let Some(old_pc) = peers.borrow_mut().remove(&peer_id) {
-                old_pc.close();
-            }
             if let Ok(pc) = this.create_peer_connection(&peer_id) {
                 peers.borrow_mut().insert(peer_id.clone(), pc.clone());
 

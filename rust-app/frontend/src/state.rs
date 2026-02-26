@@ -207,19 +207,23 @@ pub fn use_room_state() -> RoomState {
     let webrtc_manager_clone = webrtc_manager.clone();
 
     create_effect(move |_| {
-        if local_stream.get().is_some() {
-            let my_id_val = my_id_for_effect.get_untracked();
-            if let Some(me) = my_id_val {
-                // Update tracks for existing connections (e.g. from incoming offers)
-                webrtc_manager_clone.update_local_tracks();
+        // Run when my_id or local_stream changes
+        let my_id_val = my_id_for_effect.get();
+        // We track local_stream to trigger track updates
+        let _ = local_stream.get();
 
-                let list = participants_for_effect.get_untracked();
-                for p in list {
-                    if p.id != me {
-                        // Only initiate connection if one doesn't exist AND I am the impolite peer (higher ID)
-                        if !webrtc_manager_clone.has_peer(&p.id) && me > p.id {
-                            webrtc_manager_clone.handle_participant_joined(p.id);
-                        }
+        if let Some(me) = my_id_val {
+            // Update tracks for existing connections (e.g. from incoming offers)
+            // This is safe to call even if local_stream is None (it effectively clears tracks or does nothing)
+            webrtc_manager_clone.update_local_tracks();
+
+            let list = participants_for_effect.get_untracked();
+            for p in list {
+                if p.id != me {
+                    // Only initiate connection if one doesn't exist AND I am the impolite peer (higher ID)
+                    // Deterministic rule: Higher ID initiates.
+                    if !webrtc_manager_clone.has_peer(&p.id) && me > p.id {
+                        webrtc_manager_clone.handle_participant_joined(p.id);
                     }
                 }
             }
@@ -394,13 +398,11 @@ pub fn use_room_state() -> RoomState {
                                 });
 
                                 // Initiate WebRTC connection (Polite Peer)
-                                // Only connect if it's NOT me AND local stream is ready.
+                                // Only connect if it's NOT me.
                                 // Deterministic initiation: Higher ID initiates.
                                 if let Some(me) = my_id.get_untracked() {
                                     if me != p.id && me > p.id {
-                                        if local_stream.get_untracked().is_some() {
-                                            webrtc_manager.handle_participant_joined(p.id);
-                                        }
+                                        webrtc_manager.handle_participant_joined(p.id);
                                     }
                                 }
                             }
@@ -425,13 +427,9 @@ pub fn use_room_state() -> RoomState {
 
                                 // Initiate connections to existing peers if I am impolite (higher ID)
                                 if let Some(me) = my_id.get_untracked() {
-                                    if local_stream.get_untracked().is_some() {
-                                        for p in list {
-                                            if me > p.id && !webrtc_manager.has_peer(&p.id) {
-                                                webrtc_manager.handle_participant_joined(p.id);
-                                            }
-                                        }
-                                            }
+                                    for p in list {
+                                        if me > p.id {
+                                            webrtc_manager.handle_participant_joined(p.id);
                                         }
                                     }
                                 }
