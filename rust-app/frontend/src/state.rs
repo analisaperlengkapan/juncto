@@ -209,8 +209,9 @@ pub fn use_room_state() -> RoomState {
     create_effect(move |_| {
         // Run when my_id or local_stream changes
         let my_id_val = my_id_for_effect.get();
-        // We track local_stream to trigger track updates
+        // We track local_stream and local_screen_stream to trigger track updates
         let _ = local_stream.get();
+        let _ = local_screen_stream.get();
 
         if let Some(me) = my_id_val {
             // Update tracks for existing connections (e.g. from incoming offers)
@@ -262,19 +263,6 @@ pub fn use_room_state() -> RoomState {
 
     // Extract start_media_stream logic
     let start_media_stream = Callback::new(move |enable_video: bool| {
-        // Stop existing stream tracks
-        if let Some(stream) = local_stream.get_untracked() {
-            let tracks = stream.get_tracks();
-            for i in 0..tracks.length() {
-                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                    track.stop();
-                }
-            }
-        }
-        // Don't set to None immediately to avoid flicker if possible, but for clean state -> None
-        set_local_stream.set(None);
-        set_audio_monitor.set(None);
-
         spawn_local(async move {
             let v_id = selected_camera_id.get_untracked();
             let a_id = selected_mic_id.get_untracked();
@@ -286,6 +274,17 @@ pub fn use_room_state() -> RoomState {
             // Assuming typical WebRTC flow: request audio=true.
 
             if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
+                // Stop existing stream tracks just before replacing
+                if let Some(old_stream) = local_stream.get_untracked() {
+                    let tracks = old_stream.get_tracks();
+                    for i in 0..tracks.length() {
+                        if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.stop();
+                        }
+                    }
+                }
+                set_audio_monitor.set(None); // Reset monitor for new stream
+
                 // Apply existing mute state to new stream
                 if is_muted.get_untracked() {
                     let audio_tracks = stream.get_audio_tracks();

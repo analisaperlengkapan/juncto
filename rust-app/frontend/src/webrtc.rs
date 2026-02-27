@@ -121,6 +121,11 @@ impl WebRTCManager {
             let send_signal = send_signal_clone.clone();
 
             spawn_local(async move {
+                // Bug 6: Avoid spurious offers if state is not stable (e.g. during Answer creation)
+                if pc.signaling_state() != web_sys::RtcSignalingState::Stable {
+                    return;
+                }
+
                 making_offer.borrow_mut().insert(peer_id.clone(), true);
 
                 let options = web_sys::RtcOfferOptions::new();

@@ -213,10 +213,15 @@ pub fn VideoGrid(
                             // Remote Stream Logic
                             let remote_video_ref = create_node_ref::<html::Video>();
                             let stream_signal = Signal::derive(move || {
-                                if let Some(streams) = remote_streams.get().get(&id_clone_2) {
-                                    if is_screen {
-                                        // Try to find a stream with displaySurface (best effort)
-                                        let screen_stream = streams.iter().find(|s| {
+                                // Performance: Use .with() to avoid cloning the entire HashMap of streams
+                                remote_streams.with(|map| {
+                                    if let Some(streams) = map.get(&id_clone_2) {
+                                        if is_screen {
+                                            // Bug 4: Stream disambiguation relies on displaySurface (not universally supported).
+                                            // Fallback assumes second stream is screen share.
+
+                                            // Try to find a stream with displaySurface (best effort)
+                                            let screen_stream = streams.iter().find(|s| {
                                             let tracks = s.get_video_tracks();
                                             for i in 0..tracks.length() {
                                                 let track_val = tracks.get(i);
@@ -266,10 +271,11 @@ pub fn VideoGrid(
                                         } else {
                                             streams.first().cloned()
                                         }
+                                        }
+                                    } else {
+                                        None
                                     }
-                                } else {
-                                    None
-                                }
+                                })
                             });
 
                             create_effect(move |_| {
