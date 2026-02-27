@@ -16,6 +16,8 @@ type PeerId = String;
 pub struct WebRTCManager {
     peers: Rc<RefCell<HashMap<PeerId, RtcPeerConnection>>>,
     pending_candidates: Rc<RefCell<HashMap<PeerId, Vec<RtcIceCandidateInit>>>>,
+    making_offer: Rc<RefCell<HashMap<PeerId, bool>>>,
+    ignore_offer: Rc<RefCell<HashMap<PeerId, bool>>>,
     send_signal: Rc<dyn Fn(shared::ClientMessage)>,
     on_track: Rc<dyn Fn(PeerId, MediaStream)>,
     local_stream: Signal<Option<MediaStream>>,
@@ -34,6 +36,8 @@ impl WebRTCManager {
         Self {
             peers: Rc::new(RefCell::new(HashMap::new())),
             pending_candidates: Rc::new(RefCell::new(HashMap::new())),
+            making_offer: Rc::new(RefCell::new(HashMap::new())),
+            ignore_offer: Rc::new(RefCell::new(HashMap::new())),
             send_signal: Rc::new(send_signal),
             on_track: Rc::new(on_track),
             local_stream,
@@ -45,7 +49,6 @@ impl WebRTCManager {
     fn create_peer_connection(&self, peer_id: &str) -> Result<RtcPeerConnection, JsValue> {
         let config = web_sys::RtcConfiguration::new();
         let ice_servers = js_sys::Array::new();
-        // Use Google STUN for now
         let stun = web_sys::RtcIceServer::new();
         let urls = js_sys::Array::new();
         urls.push(&JsValue::from_str("stun:stun.l.google.com:19302"));
@@ -106,11 +109,54 @@ impl WebRTCManager {
         on_track.forget();
 
         // On Negotiation Needed
-        // Automatically handle renegotiation
-        // let this_clone = self.clone(); // Can't easily clone inside create_peer_connection unless we pass it or structure differently
-        // For now, we manually trigger update_local_tracks, so we might skip this unless explicitly requested.
-        // But PR comment suggests adding it.
-        // Let's implement manual trigger via update_local_tracks for now as it's safer given struct design.
+        let pc_clone = pc.clone();
+        let making_offer_clone = self.making_offer.clone();
+        let peer_id_clone_3 = peer_id.to_string();
+        let send_signal_clone = self.send_signal.clone();
+
+        let on_negotiation_needed = Closure::wrap(Box::new(move || {
+            let pc = pc_clone.clone();
+            let making_offer = making_offer_clone.clone();
+            let peer_id = peer_id_clone_3.clone();
+            let send_signal = send_signal_clone.clone();
+
+            spawn_local(async move {
+                making_offer.borrow_mut().insert(peer_id.clone(), true);
+
+                let options = web_sys::RtcOfferOptions::new();
+                options.set_offer_to_receive_audio(true);
+                options.set_offer_to_receive_video(true);
+
+                // Create Offer
+                match JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
+                    Ok(offer) => {
+                         let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
+                         // Set Local Description
+                         match JsFuture::from(pc.set_local_description(&sdp)).await {
+                            Ok(_) => {
+                                if let Some(desc) = pc.local_description() {
+                                    let sdp_str = desc.sdp();
+                                    let msg = shared::ClientMessage::Offer {
+                                        target_id: peer_id.clone(),
+                                        sdp: sdp_str,
+                                    };
+                                    (send_signal)(msg);
+                                }
+                            },
+                            Err(e) => {
+                                web_sys::console::error_1(&e);
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                    }
+                }
+                making_offer.borrow_mut().insert(peer_id, false);
+            });
+        }) as Box<dyn FnMut()>);
+        pc.set_onnegotiationneeded(Some(on_negotiation_needed.as_ref().unchecked_ref()));
+        on_negotiation_needed.forget();
 
         Ok(pc)
     }
@@ -118,6 +164,8 @@ impl WebRTCManager {
     pub fn handle_participant_joined(&self, peer_id: String) {
         let peers = self.peers.clone();
         let this = self.clone();
+        let _pending_candidates = self.pending_candidates.clone();
+
         spawn_local(async move {
             if let Ok(pc) = this.create_peer_connection(&peer_id) {
                 // Ensure we close any existing connection before overwriting
@@ -125,32 +173,20 @@ impl WebRTCManager {
                     old_pc.close();
                 }
 
-                // Create Offer
-                let options = web_sys::RtcOfferOptions::new();
-                options.set_offer_to_receive_audio(true);
-                options.set_offer_to_receive_video(true);
+                // If remote description already pending (unlikely in 'joined' but good hygiene)
+                // Actually in 'joined' we are initiating usually, or expecting them to initiate.
+                // If we are polite/impolite logic decides.
+                // But pending candidates might exist from early ICE messages
 
-                let offer_promise = pc.create_offer_with_rtc_offer_options(&options);
-                match JsFuture::from(offer_promise).await {
-                    Ok(offer) => {
-                        let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
-                        let set_local_promise = pc.set_local_description(&sdp);
-                        if JsFuture::from(set_local_promise).await.is_ok() {
-                             // Send Offer
-                             if let Some(desc) = pc.local_description() {
-                                 let sdp_str = desc.sdp();
-                                 let msg = shared::ClientMessage::Offer {
-                                     target_id: peer_id,
-                                     sdp: sdp_str,
-                                 };
-                                 (this.send_signal)(msg);
-                             }
-                        }
-                    }
-                    Err(e) => {
-                        web_sys::console::error_1(&e);
-                    }
-                }
+                // Flush pending candidates if we are somehow ready?
+                // No, we can only add candidates after remote description is set.
+                // But wait, if we are the Offerer, we set remote description later (Answer).
+                // So candidates wait.
+
+                // create_peer_connection attaches onnegotiationneeded which will fire automatically
+                // because we added tracks inside it.
+                // So we do NOT need to manually create offer here anymore!
+                // The browser will fire 'negotiationneeded' and our handler will create the offer.
             }
         });
     }
@@ -160,6 +196,8 @@ impl WebRTCManager {
             pc.close();
         }
         self.pending_candidates.borrow_mut().remove(peer_id);
+        self.making_offer.borrow_mut().remove(peer_id);
+        self.ignore_offer.borrow_mut().remove(peer_id);
     }
 
     pub fn close_all_peers(&self) {
@@ -169,6 +207,8 @@ impl WebRTCManager {
         }
         peers.clear();
         self.pending_candidates.borrow_mut().clear();
+        self.making_offer.borrow_mut().clear();
+        self.ignore_offer.borrow_mut().clear();
     }
 
     pub fn handle_offer(&self, source_id: String, sdp: String) {
@@ -176,8 +216,12 @@ impl WebRTCManager {
         let this = self.clone();
         let my_id = self.my_id.get_untracked();
         let pending_candidates = self.pending_candidates.clone();
+        let making_offer_map = self.making_offer.clone();
+        let ignore_offer_map = self.ignore_offer.clone();
 
         spawn_local(async move {
+            // Address Bug 2: Queue ICE candidates for unknown peers is handled in handle_ice_candidate.
+            // But here we need to ensure we use the existing or create new PC.
             let pc = if let Some(pc) = peers.borrow().get(&source_id) {
                 pc.clone()
             } else if let Ok(pc) = this.create_peer_connection(&source_id) {
@@ -195,21 +239,33 @@ impl WebRTCManager {
             let is_polite = if let Some(my) = &my_id {
                 my.as_str() < source_id.as_str()
             } else {
-                true // Fallback to polite if my_id unknown? Or fail?
+                true // Fallback to polite
             };
 
             let signaling_state = pc.signaling_state();
+            let making_offer = making_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
 
-            // Checks for collision: we have sent an offer (have-local-offer) but received one.
-            if signaling_state != web_sys::RtcSignalingState::Stable {
+            let offer_collision = making_offer || signaling_state != web_sys::RtcSignalingState::Stable;
+
+            if offer_collision {
                 if !is_polite {
-                    // Impolite peer ignores the offer
+                    ignore_offer_map.borrow_mut().insert(source_id.clone(), true);
                     return;
                 }
-                // Polite peer accepts offer. Explicit rollback for compatibility/robustness.
+
+                // If polite, we accept the offer.
+                // If we are HaveLocalOffer, we must rollback to accept the new offer.
+                // But in 'Perfect Negotiation' spec, setRemoteDescription automatically rolls back?
+                // No, standard WebRTC API requires explicit rollback usually, or Promise.all logic.
+                // The MDN example uses:
+                // if (offerCollision) {
+                //   if (!polite) return;
+                //   // Promise.all([pc.setLocalDescription({type: "rollback"}), pc.setRemoteDescription(offer)])
+                // }
+
                 if signaling_state == web_sys::RtcSignalingState::HaveLocalOffer {
-                    let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
-                    let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
+                     let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
+                     let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
                 }
             }
 
@@ -218,6 +274,8 @@ impl WebRTCManager {
 
             let set_remote_promise = pc.set_remote_description(&desc_init);
             if JsFuture::from(set_remote_promise).await.is_ok() {
+                ignore_offer_map.borrow_mut().insert(source_id.clone(), false);
+
                 // Flush pending candidates
                 if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
                     for cand in candidates {
@@ -249,7 +307,14 @@ impl WebRTCManager {
     pub fn handle_answer(&self, source_id: String, sdp: String) {
         let peers = self.peers.clone();
         let pending_candidates = self.pending_candidates.clone();
+        let ignore_offer_map = self.ignore_offer.clone();
+
         spawn_local(async move {
+            let ignore = ignore_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
+            if ignore {
+                return;
+            }
+
             let pc = peers.borrow().get(&source_id).cloned();
             if let Some(pc) = pc {
                 let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
@@ -278,17 +343,27 @@ impl WebRTCManager {
     ) {
         let peers = self.peers.clone();
         let pending_candidates = self.pending_candidates.clone();
-        spawn_local(async move {
-            let pc = peers.borrow().get(&source_id).cloned();
-            if let Some(pc) = pc {
-                let init = RtcIceCandidateInit::new(&candidate);
-                if let Some(mid) = sdp_mid {
-                    init.set_sdp_mid(Some(&mid));
-                }
-                if let Some(idx) = sdp_m_line_index {
-                    init.set_sdp_m_line_index(Some(idx));
-                }
+        let ignore_offer_map = self.ignore_offer.clone();
 
+        spawn_local(async move {
+            // Address Bug 2: Queue candidates even if peer doesn't exist yet
+            let init = RtcIceCandidateInit::new(&candidate);
+            if let Some(mid) = sdp_mid {
+                init.set_sdp_mid(Some(&mid));
+            }
+            if let Some(idx) = sdp_m_line_index {
+                init.set_sdp_m_line_index(Some(idx));
+            }
+
+            // Check if we should ignore (glare handling)
+            let ignore = ignore_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
+            if ignore {
+                 return;
+            }
+
+            let pc_opt = peers.borrow().get(&source_id).cloned();
+
+            if let Some(pc) = pc_opt {
                 if pc.remote_description().is_some() {
                     if let Ok(cand) = RtcIceCandidate::new(&init) {
                         let promise = pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&cand));
@@ -300,6 +375,12 @@ impl WebRTCManager {
                         .or_insert_with(Vec::new)
                         .push(init);
                 }
+            } else {
+                // Bug 2 Fix: Queue even if PC is None
+                pending_candidates.borrow_mut()
+                    .entry(source_id)
+                    .or_insert_with(Vec::new)
+                    .push(init);
             }
         });
     }
@@ -319,7 +400,7 @@ impl WebRTCManager {
             };
 
             // Iterate over all connected peers
-            for (peer_id, pc) in peer_entries {
+            for (_peer_id, pc) in peer_entries {
                 let this = this.clone();
 
                 let camera_stream = this.local_stream.get_untracked();
@@ -401,27 +482,9 @@ impl WebRTCManager {
                      }
                 }
 
-                // Trigger renegotiation (Offer) if state is stable to avoid glare
-                // Both peers can renegotiate when tracks change. Glare is handled in handle_offer.
-                if pc.signaling_state() == web_sys::RtcSignalingState::Stable {
-                    let options = web_sys::RtcOfferOptions::new();
-                    options.set_offer_to_receive_audio(true);
-                    options.set_offer_to_receive_video(true);
-
-                    if let Ok(offer) = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
-                        let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
-                        if JsFuture::from(pc.set_local_description(&sdp)).await.is_ok() {
-                            if let Some(desc) = pc.local_description() {
-                                let sdp_str = desc.sdp();
-                                let msg = shared::ClientMessage::Offer {
-                                    target_id: peer_id,
-                                    sdp: sdp_str,
-                                };
-                                (this.send_signal)(msg);
-                            }
-                        }
-                    }
-                }
+                // Removed manual offer creation logic.
+                // onnegotiationneeded handler (added in create_peer_connection) will trigger
+                // because we added/removed tracks above.
             }
         });
     }
