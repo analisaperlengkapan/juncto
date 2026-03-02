@@ -362,6 +362,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 false
                                                             }
                                                         },
+                                                        ServerMessage::ParticipantJoined(p) | ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::ParticipantLeft(id) | ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
                                                         _ => true,
                                                     };
 
@@ -378,7 +390,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                     let current_list: Vec<Participant> = {
                                         let participants = participants_mutex.lock().unwrap();
-                                        participants.values().cloned().collect()
+                                        let locs = participant_locations_mutex.lock().unwrap();
+                                        participants.values().filter(|p| {
+                                            locs.get(&p.id).cloned().flatten() == None
+                                        }).cloned().collect()
                                     };
                                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
@@ -565,11 +580,24 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
+                                        let me = {
+                                            let participants = participants_mutex.lock().unwrap();
+                                            participants.get(uid).cloned()
+                                        };
+
+                                        // Broadcast leave to current room (before location update)
+                                        let _ = tx.send(ServerMessage::ParticipantLeft(uid.clone()));
+
                                         match breakout::join_breakout_room(uid, room_id, &state) {
                                             Ok((new_rid, msgs)) => {
                                                 my_room_id = new_rid;
                                                 for msg in msgs {
                                                     let _ = internal_tx.send(msg).await;
+                                                }
+
+                                                // Broadcast join to new room (after location update)
+                                                if let Some(p) = me {
+                                                    let _ = tx.send(ServerMessage::ParticipantJoined(p));
                                                 }
                                             },
                                             Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
@@ -843,6 +871,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         false
                                                     }
                                                 },
+                                                        ServerMessage::ParticipantJoined(p) | ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::ParticipantLeft(id) | ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
                                                 _ => true,
                                             };
 
@@ -859,7 +899,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                             let current_list: Vec<Participant> = {
                                 let participants = participants_mutex.lock().unwrap();
-                                participants.values().cloned().collect()
+                                        let locs = participant_locations_mutex.lock().unwrap();
+                                        participants.values().filter(|p| {
+                                            locs.get(&p.id).cloned().flatten() == None
+                                        }).cloned().collect()
                             };
                             let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
