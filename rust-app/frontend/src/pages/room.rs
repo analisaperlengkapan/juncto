@@ -27,7 +27,6 @@ pub fn Room() -> impl IntoView {
     let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
 
     let state = use_room_state();
-    let navigate = use_navigate();
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
@@ -41,7 +40,22 @@ pub fn Room() -> impl IntoView {
     });
 
     let leave_room = Callback::new(move |_| {
-        navigate("/", Default::default());
+        if let Some(window) = web_sys::window() {
+            let _ = window.location().set_href("/");
+        }
+    });
+
+    let state_end_meeting = state.end_meeting.clone();
+    let end_meeting_and_leave = Callback::new(move |_| {
+        state_end_meeting.call(());
+        set_timeout(
+            move || {
+                if let Some(window) = web_sys::window() {
+                    let _ = window.location().set_href("/");
+                }
+            },
+            std::time::Duration::from_millis(200),
+        );
     });
 
     // Meeting Timer
@@ -126,6 +140,7 @@ pub fn Room() -> impl IntoView {
                                             my_id=state.my_id
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
+                                            remote_streams=state.remote_streams
                                         />
                                     </div>
                                 </div>
@@ -167,7 +182,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
                                 on_leave=leave_room
-                                on_end_meeting=state.end_meeting
+                                on_end_meeting=end_meeting_and_leave
                             />
                         </div>
                         <div style=move || if show_chat.get() { "display: block;" } else { "display: none;" }>

@@ -19,7 +19,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
     let (selected_audio_device, set_selected_audio_device) = create_signal(None::<String>);
 
     // Toggles
-    let (is_camera_on, set_is_camera_on) = create_signal(true);
+    let (is_camera_on, set_is_camera_on) = create_signal(false);
     let (is_mic_on, set_is_mic_on) = create_signal(true);
 
     // Stream & Audio Monitor
@@ -262,6 +262,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
                 </div>
 
                 <button
+                    class="join-btn"
                     on:click=handle_join
                     style="padding: 12px 24px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;"
                 >

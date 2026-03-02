@@ -1,11 +1,12 @@
 use crate::components_ui::toast::{use_toast, ToastType};
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
+use crate::webrtc::WebRTCManager;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use shared::{
     ChatMessage, ClientMessage, DrawAction, FileAttachment, Participant, Poll, ServerMessage,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MediaStream, MessageEvent, WebSocket};
@@ -58,6 +59,7 @@ pub struct RoomState {
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
+    pub remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     #[allow(dead_code)]
     pub selected_camera_id: ReadSignal<Option<String>>,
     #[allow(dead_code)]
@@ -140,6 +142,96 @@ pub fn use_room_state() -> RoomState {
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
 
+    let (remote_streams, set_remote_streams) =
+        create_signal(HashMap::<String, Vec<MediaStream>>::new());
+
+    // WebRTC Manager Setup
+    let ws_clone_for_webrtc = ws;
+    let send_signal_cb = move |msg: ClientMessage| {
+        if let Some(socket) = ws_clone_for_webrtc.get_untracked() {
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    };
+
+    let on_track_cb_clone = set_remote_streams;
+    let on_track_cb = move |peer_id: String, stream: MediaStream| {
+        // Add cleanup listener for tracks
+        let tracks = stream.get_tracks();
+        for i in 0..tracks.length() {
+            if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                let peer_id_clone = peer_id.clone();
+                let stream_id = stream.id();
+                let set_remote_streams = on_track_cb_clone; // captured
+
+                let onended = Closure::wrap(Box::new(move || {
+                    set_remote_streams.update(|map| {
+                        if let Some(streams) = map.get_mut(&peer_id_clone) {
+                            streams.retain(|s| {
+                                // If the stream matches the one ending, check if it's still active
+                                if s.id() == stream_id {
+                                    s.active()
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    });
+                }) as Box<dyn FnMut()>);
+                track.set_onended(Some(onended.as_ref().unchecked_ref()));
+                onended.forget();
+            }
+        }
+
+        set_remote_streams.update(|map| {
+            // Append the new stream to the list for this peer, checking for duplicates
+            let streams = map.entry(peer_id).or_insert_with(Vec::new);
+            let stream_id = stream.id();
+            if !streams.iter().any(|s| s.id() == stream_id) {
+                streams.push(stream);
+            }
+        });
+    };
+
+    let webrtc_manager = WebRTCManager::new(
+        send_signal_cb,
+        on_track_cb,
+        local_stream.into(),
+        local_screen_stream.into(),
+        my_id.into(),
+    );
+
+    // Dynamic Stream Handling: Initiate connections when local stream becomes available
+    let participants_for_effect = participants;
+    let my_id_for_effect = my_id;
+    let webrtc_manager_clone = webrtc_manager.clone();
+
+    create_effect(move |_| {
+        // Run when my_id or local_stream changes
+        let my_id_val = my_id_for_effect.get();
+        // We track local_stream and local_screen_stream to trigger track updates
+        let _ = local_stream.get();
+        let _ = local_screen_stream.get();
+
+        if let Some(me) = my_id_val {
+            // Update tracks for existing connections (e.g. from incoming offers)
+            // This is safe to call even if local_stream is None (it effectively clears tracks or does nothing)
+            webrtc_manager_clone.update_local_tracks();
+
+            let list = participants_for_effect.get_untracked();
+            for p in list {
+                if p.id != me {
+                    // Only initiate connection if one doesn't exist AND I am the impolite peer (higher ID)
+                    // Deterministic rule: Higher ID initiates.
+                    if !webrtc_manager_clone.has_peer(&p.id) && me > p.id {
+                        webrtc_manager_clone.handle_participant_joined(p.id);
+                    }
+                }
+            }
+        }
+    });
+
     // Internal state to trigger media start after joining
     let (start_media_on_join, set_start_media_on_join) = create_signal(false);
     let (initial_cam_on, set_initial_cam_on) = create_signal(false);
@@ -172,19 +264,6 @@ pub fn use_room_state() -> RoomState {
 
     // Extract start_media_stream logic
     let start_media_stream = Callback::new(move |enable_video: bool| {
-        // Stop existing stream tracks
-        if let Some(stream) = local_stream.get_untracked() {
-            let tracks = stream.get_tracks();
-            for i in 0..tracks.length() {
-                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                    track.stop();
-                }
-            }
-        }
-        // Don't set to None immediately to avoid flicker if possible, but for clean state -> None
-        set_local_stream.set(None);
-        set_audio_monitor.set(None);
-
         spawn_local(async move {
             let v_id = selected_camera_id.get_untracked();
             let a_id = selected_mic_id.get_untracked();
@@ -196,6 +275,17 @@ pub fn use_room_state() -> RoomState {
             // Assuming typical WebRTC flow: request audio=true.
 
             if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
+                // Stop existing stream tracks just before replacing
+                if let Some(old_stream) = local_stream.get_untracked() {
+                    let tracks = old_stream.get_tracks();
+                    for i in 0..tracks.length() {
+                        if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.stop();
+                        }
+                    }
+                }
+                set_audio_monitor.set(None); // Reset monitor for new stream
+
                 // Apply existing mute state to new stream
                 if is_muted.get_untracked() {
                     let audio_tracks = stream.get_audio_tracks();
@@ -227,6 +317,7 @@ pub fn use_room_state() -> RoomState {
     });
 
     // Initialize WebSocket
+    let webrtc_manager_for_ws = webrtc_manager.clone();
     create_effect(move |_| {
         // Ensure my_id is reset on new connection logic if needed, but here we just connect.
         // Actually, if we reconnect, we might get a new ID.
@@ -248,6 +339,7 @@ pub fn use_room_state() -> RoomState {
 
         if let Ok(socket) = WebSocket::new(&url) {
             // Handle incoming messages
+            let webrtc_manager = webrtc_manager_for_ws.clone();
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                 if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                     let txt: String = txt.into();
@@ -301,23 +393,46 @@ pub fn use_room_state() -> RoomState {
                                     .update(|list| list.retain(|x| x.id != p.id));
                                 set_participants.update(|list| {
                                     if !list.iter().any(|x| x.id == p.id) {
-                                        list.push(p);
+                                        list.push(p.clone());
                                     }
                                 });
+
+                                // Initiate WebRTC connection (Polite Peer)
+                                // Only connect if it's NOT me.
+                                // Deterministic initiation: Higher ID initiates.
+                                if let Some(me) = my_id.get_untracked() {
+                                    if me != p.id && me > p.id {
+                                        webrtc_manager.handle_participant_joined(p.id);
+                                    }
+                                }
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
                                 set_knocking_participants
                                     .update(|list| list.retain(|x| x.id != id));
                             }
-                            ServerMessage::ParticipantLeft(id) => {
+                            ServerMessage::ParticipantLeft { id, .. } => {
                                 set_participants.update(|list| list.retain(|p| p.id != id));
                                 // Remove from typing users if present
                                 set_typing_users.update(|users| {
                                     users.remove(&id);
                                 });
+                                // Cleanup WebRTC
+                                webrtc_manager.handle_participant_left(&id);
+                                set_remote_streams.update(|map| {
+                                    map.remove(&id);
+                                });
                             }
                             ServerMessage::ParticipantList(list) => {
-                                set_participants.set(list);
+                                set_participants.set(list.clone());
+
+                                // Initiate connections to existing peers if I am impolite (higher ID)
+                                if let Some(me) = my_id.get_untracked() {
+                                    for p in list {
+                                        if me > p.id {
+                                            webrtc_manager.handle_participant_joined(p.id);
+                                        }
+                                    }
+                                }
                             }
                             ServerMessage::Knocking => {
                                 set_current_state.set(RoomConnectionState::Lobby);
@@ -333,6 +448,9 @@ pub fn use_room_state() -> RoomState {
                                             "You have been kicked from the room.".to_string(),
                                             ToastType::Error,
                                         );
+                                        // Clean up WebRTC
+                                        webrtc_manager.close_all_peers();
+                                        set_remote_streams.set(HashMap::new());
                                         set_current_state.set(RoomConnectionState::Prejoin);
                                     }
                                 }
@@ -371,6 +489,9 @@ pub fn use_room_state() -> RoomState {
                                     "The meeting has ended by the host.".to_string(),
                                     ToastType::Info,
                                 );
+                                // Clean up WebRTC
+                                webrtc_manager.close_all_peers();
+                                set_remote_streams.set(HashMap::new());
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
                                 set_is_connected.set(false);
@@ -469,6 +590,29 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
                             }
+                            ServerMessage::Offer { source_id, sdp, .. } => {
+                                // Always handle offer even if local stream is not ready.
+                                // We can answer without local tracks, and add them later via update_local_tracks()
+                                // when the stream becomes available (handled by the create_effect above).
+                                webrtc_manager.handle_offer(source_id, sdp);
+                            }
+                            ServerMessage::Answer { source_id, sdp, .. } => {
+                                webrtc_manager.handle_answer(source_id, sdp);
+                            }
+                            ServerMessage::IceCandidate {
+                                source_id,
+                                candidate,
+                                sdp_mid,
+                                sdp_m_line_index,
+                                ..
+                            } => {
+                                webrtc_manager.handle_ice_candidate(
+                                    source_id,
+                                    candidate,
+                                    sdp_mid,
+                                    sdp_m_line_index,
+                                );
+                            }
                         }
                     }
                 }
@@ -501,10 +645,12 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_cleanup = webrtc_manager.clone();
     on_cleanup(move || {
         if let Some(socket) = ws.get() {
             let _ = socket.close();
         }
+        webrtc_manager_cleanup.close_all_peers();
     });
 
     let send_message = Callback::new(
@@ -600,6 +746,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_for_screen = webrtc_manager.clone();
     let toggle_screen_share = Callback::new(move |_: ()| {
         if local_screen_stream.get().is_some() {
             // Stop sharing
@@ -612,6 +759,7 @@ pub fn use_room_state() -> RoomState {
                 }
             }
             set_local_screen_stream.set(None);
+            webrtc_manager_for_screen.update_local_tracks();
 
             // Notify server stopped
             if let Some(socket) = ws.get() {
@@ -622,10 +770,13 @@ pub fn use_room_state() -> RoomState {
             }
         } else {
             // Start sharing
+            let webrtc_manager_for_spawn = webrtc_manager_for_screen.clone();
             spawn_local(async move {
                 match get_display_media().await {
                     Ok(stream) => {
                         set_local_screen_stream.set(Some(stream));
+                        webrtc_manager_for_spawn.update_local_tracks();
+
                         // Notify server started
                         if let Some(socket) = ws.get() {
                             let msg = ClientMessage::ToggleScreenShare;
@@ -698,6 +849,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    // Removed unused variable webrtc_manager_for_breakout
     let create_breakout_room = Callback::new(move |name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::CreateBreakoutRoom(name);
@@ -707,10 +859,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let webrtc_manager_for_breakout = webrtc_manager.clone();
     let join_breakout_room = Callback::new(move |room_id: Option<String>| {
         set_current_room_id.set(room_id.clone());
-        // Clear messages when switching rooms? Maybe.
+        // Clear messages when switching rooms
         set_messages.set(Vec::new());
+
+        // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
+        webrtc_manager_for_breakout.close_all_peers();
+        set_remote_streams.set(HashMap::new());
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::JoinBreakoutRoom(room_id);
@@ -873,6 +1030,7 @@ pub fn use_room_state() -> RoomState {
         show_virtual_background,
         show_feedback,
         rtt,
+        remote_streams,
         selected_camera_id,
         selected_mic_id,
         video_resolution,

@@ -1,6 +1,7 @@
 use leptos::*;
 use shared::Participant;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use wasm_bindgen::JsCast;
 use web_sys::MediaStream;
 
 #[derive(Clone, PartialEq)]
@@ -46,6 +47,7 @@ pub fn VideoGrid(
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
+    remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -175,10 +177,6 @@ pub fn VideoGrid(
                                 "".to_string()
                             };
 
-                            // Bug 9 Fix: Basic handling for non-YouTube
-                            // If video_id is empty but we have a url, maybe show error or just ignore.
-                            // For now, if empty, we won't render iframe source correctly.
-
                             let embed_url = if !video_id.is_empty() {
                                 format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
                             } else {
@@ -206,20 +204,118 @@ pub fn VideoGrid(
                             let is_screen = item.is_screen();
                             let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
                             let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                            let initial_char = store_value(initial_char);
                             let is_hand_raised = p.is_hand_raised;
                             let id_clone = p.id.clone();
+                            let id_clone_2 = id_clone.clone();
                             let is_speaking = move || speaking_peers.get().contains(&id_clone);
 
+                            // Remote Stream Logic
+                            let remote_video_ref = create_node_ref::<html::Video>();
+                            let stream_signal = Signal::derive(move || {
+                                // Performance: Use .with() to avoid cloning the entire HashMap of streams
+                                remote_streams.with(|map| {
+                                    if let Some(streams) = map.get(&id_clone_2) {
+                                        if is_screen {
+                                            // Bug 4: Stream disambiguation relies on displaySurface (not universally supported).
+                                            // Fallback assumes second stream is screen share.
+
+                                            // Try to find a stream with displaySurface (best effort)
+                                            let screen_stream = streams.iter().find(|s| {
+                                            let tracks = s.get_video_tracks();
+                                            for i in 0..tracks.length() {
+                                                let track_val = tracks.get(i);
+                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    let settings = track.get_settings();
+                                                    // use Reflect to check displaySurface prop safely
+                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                        if !val.is_undefined() {
+                                                            return true;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            false
+                                        });
+
+                                        if let Some(s) = screen_stream {
+                                            return Some(s.clone());
+                                        }
+
+                                        // Fallback: use second stream if available (assuming order: camera, screen)
+                                        if streams.len() > 1 {
+                                            Some(streams[1].clone())
+                                        } else {
+                                            streams.first().cloned()
+                                        }
+                                    } else {
+                                        // User card: use the first stream (or one that isn't screen)
+                                         let camera_stream = streams.iter().find(|s| {
+                                            let tracks = s.get_video_tracks();
+                                            for i in 0..tracks.length() {
+                                                let track_val = tracks.get(i);
+                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    let settings = track.get_settings();
+                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                        if !val.is_undefined() {
+                                                            return false; // This is a screen
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            true // Assume camera if no displaySurface
+                                        });
+
+                                        if let Some(s) = camera_stream {
+                                            Some(s.clone())
+                                        } else {
+                                            streams.first().cloned()
+                                        }
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })
+                            });
+
+                            create_effect(move |_| {
+                                if let Some(video) = remote_video_ref.get() {
+                                    if let Some(s) = stream_signal.get() {
+                                        video.set_src_object(Some(&s));
+                                        let _ = video.play();
+                                    } else {
+                                        video.set_src_object(None);
+                                    }
+                                }
+                            });
+
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {};", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
-                                    <Show when=move || is_screen fallback=move || view!{
-                                        <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                            {initial_char.clone()}
-                                        </div>
+                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                    <Show when=move || stream_signal.get().is_some() fallback=move || {
+                                        if is_screen {
+                                            view! {
+                                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
+                                                    "Waiting for screen..."
+                                                </div>
+                                            }.into_view()
+                                        } else {
+                                            view! {
+                                                <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                                    {initial_char.with_value(|c| c.clone())}
+                                                </div>
+                                            }.into_view()
+                                        }
                                     }>
-                                        <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
-                                            "Remote Screen"
-                                        </div>
+                                        <video
+                                            node_ref=remote_video_ref
+                                            autoplay
+                                            playsinline
+                                            style=move || if is_screen {
+                                                "width: 100%; height: 100%; object-fit: contain;"
+                                            } else {
+                                                "width: 100%; height: 100%; object-fit: cover;"
+                                            }
+                                        />
                                     </Show>
 
                                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">

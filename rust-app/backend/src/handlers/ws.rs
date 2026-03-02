@@ -132,8 +132,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                             // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
+
+                                            // Fetch target's location before removal to broadcast Left accurately
+                                            let target_loc = {
+                                                let locations = participant_locations_mutex.lock().unwrap();
+                                                locations.get(&target_id).cloned().flatten()
+                                            };
                                             // 5. Broadcast ParticipantLeft (so lists update)
-                                            let _ = tx.send(ServerMessage::ParticipantLeft(target_id));
+                                            let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
                                     }
                                 },
@@ -350,6 +356,49 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             };
                                                             *room_id == my_loc
                                                         },
+                                                        ServerMessage::Offer { source_id, target_id, .. }
+                                                        | ServerMessage::Answer { source_id, target_id, .. }
+                                                        | ServerMessage::IceCandidate { source_id, target_id, .. } => {
+                                                            if *target_id == my_id_clone {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(source_id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            } else {
+                                                                false
+                                                            }
+                                                        },
+                                                        ServerMessage::ParticipantJoined(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            // Deliver to same room OR if it's an update about myself
+                                                            my_loc == source_loc || p.id == my_id_clone
+                                                        },
+                                                        ServerMessage::ParticipantLeft { id, room_id } => {
+                                                            // Don't deliver ParticipantLeft to the person who is leaving (e.g. during room switch)
+                                                            if *id == my_id_clone {
+                                                                false
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                // Use the room_id embedded in the message instead of looking it up
+                                                                my_loc == *room_id
+                                                            }
+                                                        },
+                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(id).cloned().flatten();
+                                                            // Deliver to same room OR if it's a command directed at myself
+                                                            my_loc == source_loc || *id == my_id_clone
+                                                        },
                                                         _ => true,
                                                     };
 
@@ -366,7 +415,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                     let current_list: Vec<Participant> = {
                                         let participants = participants_mutex.lock().unwrap();
-                                        participants.values().cloned().collect()
+                                        let locs = participant_locations_mutex.lock().unwrap();
+                                        participants.values().filter(|p| {
+                                            locs.get(&p.id).cloned().flatten().is_none()
+                                        }).cloned().collect()
                                     };
                                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
@@ -553,14 +605,47 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
+                                        // Pre-validate room existence to prevent false ParticipantLeft broadcasts
+                                        let is_valid = match &room_id {
+                                            Some(rid) => state.breakout_rooms.lock().unwrap().contains_key(rid),
+                                            None => true,
+                                        };
+
+                                        if !is_valid {
+                                            let _ = internal_tx.send(ServerMessage::Error("Breakout room not found".to_string())).await;
+                                            continue;
+                                        }
+
+                                        let me = {
+                                            let participants = participants_mutex.lock().unwrap();
+                                            participants.get(uid).cloned()
+                                        };
+
+                                        // Capture current location to embed in the leave message
+                                        let old_room = {
+                                            let locations = participant_locations_mutex.lock().unwrap();
+                                            locations.get(uid).cloned().flatten()
+                                        };
+
+                                        // Broadcast leave using the embedded location, immune to async races
+                                        let _ = tx.send(ServerMessage::ParticipantLeft { id: uid.clone(), room_id: old_room });
+
                                         match breakout::join_breakout_room(uid, room_id, &state) {
                                             Ok((new_rid, msgs)) => {
                                                 my_room_id = new_rid;
                                                 for msg in msgs {
                                                     let _ = internal_tx.send(msg).await;
                                                 }
+
+                                                // Broadcast join to new room (after location update)
+                                                if let Some(p) = me {
+                                                    let _ = tx.send(ServerMessage::ParticipantJoined(p));
+                                                }
                                             },
-                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                            Err(e) => {
+                                                // Should not be hit due to pre-validation, but included for safety
+                                                let _ = internal_tx.send(ServerMessage::Error(e)).await;
+                                            }
                                         }
                                     }
                                 },
@@ -693,6 +778,35 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Ping => {
                                     let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
+                                },
+                                ClientMessage::Offer { target_id, sdp } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::Offer {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            sdp,
+                                        });
+                                    }
+                                },
+                                ClientMessage::Answer { target_id, sdp } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::Answer {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            sdp,
+                                        });
+                                    }
+                                },
+                                ClientMessage::IceCandidate { target_id, candidate, sdp_mid, sdp_m_line_index } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::IceCandidate {
+                                            source_id: uid.clone(),
+                                            target_id,
+                                            candidate,
+                                            sdp_mid,
+                                            sdp_m_line_index,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -790,6 +904,46 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     };
                                                     *room_id == my_loc
                                                 },
+                                                ServerMessage::Offer { source_id, target_id, .. }
+                                                | ServerMessage::Answer { source_id, target_id, .. }
+                                                | ServerMessage::IceCandidate { source_id, target_id, .. } => {
+                                                    if *target_id == my_id_clone {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                        let source_loc = locs.get(source_id).cloned().flatten();
+                                                        my_loc == source_loc
+                                                    } else {
+                                                        false
+                                                    }
+                                                },
+                                                        ServerMessage::ParticipantJoined(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc || p.id == my_id_clone
+                                                        },
+                                                        ServerMessage::ParticipantLeft { id, room_id } => {
+                                                            if *id == my_id_clone {
+                                                                false
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                // Use the room_id embedded in the message instead of looking it up
+                                                                my_loc == *room_id
+                                                            }
+                                                        },
+                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(id).cloned().flatten();
+                                                            my_loc == source_loc || *id == my_id_clone
+                                                        },
                                                 _ => true,
                                             };
 
@@ -806,7 +960,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                             let current_list: Vec<Participant> = {
                                 let participants = participants_mutex.lock().unwrap();
-                                participants.values().cloned().collect()
+                                        let locs = participant_locations_mutex.lock().unwrap();
+                                        participants.values().filter(|p| {
+                                            locs.get(&p.id).cloned().flatten().is_none()
+                                        }).cloned().collect()
                             };
                             let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
 
@@ -913,7 +1070,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let _ = tx.send(ServerMessage::RoomUpdated(new_config));
         }
 
-        let _ = tx.send(ServerMessage::ParticipantLeft(id.clone()));
+        // Fetch location before cleanup to embed in message
+        let old_room = {
+            let locations = participant_locations_mutex.lock().unwrap();
+            locations.get(&id).cloned().flatten()
+        };
+
+        let _ = tx.send(ServerMessage::ParticipantLeft {
+            id: id.clone(),
+            room_id: old_room,
+        });
 
         // Cleanup location
         {
