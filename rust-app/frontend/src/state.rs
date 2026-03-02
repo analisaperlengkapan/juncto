@@ -142,15 +142,16 @@ pub fn use_room_state() -> RoomState {
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
 
-    let (remote_streams, set_remote_streams) = create_signal(HashMap::<String, Vec<MediaStream>>::new());
+    let (remote_streams, set_remote_streams) =
+        create_signal(HashMap::<String, Vec<MediaStream>>::new());
 
     // WebRTC Manager Setup
     let ws_clone_for_webrtc = ws;
     let send_signal_cb = move |msg: ClientMessage| {
         if let Some(socket) = ws_clone_for_webrtc.get_untracked() {
-             if let Ok(json) = serde_json::to_string(&msg) {
-                 let _ = socket.send_with_str(&json);
-             }
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
         }
     };
 
@@ -598,8 +599,19 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Answer { source_id, sdp, .. } => {
                                 webrtc_manager.handle_answer(source_id, sdp);
                             }
-                            ServerMessage::IceCandidate { source_id, candidate, sdp_mid, sdp_m_line_index, .. } => {
-                                webrtc_manager.handle_ice_candidate(source_id, candidate, sdp_mid, sdp_m_line_index);
+                            ServerMessage::IceCandidate {
+                                source_id,
+                                candidate,
+                                sdp_mid,
+                                sdp_m_line_index,
+                                ..
+                            } => {
+                                webrtc_manager.handle_ice_candidate(
+                                    source_id,
+                                    candidate,
+                                    sdp_mid,
+                                    sdp_m_line_index,
+                                );
                             }
                         }
                     }
@@ -863,7 +875,6 @@ pub fn use_room_state() -> RoomState {
                 let _ = socket.send_with_str(&json);
             }
         }
-
     });
 
     let kick_participant = Callback::new(move |id: String| {

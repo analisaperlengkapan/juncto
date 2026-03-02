@@ -1,5 +1,5 @@
 use crate::AppState;
-use shared::{BreakoutRoom, ServerMessage, Participant};
+use shared::{BreakoutRoom, Participant, ServerMessage};
 use std::sync::Arc;
 
 pub fn create_breakout_room(
@@ -72,10 +72,14 @@ pub fn join_breakout_room(
         let all_participants = state.participants.lock().unwrap();
         let locations = state.participant_locations.lock().unwrap();
 
-        all_participants.values().filter(|p| {
-             let loc = locations.get(&p.id).cloned().flatten();
-             loc == room_id
-        }).cloned().collect()
+        all_participants
+            .values()
+            .filter(|p| {
+                let loc = locations.get(&p.id).cloned().flatten();
+                loc == room_id
+            })
+            .cloned()
+            .collect()
     };
     messages.push(ServerMessage::ParticipantList(participants));
 

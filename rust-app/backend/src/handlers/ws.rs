@@ -1076,7 +1076,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             locations.get(&id).cloned().flatten()
         };
 
-        let _ = tx.send(ServerMessage::ParticipantLeft { id: id.clone(), room_id: old_room });
+        let _ = tx.send(ServerMessage::ParticipantLeft {
+            id: id.clone(),
+            room_id: old_room,
+        });
 
         // Cleanup location
         {

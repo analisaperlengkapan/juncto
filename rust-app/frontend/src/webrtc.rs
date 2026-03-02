@@ -6,8 +6,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    MediaStream, RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection, RtcPeerConnectionIceEvent,
-    RtcSdpType, RtcSessionDescriptionInit, RtcTrackEvent,
+    MediaStream, RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection,
+    RtcPeerConnectionIceEvent, RtcSdpType, RtcSessionDescriptionInit, RtcTrackEvent,
 };
 
 type PeerId = String;
@@ -91,7 +91,8 @@ impl WebRTCManager {
                 };
                 (send_signal)(msg);
             }
-        }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
+        })
+            as Box<dyn FnMut(RtcPeerConnectionIceEvent)>);
         pc.set_onicecandidate(Some(on_ice_candidate.as_ref().unchecked_ref()));
         on_ice_candidate.forget();
 
@@ -129,7 +130,8 @@ impl WebRTCManager {
                     options.set_offer_to_receive_video(true);
 
                     // Create Offer
-                    let offer = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await?;
+                    let offer =
+                        JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await?;
                     let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
 
                     // Set Local Description
@@ -144,7 +146,8 @@ impl WebRTCManager {
                         (send_signal)(msg);
                     }
                     Ok(())
-                }.await;
+                }
+                .await;
 
                 if let Err(e) = result {
                     web_sys::console::error_1(&e);
@@ -244,9 +247,14 @@ impl WebRTCManager {
             };
 
             let signaling_state = pc.signaling_state();
-            let making_offer = making_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
+            let making_offer = making_offer_map
+                .borrow()
+                .get(&source_id)
+                .cloned()
+                .unwrap_or(false);
 
-            let offer_collision = making_offer || signaling_state != web_sys::RtcSignalingState::Stable;
+            let offer_collision =
+                making_offer || signaling_state != web_sys::RtcSignalingState::Stable;
 
             if offer_collision {
                 if !is_polite {
@@ -259,8 +267,8 @@ impl WebRTCManager {
                 // If polite, we accept the offer.
                 // If we are HaveLocalOffer, we must rollback to accept the new offer.
                 if signaling_state == web_sys::RtcSignalingState::HaveLocalOffer {
-                     let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
-                     let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
+                    let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
+                    let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
                 }
             }
 
@@ -273,7 +281,10 @@ impl WebRTCManager {
                 if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
                     for cand in candidates {
                         if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
-                            let _ = JsFuture::from(pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&rtc_cand))).await;
+                            let _ = JsFuture::from(
+                                pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&rtc_cand)),
+                            )
+                            .await;
                         }
                     }
                 }
@@ -312,7 +323,12 @@ impl WebRTCManager {
                     if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
                         for cand in candidates {
                             if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
-                                let _ = JsFuture::from(pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&rtc_cand))).await;
+                                let _ = JsFuture::from(
+                                    pc.add_ice_candidate_with_opt_rtc_ice_candidate(Some(
+                                        &rtc_cand,
+                                    )),
+                                )
+                                .await;
                             }
                         }
                     }
@@ -350,14 +366,16 @@ impl WebRTCManager {
                         let _ = JsFuture::from(promise).await;
                     }
                 } else {
-                    pending_candidates.borrow_mut()
+                    pending_candidates
+                        .borrow_mut()
                         .entry(source_id)
                         .or_insert_with(Vec::new)
                         .push(init);
                 }
             } else {
                 // Bug 2 Fix: Queue even if PC is None
-                pending_candidates.borrow_mut()
+                pending_candidates
+                    .borrow_mut()
                     .entry(source_id)
                     .or_insert_with(Vec::new)
                     .push(init);
@@ -376,7 +394,10 @@ impl WebRTCManager {
         spawn_local(async move {
             let peer_entries: Vec<(String, RtcPeerConnection)> = {
                 let peers_map = peers.borrow();
-                peers_map.iter().map(|(id, pc)| (id.clone(), pc.clone())).collect()
+                peers_map
+                    .iter()
+                    .map(|(id, pc)| (id.clone(), pc.clone()))
+                    .collect()
             };
 
             // Iterate over all connected peers
@@ -391,15 +412,15 @@ impl WebRTCManager {
                 if let Some(s) = &camera_stream {
                     let tracks = s.get_tracks();
                     for track in tracks.iter() {
-                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
-                         valid_track_ids.push(track.id());
+                        let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                        valid_track_ids.push(track.id());
                     }
                 }
                 if let Some(s) = &screen_stream {
                     let tracks = s.get_tracks();
                     for track in tracks.iter() {
-                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
-                         valid_track_ids.push(track.id());
+                        let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                        valid_track_ids.push(track.id());
                     }
                 }
 
@@ -409,7 +430,7 @@ impl WebRTCManager {
                     let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
                     if let Some(track) = sender.track() {
                         if !valid_track_ids.contains(&track.id()) {
-                             let _ = pc.remove_track(&sender);
+                            let _ = pc.remove_track(&sender);
                         }
                     }
                 }
@@ -419,50 +440,50 @@ impl WebRTCManager {
 
                 // Add missing tracks (Camera)
                 if let Some(s) = &camera_stream {
-                     let tracks = s.get_tracks();
-                     for track in tracks.iter() {
-                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
-                         // Check if already sending
-                         let mut already_sending = false;
-                         for sender in current_senders.iter() {
-                             let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
-                             if let Some(t) = sender.track() {
-                                 if t.id() == track.id() {
-                                     already_sending = true;
-                                     break;
-                                 }
-                             }
-                         }
-                         if !already_sending {
-                             let streams = js_sys::Array::new();
-                             streams.push(s);
-                             let _ = pc.add_track(track, s, &streams);
-                         }
-                     }
+                    let tracks = s.get_tracks();
+                    for track in tracks.iter() {
+                        let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                        // Check if already sending
+                        let mut already_sending = false;
+                        for sender in current_senders.iter() {
+                            let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
+                            if let Some(t) = sender.track() {
+                                if t.id() == track.id() {
+                                    already_sending = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if !already_sending {
+                            let streams = js_sys::Array::new();
+                            streams.push(s);
+                            let _ = pc.add_track(track, s, &streams);
+                        }
+                    }
                 }
 
                 // Add missing tracks (Screen)
                 if let Some(s) = &screen_stream {
-                     let tracks = s.get_tracks();
-                     for track in tracks.iter() {
-                         let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
-                         // Check if already sending
-                         let mut already_sending = false;
-                         for sender in current_senders.iter() {
-                             let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
-                             if let Some(t) = sender.track() {
-                                 if t.id() == track.id() {
-                                     already_sending = true;
-                                     break;
-                                 }
-                             }
-                         }
-                         if !already_sending {
-                             let streams = js_sys::Array::new();
-                             streams.push(s);
-                             let _ = pc.add_track(track, s, &streams);
-                         }
-                     }
+                    let tracks = s.get_tracks();
+                    for track in tracks.iter() {
+                        let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
+                        // Check if already sending
+                        let mut already_sending = false;
+                        for sender in current_senders.iter() {
+                            let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
+                            if let Some(t) = sender.track() {
+                                if t.id() == track.id() {
+                                    already_sending = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if !already_sending {
+                            let streams = js_sys::Array::new();
+                            streams.push(s);
+                            let _ = pc.add_track(track, s, &streams);
+                        }
+                    }
                 }
 
                 // Removed manual offer creation logic.
