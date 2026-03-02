@@ -112,14 +112,30 @@ impl WebRTCManager {
         let making_offer_clone = self.making_offer.clone();
         let peer_id_clone_3 = peer_id.to_string();
         let send_signal_clone = self.send_signal.clone();
+        let my_id_clone = self.my_id.clone();
 
         let on_negotiation_needed = Closure::wrap(Box::new(move || {
             let pc = pc_clone.clone();
             let making_offer = making_offer_clone.clone();
             let peer_id = peer_id_clone_3.clone();
             let send_signal = send_signal_clone.clone();
+            let my_id = my_id_clone.get_untracked();
 
             spawn_local(async move {
+                // Bug 4: Prevent polite peer from sending initial redundant offer
+                let is_polite = if let Some(my) = &my_id {
+                    my.as_str() < peer_id.as_str()
+                } else {
+                    true
+                };
+
+                // If we are polite and haven't established a local description yet,
+                // we should NOT send an offer. Our initial tracks will be included
+                // in the Answer to the impolite peer's incoming Offer.
+                if is_polite && pc.current_local_description().is_none() {
+                    return;
+                }
+
                 making_offer.borrow_mut().insert(peer_id.clone(), true);
 
                 // Create a block so we can catch any errors and clean up properly
