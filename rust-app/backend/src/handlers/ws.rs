@@ -417,7 +417,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let participants = participants_mutex.lock().unwrap();
                                         let locs = participant_locations_mutex.lock().unwrap();
                                         participants.values().filter(|p| {
-                                            locs.get(&p.id).cloned().flatten() == None
+                                            locs.get(&p.id).cloned().flatten().is_none()
                                         }).cloned().collect()
                                     };
                                     let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;
@@ -962,7 +962,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 let participants = participants_mutex.lock().unwrap();
                                         let locs = participant_locations_mutex.lock().unwrap();
                                         participants.values().filter(|p| {
-                                            locs.get(&p.id).cloned().flatten() == None
+                                            locs.get(&p.id).cloned().flatten().is_none()
                                         }).cloned().collect()
                             };
                             let _ = internal_tx.send(ServerMessage::ParticipantList(current_list)).await;

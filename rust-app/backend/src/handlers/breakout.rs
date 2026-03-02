@@ -1,5 +1,5 @@
 use crate::AppState;
-use shared::{BreakoutRoom, Participant, ServerMessage};
+use shared::{Participant, ServerMessage};
 use std::sync::Arc;
 
 pub fn create_breakout_room(

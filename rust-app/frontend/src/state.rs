@@ -155,7 +155,7 @@ pub fn use_room_state() -> RoomState {
         }
     };
 
-    let on_track_cb_clone = set_remote_streams.clone();
+    let on_track_cb_clone = set_remote_streams;
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
         // Add cleanup listener for tracks
         let tracks = stream.get_tracks();
@@ -203,8 +203,8 @@ pub fn use_room_state() -> RoomState {
     );
 
     // Dynamic Stream Handling: Initiate connections when local stream becomes available
-    let participants_for_effect = participants.clone();
-    let my_id_for_effect = my_id.clone();
+    let participants_for_effect = participants;
+    let my_id_for_effect = my_id;
     let webrtc_manager_clone = webrtc_manager.clone();
 
     create_effect(move |_| {

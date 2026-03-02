@@ -112,7 +112,7 @@ impl WebRTCManager {
         let making_offer_clone = self.making_offer.clone();
         let peer_id_clone_3 = peer_id.to_string();
         let send_signal_clone = self.send_signal.clone();
-        let my_id_clone = self.my_id.clone();
+        let my_id_clone = self.my_id;
 
         let on_negotiation_needed = Closure::wrap(Box::new(move || {
             let pc = pc_clone.clone();
@@ -294,7 +294,8 @@ impl WebRTCManager {
             let set_remote_promise = pc.set_remote_description(&desc_init);
             if JsFuture::from(set_remote_promise).await.is_ok() {
                 // Flush pending candidates
-                if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
+                let extracted_candidates = pending_candidates.borrow_mut().remove(&source_id);
+                if let Some(candidates) = extracted_candidates {
                     for cand in candidates {
                         if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
                             let _ = JsFuture::from(
@@ -336,7 +337,8 @@ impl WebRTCManager {
                 let promise = pc.set_remote_description(&desc_init);
                 if JsFuture::from(promise).await.is_ok() {
                     // Flush pending candidates
-                    if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
+                    let extracted_candidates = pending_candidates.borrow_mut().remove(&source_id);
+                    if let Some(candidates) = extracted_candidates {
                         for cand in candidates {
                             if let Ok(rtc_cand) = RtcIceCandidate::new(&cand) {
                                 let _ = JsFuture::from(
@@ -385,7 +387,7 @@ impl WebRTCManager {
                     pending_candidates
                         .borrow_mut()
                         .entry(source_id)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(init);
                 }
             } else {
@@ -393,7 +395,7 @@ impl WebRTCManager {
                 pending_candidates
                     .borrow_mut()
                     .entry(source_id)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(init);
             }
         });
@@ -446,7 +448,7 @@ impl WebRTCManager {
                     let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
                     if let Some(track) = sender.track() {
                         if !valid_track_ids.contains(&track.id()) {
-                            let _ = pc.remove_track(&sender);
+                            pc.remove_track(sender);
                         }
                     }
                 }
