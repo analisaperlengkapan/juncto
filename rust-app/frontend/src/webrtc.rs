@@ -121,42 +121,38 @@ impl WebRTCManager {
             let send_signal = send_signal_clone.clone();
 
             spawn_local(async move {
-                // Bug 6: Avoid spurious offers if state is not stable (e.g. during Answer creation)
-                if pc.signaling_state() != web_sys::RtcSignalingState::Stable {
-                    return;
-                }
-
                 making_offer.borrow_mut().insert(peer_id.clone(), true);
 
-                let options = web_sys::RtcOfferOptions::new();
-                options.set_offer_to_receive_audio(true);
-                options.set_offer_to_receive_video(true);
+                // Create a block so we can catch any errors and clean up properly
+                // mimicking a try/finally block
+                let result: Result<(), JsValue> = async {
+                    let options = web_sys::RtcOfferOptions::new();
+                    options.set_offer_to_receive_audio(true);
+                    options.set_offer_to_receive_video(true);
 
-                // Create Offer
-                match JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await {
-                    Ok(offer) => {
-                         let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
-                         // Set Local Description
-                         match JsFuture::from(pc.set_local_description(&sdp)).await {
-                            Ok(_) => {
-                                if let Some(desc) = pc.local_description() {
-                                    let sdp_str = desc.sdp();
-                                    let msg = shared::ClientMessage::Offer {
-                                        target_id: peer_id.clone(),
-                                        sdp: sdp_str,
-                                    };
-                                    (send_signal)(msg);
-                                }
-                            },
-                            Err(e) => {
-                                web_sys::console::error_1(&e);
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        web_sys::console::error_1(&e);
+                    // Create Offer
+                    let offer = JsFuture::from(pc.create_offer_with_rtc_offer_options(&options)).await?;
+                    let sdp = offer.unchecked_into::<RtcSessionDescriptionInit>();
+
+                    // Set Local Description
+                    JsFuture::from(pc.set_local_description(&sdp)).await?;
+
+                    if let Some(desc) = pc.local_description() {
+                        let sdp_str = desc.sdp();
+                        let msg = shared::ClientMessage::Offer {
+                            target_id: peer_id.clone(),
+                            sdp: sdp_str,
+                        };
+                        (send_signal)(msg);
                     }
+                    Ok(())
+                }.await;
+
+                if let Err(e) = result {
+                    web_sys::console::error_1(&e);
                 }
+
+                // Cleanup (finally)
                 making_offer.borrow_mut().insert(peer_id, false);
             });
         }) as Box<dyn FnMut()>);
