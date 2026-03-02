@@ -17,7 +17,6 @@ pub struct WebRTCManager {
     peers: Rc<RefCell<HashMap<PeerId, RtcPeerConnection>>>,
     pending_candidates: Rc<RefCell<HashMap<PeerId, Vec<RtcIceCandidateInit>>>>,
     making_offer: Rc<RefCell<HashMap<PeerId, bool>>>,
-    ignore_offer: Rc<RefCell<HashMap<PeerId, bool>>>,
     send_signal: Rc<dyn Fn(shared::ClientMessage)>,
     on_track: Rc<dyn Fn(PeerId, MediaStream)>,
     local_stream: Signal<Option<MediaStream>>,
@@ -37,7 +36,6 @@ impl WebRTCManager {
             peers: Rc::new(RefCell::new(HashMap::new())),
             pending_candidates: Rc::new(RefCell::new(HashMap::new())),
             making_offer: Rc::new(RefCell::new(HashMap::new())),
-            ignore_offer: Rc::new(RefCell::new(HashMap::new())),
             send_signal: Rc::new(send_signal),
             on_track: Rc::new(on_track),
             local_stream,
@@ -198,7 +196,6 @@ impl WebRTCManager {
         }
         self.pending_candidates.borrow_mut().remove(peer_id);
         self.making_offer.borrow_mut().remove(peer_id);
-        self.ignore_offer.borrow_mut().remove(peer_id);
     }
 
     pub fn close_all_peers(&self) {
@@ -209,7 +206,6 @@ impl WebRTCManager {
         peers.clear();
         self.pending_candidates.borrow_mut().clear();
         self.making_offer.borrow_mut().clear();
-        self.ignore_offer.borrow_mut().clear();
     }
 
     pub fn handle_offer(&self, source_id: String, sdp: String) {
@@ -218,11 +214,10 @@ impl WebRTCManager {
         let my_id = self.my_id.get_untracked();
         let pending_candidates = self.pending_candidates.clone();
         let making_offer_map = self.making_offer.clone();
-        let ignore_offer_map = self.ignore_offer.clone();
+        // ignore_offer_map is intentionally removed to avoid persisting the flag
 
         spawn_local(async move {
-            // Address Bug 2: Queue ICE candidates for unknown peers is handled in handle_ice_candidate.
-            // But here we need to ensure we use the existing or create new PC.
+            // Ensure we use the existing or create new PC.
             let pc = if let Some(pc) = peers.borrow().get(&source_id) {
                 pc.clone()
             } else if let Ok(pc) = this.create_peer_connection(&source_id) {
@@ -250,20 +245,14 @@ impl WebRTCManager {
 
             if offer_collision {
                 if !is_polite {
-                    ignore_offer_map.borrow_mut().insert(source_id.clone(), true);
+                    // Impolite peer ignores the incoming offer during collision.
+                    // We simply return, allowing our outbound offer to proceed.
+                    // The other (polite) peer will rollback and process our offer.
                     return;
                 }
 
                 // If polite, we accept the offer.
                 // If we are HaveLocalOffer, we must rollback to accept the new offer.
-                // But in 'Perfect Negotiation' spec, setRemoteDescription automatically rolls back?
-                // No, standard WebRTC API requires explicit rollback usually, or Promise.all logic.
-                // The MDN example uses:
-                // if (offerCollision) {
-                //   if (!polite) return;
-                //   // Promise.all([pc.setLocalDescription({type: "rollback"}), pc.setRemoteDescription(offer)])
-                // }
-
                 if signaling_state == web_sys::RtcSignalingState::HaveLocalOffer {
                      let rollback = RtcSessionDescriptionInit::new(RtcSdpType::Rollback);
                      let _ = JsFuture::from(pc.set_local_description(&rollback)).await;
@@ -275,8 +264,6 @@ impl WebRTCManager {
 
             let set_remote_promise = pc.set_remote_description(&desc_init);
             if JsFuture::from(set_remote_promise).await.is_ok() {
-                ignore_offer_map.borrow_mut().insert(source_id.clone(), false);
-
                 // Flush pending candidates
                 if let Some(candidates) = pending_candidates.borrow_mut().remove(&source_id) {
                     for cand in candidates {
@@ -308,14 +295,8 @@ impl WebRTCManager {
     pub fn handle_answer(&self, source_id: String, sdp: String) {
         let peers = self.peers.clone();
         let pending_candidates = self.pending_candidates.clone();
-        let ignore_offer_map = self.ignore_offer.clone();
 
         spawn_local(async move {
-            let ignore = ignore_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
-            if ignore {
-                return;
-            }
-
             let pc = peers.borrow().get(&source_id).cloned();
             if let Some(pc) = pc {
                 let desc_init = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
@@ -344,7 +325,6 @@ impl WebRTCManager {
     ) {
         let peers = self.peers.clone();
         let pending_candidates = self.pending_candidates.clone();
-        let ignore_offer_map = self.ignore_offer.clone();
 
         spawn_local(async move {
             // Address Bug 2: Queue candidates even if peer doesn't exist yet
@@ -354,12 +334,6 @@ impl WebRTCManager {
             }
             if let Some(idx) = sdp_m_line_index {
                 init.set_sdp_m_line_index(Some(idx));
-            }
-
-            // Check if we should ignore (glare handling)
-            let ignore = ignore_offer_map.borrow().get(&source_id).cloned().unwrap_or(false);
-            if ignore {
-                 return;
             }
 
             let pc_opt = peers.borrow().get(&source_id).cloned();
@@ -435,6 +409,9 @@ impl WebRTCManager {
                     }
                 }
 
+                // Fetch an updated snapshot of senders after removal to ensure already_sending checks are accurate
+                let current_senders = pc.get_senders();
+
                 // Add missing tracks (Camera)
                 if let Some(s) = &camera_stream {
                      let tracks = s.get_tracks();
@@ -442,7 +419,7 @@ impl WebRTCManager {
                          let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
                          // Check if already sending
                          let mut already_sending = false;
-                         for sender in senders.iter() {
+                         for sender in current_senders.iter() {
                              let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
                              if let Some(t) = sender.track() {
                                  if t.id() == track.id() {
