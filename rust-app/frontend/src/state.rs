@@ -660,26 +660,12 @@ pub fn use_room_state() -> RoomState {
         },
     );
 
-    let webrtc_manager_for_lock = webrtc_manager.clone();
     let toggle_lock = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRoomLock;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
-        }
-
-        // Re-initiate connections. Since we don't have a filtered participant list for the new room,
-        // we try to connect to all known participants where we are the impolite peer.
-        // The backend `ws.rs` logic will filter these signaling messages, ensuring we only
-        // actually establish connections with peers in the same room. This handles the "gap".
-        if let Some(me) = my_id.get_untracked() {
-           let list = participants.get_untracked();
-           for p in list {
-               if me > p.id {
-                   webrtc_manager_for_lock.handle_participant_joined(p.id);
-               }
-           }
         }
     });
 
