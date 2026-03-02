@@ -362,17 +362,36 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 false
                                                             }
                                                         },
-                                                        ServerMessage::ParticipantJoined(p) | ServerMessage::ParticipantUpdated(p) => {
+                                                        ServerMessage::ParticipantJoined(p) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(&p.id).cloned().flatten();
                                                             my_loc == source_loc
                                                         },
-                                                        ServerMessage::ParticipantLeft(id) | ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            // Deliver to same room OR if it's an update about myself
+                                                            my_loc == source_loc || p.id == my_id_clone
+                                                        },
+                                                        ServerMessage::ParticipantLeft(id) => {
+                                                            // Don't deliver ParticipantLeft to the person who is leaving (e.g. during room switch)
+                                                            if *id == my_id_clone {
+                                                                false
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            }
+                                                        },
+                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
-                                                            my_loc == source_loc
+                                                            // Deliver to same room OR if it's a command directed at myself
+                                                            my_loc == source_loc || *id == my_id_clone
                                                         },
                                                         _ => true,
                                                     };
@@ -885,17 +904,33 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         false
                                                     }
                                                 },
-                                                        ServerMessage::ParticipantJoined(p) | ServerMessage::ParticipantUpdated(p) => {
+                                                        ServerMessage::ParticipantJoined(p) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(&p.id).cloned().flatten();
                                                             my_loc == source_loc
                                                         },
-                                                        ServerMessage::ParticipantLeft(id) | ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::ParticipantUpdated(p) => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(&p.id).cloned().flatten();
+                                                            my_loc == source_loc || p.id == my_id_clone
+                                                        },
+                                                        ServerMessage::ParticipantLeft(id) => {
+                                                            if *id == my_id_clone {
+                                                                false
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            }
+                                                        },
+                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
-                                                            my_loc == source_loc
+                                                            my_loc == source_loc || *id == my_id_clone
                                                         },
                                                 _ => true,
                                             };

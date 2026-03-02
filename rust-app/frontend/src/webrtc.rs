@@ -161,13 +161,18 @@ impl WebRTCManager {
     }
 
     pub fn handle_participant_joined(&self, peer_id: String) {
+        // Prevent duplicate initiations if we already have a connection
+        if self.has_peer(&peer_id) {
+            return;
+        }
+
         let peers = self.peers.clone();
         let this = self.clone();
         let _pending_candidates = self.pending_candidates.clone();
 
         spawn_local(async move {
             if let Ok(pc) = this.create_peer_connection(&peer_id) {
-                // Ensure we close any existing connection before overwriting
+                // Ensure we close any existing connection before overwriting (fallback safety)
                 if let Some(old_pc) = peers.borrow_mut().insert(peer_id.clone(), pc.clone()) {
                     old_pc.close();
                 }
