@@ -174,7 +174,7 @@ pub enum ServerMessage {
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
     BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
-    ParticipantLeft(String), // ID
+    ParticipantLeft { id: String, room_id: Option<String> },
     ParticipantList(Vec<Participant>),
     KnockingParticipant(Participant),
     KnockingParticipantLeft(String), // ID

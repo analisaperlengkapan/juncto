@@ -409,7 +409,7 @@ pub fn use_room_state() -> RoomState {
                                 set_knocking_participants
                                     .update(|list| list.retain(|x| x.id != id));
                             }
-                            ServerMessage::ParticipantLeft(id) => {
+                            ServerMessage::ParticipantLeft { id, .. } => {
                                 set_participants.update(|list| list.retain(|p| p.id != id));
                                 // Remove from typing users if present
                                 set_typing_users.update(|users| {

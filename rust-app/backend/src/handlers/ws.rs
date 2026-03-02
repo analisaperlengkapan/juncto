@@ -132,8 +132,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                             // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
+
+                                            // Fetch target's location before removal to broadcast Left accurately
+                                            let target_loc = {
+                                                let locations = participant_locations_mutex.lock().unwrap();
+                                                locations.get(&target_id).cloned().flatten()
+                                            };
                                             // 5. Broadcast ParticipantLeft (so lists update)
-                                            let _ = tx.send(ServerMessage::ParticipantLeft(target_id));
+                                            let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
                                     }
                                 },
@@ -375,15 +381,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's an update about myself
                                                             my_loc == source_loc || p.id == my_id_clone
                                                         },
-                                                        ServerMessage::ParticipantLeft(id) => {
+                                                        ServerMessage::ParticipantLeft { id, room_id } => {
                                                             // Don't deliver ParticipantLeft to the person who is leaving (e.g. during room switch)
                                                             if *id == my_id_clone {
                                                                 false
                                                             } else {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 let my_loc = locs.get(&my_id_clone).cloned().flatten();
-                                                                let source_loc = locs.get(id).cloned().flatten();
-                                                                my_loc == source_loc
+                                                                // Use the room_id embedded in the message instead of looking it up
+                                                                my_loc == *room_id
                                                             }
                                                         },
                                                         ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
@@ -615,8 +621,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             participants.get(uid).cloned()
                                         };
 
-                                        // Broadcast leave to current room (must happen BEFORE location update so filter works)
-                                        let _ = tx.send(ServerMessage::ParticipantLeft(uid.clone()));
+                                        // Capture current location to embed in the leave message
+                                        let old_room = {
+                                            let locations = participant_locations_mutex.lock().unwrap();
+                                            locations.get(uid).cloned().flatten()
+                                        };
+
+                                        // Broadcast leave using the embedded location, immune to async races
+                                        let _ = tx.send(ServerMessage::ParticipantLeft { id: uid.clone(), room_id: old_room });
 
                                         match breakout::join_breakout_room(uid, room_id, &state) {
                                             Ok((new_rid, msgs)) => {
@@ -916,14 +928,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(&p.id).cloned().flatten();
                                                             my_loc == source_loc || p.id == my_id_clone
                                                         },
-                                                        ServerMessage::ParticipantLeft(id) => {
+                                                        ServerMessage::ParticipantLeft { id, room_id } => {
                                                             if *id == my_id_clone {
                                                                 false
                                                             } else {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 let my_loc = locs.get(&my_id_clone).cloned().flatten();
-                                                                let source_loc = locs.get(id).cloned().flatten();
-                                                                my_loc == source_loc
+                                                                // Use the room_id embedded in the message instead of looking it up
+                                                                my_loc == *room_id
                                                             }
                                                         },
                                                         ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
@@ -1058,7 +1070,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let _ = tx.send(ServerMessage::RoomUpdated(new_config));
         }
 
-        let _ = tx.send(ServerMessage::ParticipantLeft(id.clone()));
+        // Fetch location before cleanup to embed in message
+        let old_room = {
+            let locations = participant_locations_mutex.lock().unwrap();
+            locations.get(&id).cloned().flatten()
+        };
+
+        let _ = tx.send(ServerMessage::ParticipantLeft { id: id.clone(), room_id: old_room });
 
         // Cleanup location
         {
