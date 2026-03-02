@@ -580,12 +580,23 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::JoinBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
+                                        // Pre-validate room existence to prevent false ParticipantLeft broadcasts
+                                        let is_valid = match &room_id {
+                                            Some(rid) => state.breakout_rooms.lock().unwrap().contains_key(rid),
+                                            None => true,
+                                        };
+
+                                        if !is_valid {
+                                            let _ = internal_tx.send(ServerMessage::Error("Breakout room not found".to_string())).await;
+                                            continue;
+                                        }
+
                                         let me = {
                                             let participants = participants_mutex.lock().unwrap();
                                             participants.get(uid).cloned()
                                         };
 
-                                        // Broadcast leave to current room (before location update)
+                                        // Broadcast leave to current room (must happen BEFORE location update so filter works)
                                         let _ = tx.send(ServerMessage::ParticipantLeft(uid.clone()));
 
                                         match breakout::join_breakout_room(uid, room_id, &state) {
@@ -600,7 +611,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let _ = tx.send(ServerMessage::ParticipantJoined(p));
                                                 }
                                             },
-                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                            Err(e) => {
+                                                // Should not be hit due to pre-validation, but included for safety
+                                                let _ = internal_tx.send(ServerMessage::Error(e)).await;
+                                            }
                                         }
                                     }
                                 },

@@ -443,7 +443,7 @@ impl WebRTCManager {
                          let track = track.unchecked_ref::<web_sys::MediaStreamTrack>();
                          // Check if already sending
                          let mut already_sending = false;
-                         for sender in senders.iter() {
+                         for sender in current_senders.iter() {
                              let sender = sender.unchecked_ref::<web_sys::RtcRtpSender>();
                              if let Some(t) = sender.track() {
                                  if t.id() == track.id() {
