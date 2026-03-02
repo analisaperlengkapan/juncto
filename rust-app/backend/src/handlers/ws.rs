@@ -1011,10 +1011,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
         let _ = tx.send(ServerMessage::ParticipantLeft(id.clone()));
 
-        // Cleanup location
+        // Cleanup location after broadcast so room-based filters can still resolve the user's room
         {
             let mut locations = participant_locations_mutex.lock().unwrap();
             locations.remove(&id);
+        }
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
