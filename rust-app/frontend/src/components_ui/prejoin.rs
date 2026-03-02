@@ -171,7 +171,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
 
                 // Video Preview
                 <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 20px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                    <Show when=move || is_camera_on.get() fallback=|| view! { <div style="color: white;">"Camera is Off"</div> }>
+                    <Show when=move || is_camera_on.get() fallback=|| view! { <div class="camera-off-text" style="color: white;">"Camera is Off"</div> }>
                         <video
                             node_ref=video_ref
                             autoplay

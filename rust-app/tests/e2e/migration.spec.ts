@@ -450,8 +450,8 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   // Host Kicks Guest
   await guestItem.getByRole('button', { name: 'Kick' }).click();
 
-  // Guest should be redirected to Prejoin
-  await expect(guestPage.getByText('Join Meeting')).toBeVisible();
+  // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
+  await expect(guestPage.getByText('Start Meeting')).toBeVisible();
 
   // Host list should not have Guest
   await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
