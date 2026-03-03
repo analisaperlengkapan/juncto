@@ -101,16 +101,15 @@ test.describe('Host Logic', () => {
     await pageA.click('button:has-text("End Meeting")');
 
     // 4. Verify both are returned to Prejoin screen or Home
-    // In state.rs: RoomEnded -> set_current_state(Prejoin) for non-host participants
-    // Host (Page A) gets hard redirect via end_meeting_and_leave -> set_href("/") -> sees "Start Meeting"
-    // Non-host (Page B) gets set_current_state(Prejoin) -> sees "Join Meeting" on Prejoin screen
+    // In state.rs: RoomEnded -> forces `window.location.set_href("/")`
+    // So they should see "Start Meeting" button on Home UI
 
     // Page A
     await expect(pageA.locator('button:has-text("Start Meeting")')).toBeVisible();
     await expect(pageA.locator('.video-grid')).not.toBeVisible();
 
     // Page B
-    await expect(pageB.locator('button:has-text("Join Meeting")')).toBeVisible();
+    await expect(pageB.locator('button:has-text("Start Meeting")')).toBeVisible();
     await expect(pageB.locator('.video-grid')).not.toBeVisible();
 
     // Note: Because of hard redirect, Toast might vanish before we assert.

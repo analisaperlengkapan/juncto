@@ -45,7 +45,7 @@ pub fn Room() -> impl IntoView {
         }
     });
 
-    let state_end_meeting = state.end_meeting.clone();
+    let state_end_meeting = state.end_meeting;
     let end_meeting_and_leave = Callback::new(move |_| {
         state_end_meeting.call(());
         set_timeout(
