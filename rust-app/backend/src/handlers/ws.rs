@@ -341,7 +341,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            if *room_id != my_loc {
+                                                            if room_id.clone() != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
                                                                 *target == my_id_clone || message.user_id == my_id_clone
@@ -889,7 +889,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         let locs = locations_clone.lock().unwrap();
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
-                                                    if *room_id != my_loc {
+                                                    if room_id.clone() != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
                                                         *target == my_id_clone || message.user_id == my_id_clone
