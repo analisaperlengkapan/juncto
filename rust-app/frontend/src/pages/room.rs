@@ -54,7 +54,7 @@ pub fn Room() -> impl IntoView {
                     let _ = window.location().set_href("/");
                 }
             },
-            std::time::Duration::from_millis(200),
+            std::time::Duration::from_millis(500),
         );
     });
 
