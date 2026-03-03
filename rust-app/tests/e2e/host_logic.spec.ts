@@ -111,7 +111,7 @@ test.describe('Host Logic', () => {
     // Actually, in state.rs, RoomEnded triggers an immediate 1.5s timeout before redirect. So the toast should appear.
     // Wait, the toast text is "The meeting has ended by the host."
     // Let's assert redirect directly as the toast might be flaky depending on headless environment rendering.
-    await pageB.waitForURL('http://localhost:3000/', { timeout: 15000 }).catch(() => {});
+    await pageB.waitForURL('http://localhost:3000/', { timeout: 15000 });
     await expect(pageB.locator('button:has-text("Start Meeting")')).toBeVisible({ timeout: 15000 });
 
     await contextA.close();
