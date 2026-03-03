@@ -125,6 +125,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 participants.remove(&target_id);
                                             }
+                                            // Fetch target's location before removal to broadcast Left accurately
+                                            let target_loc = {
+                                                let locations = participant_locations_mutex.lock().unwrap();
+                                                locations.get(&target_id).cloned().flatten()
+                                            };
                                             // 3. Remove from participant_locations
                                             {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
@@ -133,11 +138,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
 
-                                            // Fetch target's location before removal to broadcast Left accurately
-                                            let target_loc = {
-                                                let locations = participant_locations_mutex.lock().unwrap();
-                                                locations.get(&target_id).cloned().flatten()
-                                            };
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
