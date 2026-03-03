@@ -136,7 +136,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 locations.remove(&target_id);
                                             }
                                             // 4. Broadcast Kicked
-                                            let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
+                                            let _ = tx.send(ServerMessage::Kicked { target_id: target_id.clone(), room_id: target_loc.clone() });
 
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
@@ -341,7 +341,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            if room_id.clone() != my_loc {
+                                                            if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
                                                                 *target == my_id_clone || message.user_id == my_id_clone
@@ -392,7 +392,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 my_loc == *room_id
                                                             }
                                                         },
-                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::Kicked { target_id: id, room_id } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            // Deliver to same room OR if it's a command directed at myself
+                                                            my_loc == *room_id || *id == my_id_clone
+                                                        },
+                                                        ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
@@ -889,7 +895,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         let locs = locations_clone.lock().unwrap();
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
-                                                    if room_id.clone() != my_loc {
+                                                    if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
                                                         *target == my_id_clone || message.user_id == my_id_clone
@@ -938,7 +944,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 my_loc == *room_id
                                                             }
                                                         },
-                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                ServerMessage::Kicked { target_id: id, room_id } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id || *id == my_id_clone
+                                                },
+                                                ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();

@@ -170,7 +170,7 @@ pub enum ServerMessage {
         is_typing: bool,
         room_id: Option<String>,
     },
-    Kicked(String),      // Target ID
+    Kicked { target_id: String, room_id: Option<String> },
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
     BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
