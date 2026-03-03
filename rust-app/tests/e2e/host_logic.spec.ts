@@ -109,7 +109,7 @@ test.describe('Host Logic', () => {
     await expect(pageA.locator('.video-grid')).not.toBeVisible();
 
     // Page B
-    await expect(pageB.locator('button:has-text("Start Meeting")')).toBeVisible();
+    await expect(pageB.locator('button:has-text("Join Meeting")')).toBeVisible();
     await expect(pageB.locator('.video-grid')).not.toBeVisible();
 
     // Note: Because of hard redirect, Toast might vanish before we assert.
