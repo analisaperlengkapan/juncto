@@ -1,0 +1,7 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.34s
+     Running `target/debug/backend`
+Listening on 0.0.0.0:3000
+
+thread 'main' (46178) panicked at backend/src/main.rs:88:62:
+called `Result::unwrap()` on an `Err` value: Os { code: 98, kind: AddrInUse, message: "Address already in use" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
