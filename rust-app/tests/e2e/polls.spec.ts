@@ -56,10 +56,6 @@ test.describe('Polls', () => {
     await expect(pageB.locator('li', { hasText: 'Yes' })).toContainText('1 votes');
     await expect(pageA.locator('li', { hasText: 'Yes' })).toContainText('1 votes');
 
-    // Test Error Handling (Double Vote) - Not easily visible in UI but we can try
-    // The UI usually disables the button or updates state, but if we could force it...
-    // For now, testing late join sync is the critical regression test.
-
     await contextA.close();
     await contextB.close();
   });

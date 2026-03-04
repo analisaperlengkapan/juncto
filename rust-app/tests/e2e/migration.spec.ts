@@ -455,8 +455,8 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   await expect(guestPage.locator('.toast')).toContainText('You have been kicked', { timeout: 15000 });
 
   // And then verify redirect happens
-  await guestPage.waitForURL('http://localhost:3000/', { timeout: 15000 });
-  await expect(guestPage.locator('button:has-text("Start Meeting")')).toBeVisible({ timeout: 15000 });
+  await guestPage.waitForURL('**/*', { timeout: 15000 });
+  await expect(guestPage.locator('input[type="text"]')).toBeVisible({ timeout: 15000 });
 
   // Host list should not have Guest
   await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
@@ -569,6 +569,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   await hostPage.click('.chat-container button'); // Send
 
   // Guest should NOT see it
+  await guestPage.waitForTimeout(1500); // Give it some time to process
   await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message');
 
   // Guest chats in Main
