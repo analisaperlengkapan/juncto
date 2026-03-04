@@ -570,14 +570,14 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process
-  // await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message'); // TODO: implement server isolation
+  await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message');
 
   // Guest chats in Main
   await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
   await guestPage.click('.chat-container button'); // Send
 
   // Host should NOT see it (in real app they might, but current logic filters strict room match)
-  // await expect(hostPage.locator('.chat-container')).not.toContainText('Main Message'); // TODO: implement server isolation
+  await expect(hostPage.locator('.chat-container')).not.toContainText('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();
