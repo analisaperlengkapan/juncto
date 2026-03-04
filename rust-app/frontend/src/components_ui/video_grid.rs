@@ -122,24 +122,6 @@ pub fn VideoGrid(
                         muted
                         style="width: 100%; height: 100%; object-fit: contain;"
                     />
-                    <button
-                        on:click=move |_| {
-                            if let Some(video) = screen_ref.get() {
-                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                        let promise = func.call0(js_video);
-                                        let _ = promise;
-                                    }
-                                }
-                            }
-                        }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                        title="Picture-in-Picture"
-                    >
-                        "PiP"
-                    </button>
                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                         "My Screen"
                     </div>
@@ -168,24 +150,6 @@ pub fn VideoGrid(
                         muted // Mute local video to avoid feedback
                         style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" // Mirror
                     />
-                    <button
-                        on:click=move |_| {
-                            if let Some(video) = video_ref.get() {
-                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                                        let promise = func.call0(js_video);
-                                                        let _ = promise;
-                                    }
-                                }
-                            }
-                        }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                        title="Picture-in-Picture"
-                    >
-                        "PiP"
-                    </button>
                 </Show>
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
@@ -352,24 +316,6 @@ pub fn VideoGrid(
                                                 "width: 100%; height: 100%; object-fit: cover;"
                                             }
                                         />
-                                        <button
-                                            on:click=move |_| {
-                                                if let Some(video) = remote_video_ref.get() {
-                                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                                            let promise = func.call0(js_video);
-                                                            let _ = promise;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                                            title="Picture-in-Picture"
-                                        >
-                                            "PiP"
-                                        </button>
                                     </Show>
 
                                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
