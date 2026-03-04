@@ -89,7 +89,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
             set_local_stream.set(None);
             set_audio_monitor.set(None);
 
-            if cam_on {
+            if cam_on || mic_on {
                 // Request both if mic is also requested, otherwise just video?
                 // Actually get_user_media handles both options.
                 // If mic is off, we might still want the stream to have an audio track that is muted?
@@ -103,34 +103,32 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
                 // If Cam is OFF but Mic is ON, we still want to monitor audio?
                 // Current logic: This effect runs if ANY change.
 
-                if cam_on || mic_on {
-                    // We need a stream
-                    // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
-                    // We need to change get_user_media to accept "No Video".
-                    // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
-                    // Let's assume for Preview, we always want video if cam_on is true.
+                // We need a stream
+                // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
+                // We need to change get_user_media to accept "No Video".
+                // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
+                // Let's assume for Preview, we always want video if cam_on is true.
 
-                    // Pass cam_on as enable_video flag
-                    if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
-                        // Apply mute state to audio track
-                        let audio_tracks = stream.get_audio_tracks();
-                        for i in 0..audio_tracks.length() {
-                            if let Ok(track) =
-                                audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
-                            {
-                                track.set_enabled(mic_on);
-                            }
+                // Pass cam_on as enable_video flag
+                if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
+                    // Apply mute state to audio track
+                    let audio_tracks = stream.get_audio_tracks();
+                    for i in 0..audio_tracks.length() {
+                        if let Ok(track) =
+                            audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                        {
+                            track.set_enabled(mic_on);
                         }
+                    }
 
-                        set_local_stream.set(Some(stream.clone()));
+                    set_local_stream.set(Some(stream.clone()));
 
-                        if mic_on {
-                            let on_speaking = Box::new(move |speaking: bool| {
-                                set_is_speaking.set(speaking);
-                            });
-                            if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
-                                set_audio_monitor.set(Some(monitor));
-                            }
+                    if mic_on {
+                        let on_speaking = Box::new(move |speaking: bool| {
+                            set_is_speaking.set(speaking);
+                        });
+                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                            set_audio_monitor.set(Some(monitor));
                         }
                     }
                 }
@@ -171,7 +169,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
 
                 // Video Preview
                 <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 20px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                    <Show when=move || is_camera_on.get() fallback=|| view! { <div style="color: white;">"Camera is Off"</div> }>
+                    <Show when=move || is_camera_on.get() fallback=|| view! { <div class="camera-off-text" style="color: white;">"Camera is Off"</div> }>
                         <video
                             node_ref=video_ref
                             autoplay

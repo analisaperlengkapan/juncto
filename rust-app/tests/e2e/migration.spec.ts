@@ -450,8 +450,13 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   // Host Kicks Guest
   await guestItem.getByRole('button', { name: 'Kick' }).click();
 
-  // Guest should be redirected to Prejoin
-  await expect(guestPage.getByText('Join Meeting')).toBeVisible();
+  // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
+  // Wait for the "You have been kicked" toast to show up first before the redirect hits
+  await expect(guestPage.locator('.toast')).toContainText('You have been kicked', { timeout: 15000 });
+
+  // And then verify redirect happens
+  await guestPage.waitForURL('http://localhost:3000/', { timeout: 15000 });
+  await expect(guestPage.locator('button:has-text("Start Meeting")')).toBeVisible({ timeout: 15000 });
 
   // Host list should not have Guest
   await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');

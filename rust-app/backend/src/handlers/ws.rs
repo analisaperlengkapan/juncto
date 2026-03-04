@@ -125,19 +125,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 participants.remove(&target_id);
                                             }
+                                            // Fetch target's location before removal to broadcast Left accurately
+                                            let target_loc = {
+                                                let locations = participant_locations_mutex.lock().unwrap();
+                                                locations.get(&target_id).cloned().flatten()
+                                            };
                                             // 3. Remove from participant_locations
                                             {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
                                                 locations.remove(&target_id);
                                             }
                                             // 4. Broadcast Kicked
-                                            let _ = tx.send(ServerMessage::Kicked(target_id.clone()));
+                                            let _ = tx.send(ServerMessage::Kicked { target_id: target_id.clone(), room_id: target_loc.clone() });
 
-                                            // Fetch target's location before removal to broadcast Left accurately
-                                            let target_loc = {
-                                                let locations = participant_locations_mutex.lock().unwrap();
-                                                locations.get(&target_id).cloned().flatten()
-                                            };
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
@@ -392,7 +392,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 my_loc == *room_id
                                                             }
                                                         },
-                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::Kicked { target_id: id, room_id } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            // Deliver to same room OR if it's a command directed at myself
+                                                            my_loc == *room_id || *id == my_id_clone
+                                                        },
+                                                        ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
@@ -938,7 +944,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 my_loc == *room_id
                                                             }
                                                         },
-                                                        ServerMessage::Kicked(id) | ServerMessage::MutedByHost(id) => {
+                                                ServerMessage::Kicked { target_id: id, room_id } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id || *id == my_id_clone
+                                                },
+                                                ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();

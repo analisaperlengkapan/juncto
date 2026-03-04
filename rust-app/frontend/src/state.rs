@@ -441,7 +441,7 @@ pub fn use_room_state() -> RoomState {
                                 add_toast("Access Denied".to_string(), ToastType::Error);
                                 set_current_state.set(RoomConnectionState::Prejoin);
                             }
-                            ServerMessage::Kicked(target_id) => {
+                            ServerMessage::Kicked { target_id, .. } => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
                                         add_toast(
@@ -452,6 +452,17 @@ pub fn use_room_state() -> RoomState {
                                         webrtc_manager.close_all_peers();
                                         set_remote_streams.set(HashMap::new());
                                         set_current_state.set(RoomConnectionState::Prejoin);
+
+                                        // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
+                                        // NOTE: Add a small timeout so the toast can render before redirect
+                                        set_timeout(
+                                            move || {
+                                                if let Some(window) = web_sys::window() {
+                                                    let _ = window.location().set_href("/");
+                                                }
+                                            },
+                                            std::time::Duration::from_millis(1500),
+                                        );
                                     }
                                 }
                             }
@@ -495,6 +506,16 @@ pub fn use_room_state() -> RoomState {
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
                                 set_is_connected.set(false);
+
+                                // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
+                                set_timeout(
+                                    move || {
+                                        if let Some(window) = web_sys::window() {
+                                            let _ = window.location().set_href("/");
+                                        }
+                                    },
+                                    std::time::Duration::from_millis(1500),
+                                );
                             }
                             ServerMessage::KnockingParticipant(p) => {
                                 set_knocking_participants.update(|list| {
