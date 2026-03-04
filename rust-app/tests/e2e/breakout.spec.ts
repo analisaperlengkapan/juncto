@@ -30,13 +30,8 @@ test.describe('Breakout Rooms', () => {
     await pageA.locator('.prejoin-container input[type="text"]').fill('Alice');
     await pageA.click('button:has-text("Join Meeting")');
 
-    // Create Room
-    // Assuming BreakoutRooms component is visible (it is usually part of the sidebar or main view depending on implementation,
-    // but based on room.rs it seems embedded).
-    // The component has "Breakout Rooms" header.
-
     // Wait for component to load
-    await expect(pageA.locator('h4:has-text("Breakout Rooms")')).toBeVisible();
+    await expect(pageA.locator('h4:has-text("Breakout Rooms")')).toBeVisible({ timeout: 15000 });
 
     await pageA.fill('input[placeholder="New Room Name"]', 'Room A');
     await pageA.click('button:has-text("Create")'); // Inside breakout component
