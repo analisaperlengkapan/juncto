@@ -570,14 +570,22 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process
-  await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message');
+  // We can assert on the entire .messages container as long as we wait for the message to NOT be there
+  await expect(guestPage.locator('.chat-container .messages')).not.toContainText('Secret Message');
 
   // Guest chats in Main
   await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
   await guestPage.click('.chat-container button'); // Send
 
+  // Clear guest input to prevent false positives in text match
+  await guestPage.locator('.chat-container input[type="text"]').fill('');
+
   // Host should NOT see it (in real app they might, but current logic filters strict room match)
-  await expect(hostPage.locator('.chat-container')).not.toContainText('Main Message');
+  await hostPage.waitForTimeout(1000);
+
+  // We need to look at actual messages list to be completely safe against test flakes
+  // where it picks up the text from input field being typed and cleared.
+  await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();

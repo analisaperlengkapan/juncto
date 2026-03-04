@@ -12,11 +12,13 @@ enum GridItem {
 }
 
 impl GridItem {
-    // Helper for key generation to ensure reactivity when state changes
+    // Helper for key generation for DOM elements.
+    // It should strictly represent identity, not mutable properties,
+    // to prevent component teardown and flickering on state changes.
     fn unique_key(&self) -> String {
         match self {
-            GridItem::User(p) => format!("{}_{}_{}", p.id, p.is_hand_raised, p.is_sharing_screen),
-            GridItem::RemoteScreen(p) => format!("{}_screen_{}", p.id, p.is_sharing_screen),
+            GridItem::User(p) => p.id.clone(),
+            GridItem::RemoteScreen(p) => format!("{}_screen", p.id),
             GridItem::SharedVideo(url) => format!("shared_video_{}", url),
         }
     }
@@ -122,6 +124,24 @@ pub fn VideoGrid(
                         muted
                         style="width: 100%; height: 100%; object-fit: contain;"
                     />
+                    <button
+                        on:click=move |_| {
+                            if let Some(video) = screen_ref.get() {
+                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                        let promise = func.call0(js_video);
+                                        let _ = promise;
+                                    }
+                                }
+                            }
+                        }
+                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
+                        title="Picture-in-Picture"
+                    >
+                        "PiP"
+                    </button>
                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                         "My Screen"
                     </div>
@@ -150,6 +170,24 @@ pub fn VideoGrid(
                         muted // Mute local video to avoid feedback
                         style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" // Mirror
                     />
+                    <button
+                        on:click=move |_| {
+                            if let Some(video) = video_ref.get() {
+                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                        let promise = func.call0(js_video);
+                                        let _ = promise;
+                                    }
+                                }
+                            }
+                        }
+                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
+                        title="Picture-in-Picture"
+                    >
+                        "PiP"
+                    </button>
                 </Show>
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
@@ -202,12 +240,48 @@ pub fn VideoGrid(
                         _ => {
                             let p = item.participant().unwrap().clone();
                             let is_screen = item.is_screen();
-                            let p_name = if is_screen { format!("{}'s Screen", p.name) } else { p.name.clone() };
-                            let initial_char = p.name.chars().next().unwrap_or('?').to_uppercase().to_string();
-                            let initial_char = store_value(initial_char);
-                            let is_hand_raised = p.is_hand_raised;
                             let id_clone = p.id.clone();
                             let id_clone_2 = id_clone.clone();
+
+                            // Derive reactive participant properties using the `participants` signal
+                            let p_id_for_props = p.id.clone();
+                            let p_name = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_props)
+                                        .map(|pp| {
+                                            if is_screen {
+                                                format!("{}'s Screen", pp.name)
+                                            } else {
+                                                pp.name.clone()
+                                            }
+                                        })
+                                        .unwrap_or_else(|| "Unknown".to_string())
+                                })
+                            });
+
+                            let p_id_for_hand = p.id.clone();
+                            let is_hand_raised = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_hand)
+                                        .map(|pp| pp.is_hand_raised)
+                                        .unwrap_or(false)
+                                })
+                            });
+
+                            let p_id_for_initial = p.id.clone();
+                            let initial_char = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_initial)
+                                        .and_then(|pp| pp.name.chars().next())
+                                        .unwrap_or('?')
+                                        .to_uppercase()
+                                        .to_string()
+                                })
+                            });
+
                             let is_speaking = move || speaking_peers.get().contains(&id_clone);
 
                             // Remote Stream Logic
@@ -301,7 +375,7 @@ pub fn VideoGrid(
                                         } else {
                                             view! {
                                                 <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                                    {initial_char.with_value(|c| c.clone())}
+                                                    {initial_char.get()}
                                                 </div>
                                             }.into_view()
                                         }
@@ -316,14 +390,32 @@ pub fn VideoGrid(
                                                 "width: 100%; height: 100%; object-fit: cover;"
                                             }
                                         />
+                                        <button
+                                            on:click=move |_| {
+                                                if let Some(video) = remote_video_ref.get() {
+                                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                                            let promise = func.call0(js_video);
+                                                            let _ = promise;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
+                                            title="Picture-in-Picture"
+                                        >
+                                            "PiP"
+                                        </button>
                                     </Show>
 
                                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                        {p_name}
+                                        {move || p_name.get()}
                                     </div>
 
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                                        <Show when=move || is_hand_raised && !is_screen>
+                                        <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
                                     </div>
@@ -355,13 +447,13 @@ mod tests {
         };
 
         let item_user = GridItem::User(p.clone());
-        // Key format: id_hand_screen
-        assert_eq!(item_user.unique_key(), "user1_false_false");
+        // Key format: id
+        assert_eq!(item_user.unique_key(), "user1");
         assert!(!item_user.is_screen());
 
         let item_screen = GridItem::RemoteScreen(p.clone());
-        // Key format: id_screen_screen
-        assert_eq!(item_screen.unique_key(), "user1_screen_false");
+        // Key format: id_screen
+        assert_eq!(item_screen.unique_key(), "user1_screen");
         assert!(item_screen.is_screen());
 
         let item_video = GridItem::SharedVideo("http://test".to_string());
