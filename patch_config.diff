@@ -1,0 +1,9 @@
+--- rust-app/tests/e2e/playwright.config.ts
++++ rust-app/tests/e2e/playwright.config.ts
+@@ -21,6 +21,7 @@
+     // Video recording options
+     video: 'retain-on-failure',
+
++    launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
+     // Permissions for testing features
+     permissions: ['camera', 'microphone', 'clipboard-read', 'clipboard-write'],
