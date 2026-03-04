@@ -1,0 +1,11 @@
+--- rust-app/tests/e2e/migration.spec.ts
++++ rust-app/tests/e2e/migration.spec.ts
+@@ -569,7 +569,7 @@
+   await hostPage.click('.chat-container button'); // Send
+
+   // Guest should NOT see it
+-  await guestPage.waitForTimeout(500); // Give it some time to process
++  await guestPage.waitForTimeout(1500); // Give it some time to process
+   await expect(guestPage.locator('.chat-container')).not.toContainText('Secret Message');
+
+   // Guest chats in Main
