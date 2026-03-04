@@ -43,8 +43,17 @@ pub fn Room() -> impl IntoView {
 
     let state_clone = state.clone();
     let leave_room = Callback::new(move |_| {
+    let leave_room = Callback::new(move |_| {
         // perform explicit cleanups before leaving
         if let Some(stream) = state_clone.local_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+        }
+        if let Some(stream) = state_clone.local_screen_stream.get_untracked() {
             let tracks = stream.get_tracks();
             for i in 0..tracks.length() {
                 if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
