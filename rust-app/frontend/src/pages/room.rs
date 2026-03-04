@@ -135,11 +135,11 @@ pub fn Room() -> impl IntoView {
                                             </div>
                                         </Show>
                                         <AlwaysOnTop
-                                            is_video_muted=Signal::derive(move || state.local_stream.get().map_or(true, |s| s.get_video_tracks().length() == 0))
+                                            is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
                                             is_audio_muted=Signal::derive(move || state.is_muted.get())
-                                            on_toggle_video=state.toggle_camera.clone()
-                                            on_toggle_audio=state.toggle_mic.clone()
-                                            on_leave=leave_room.clone()
+                                            on_toggle_video=state.toggle_camera
+                                            on_toggle_audio=state.toggle_mic
+                                            on_leave=leave_room
                                         />
                                         <VideoGrid
                                             participants=state.participants
