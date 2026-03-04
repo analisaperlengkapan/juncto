@@ -411,13 +411,13 @@ mod tests {
         };
 
         let item_user = GridItem::User(p.clone());
-        // Key format: id_hand_screen
-        assert_eq!(item_user.unique_key(), "user1_false_false");
+        // Key format: id
+        assert_eq!(item_user.unique_key(), "user1");
         assert!(!item_user.is_screen());
 
         let item_screen = GridItem::RemoteScreen(p.clone());
-        // Key format: id_screen_screen
-        assert_eq!(item_screen.unique_key(), "user1_screen_false");
+        // Key format: id_screen
+        assert_eq!(item_screen.unique_key(), "user1_screen");
         assert!(item_screen.is_screen());
 
         let item_video = GridItem::SharedVideo("http://test".to_string());
