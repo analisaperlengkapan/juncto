@@ -570,12 +570,8 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process
-  // Specifically look inside the .messages list, not the whole .chat-container which includes the input field
-  const guestMessages = guestPage.locator('.chat-container .messages ul li');
-  const guestCount = await guestMessages.count();
-  for (let i = 0; i < guestCount; i++) {
-    await expect(guestMessages.nth(i)).not.toContainText('Secret Message');
-  }
+  // We can assert on the entire .messages container as long as we wait for the message to NOT be there
+  await expect(guestPage.locator('.chat-container .messages')).not.toContainText('Secret Message');
 
   // Guest chats in Main
   await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
@@ -589,12 +585,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // We need to look at actual messages list to be completely safe against test flakes
   // where it picks up the text from input field being typed and cleared.
-  // We can assert on `.chat-container .messages ul li` individually
-  const hostMessages = hostPage.locator('.chat-container .messages ul li');
-  const count = await hostMessages.count();
-  for (let i = 0; i < count; i++) {
-    await expect(hostMessages.nth(i)).not.toContainText('Main Message');
-  }
+  await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();
