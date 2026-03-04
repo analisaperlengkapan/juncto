@@ -1,0 +1,32 @@
+--- rust-app/backend/src/handlers/ws.rs
++++ rust-app/backend/src/handlers/ws.rs
+@@ -107,11 +107,24 @@
+                                                     // Filter based on room and recipient
+                                                     let should_send = match &msg {
+                                                         ServerMessage::Chat { message, room_id } => {
+-                                                            let my_loc = {
+-                                                                let locs = locations_clone.lock().unwrap();
+-                                                                locs.get(&my_id_clone).cloned().flatten()
+-                                                            };
+-                                                            if *room_id != my_loc {
++                                                            let my_loc = {
++                                                                let locs = locations_clone.lock().unwrap();
++                                                                locs.get(&my_id_clone).cloned().flatten()
++                                                            };
++                                                            // If the message is broadcast to a specific room, only people in that room should see it
++                                                            if *room_id != my_loc {
++                                                                false
++                                                            } else if let Some(target) = &message.recipient_id {
++                                                                *target == my_id_clone || message.user_id == my_id_clone
++                                                            } else {
++                                                                true
++                                                            }
++                                                        },
++                                                        ServerMessage::PeerTyping { room_id, .. } => {
++                                                            let my_loc = {
++                                                                let locs = locations_clone.lock().unwrap();
++                                                                locs.get(&my_id_clone).cloned().flatten()
++                                                            };
++                                                            *room_id == my_loc
++                                                        },
++                                                        ServerMessage::Offer { source_id, target_id, .. }

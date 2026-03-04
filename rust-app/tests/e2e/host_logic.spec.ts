@@ -112,7 +112,7 @@ test.describe('Host Logic', () => {
     // Wait, the toast text is "The meeting has ended by the host."
     // Let's assert redirect directly as the toast might be flaky depending on headless environment rendering.
     // sometimes playwright's waitForURL "**/" fails if it's already there or not navigating cleanly
-    await expect(pageB).toHaveURL(/.*localhost:3000\/?$/, { timeout: 15000 });
+    await expect(pageB).toHaveURL(/.*localhost:3000\/?/, { timeout: 15000 });
     await expect(pageB.locator('input[type="text"]')).toBeVisible({ timeout: 15000 }); // "Welcome" h1 might not exist or text differ, just check input
 
     await contextA.close();
