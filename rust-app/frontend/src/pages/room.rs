@@ -21,6 +21,7 @@ use crate::whiteboard::Whiteboard;
 use gloo_timers::callback::Interval;
 use leptos::*;
 use leptos_router::*;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn Room() -> impl IntoView {
@@ -40,7 +41,17 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let state_clone = state.clone();
     let leave_room = Callback::new(move |_| {
+        // perform explicit cleanups before leaving
+        if let Some(stream) = state_clone.local_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+        }
         if let Some(window) = web_sys::window() {
             let _ = window.location().set_href("/");
         }

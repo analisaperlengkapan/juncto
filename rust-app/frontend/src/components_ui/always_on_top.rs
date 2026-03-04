@@ -22,7 +22,7 @@ pub fn AlwaysOnTop(
                 padding: 10px;
                 display: flex;
                 gap: 10px;
-                z-index: 10000;
+                z-index: 100;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                 transition: opacity 0.3s;
             "
