@@ -86,7 +86,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted)
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, format!("{:?}", p.presence))
                     children=move |p| {
                         let id_kick = p.id.clone();
                         // Use reactive check for host status
