@@ -166,6 +166,11 @@ pub fn Room() -> impl IntoView {
                                     </div>
                                 </div>
                                 <ReactionDisplay last_reaction=state.last_reaction />
+                                <Show when=move || state.is_subtitles_enabled.get()>
+                                    <div class="subtitles-overlay" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2em; text-align: center; z-index: 100; max-width: 80%;">
+                                        "Subtitles are currently enabled. (Transcriptions will appear here)"
+                                    </div>
+                                </Show>
                                 <Show when=move || state.show_whiteboard.get()>
                                     <Whiteboard
                                         on_draw=state.send_draw
@@ -184,6 +189,9 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_lock=state.toggle_lock
                                 on_toggle_lobby=state.toggle_lobby
                                 on_toggle_recording=state.toggle_recording
+                                is_subtitles_enabled=state.is_subtitles_enabled
+                                on_toggle_subtitles=state.toggle_subtitles
+                                on_set_presence=state.set_presence
                                 on_invite=Callback::new(move |_| set_show_invite.set(true))
                                 on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))

@@ -444,6 +444,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
 
         let item_user = GridItem::User(p.clone());

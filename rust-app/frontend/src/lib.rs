@@ -30,6 +30,25 @@ fn App() -> impl IntoView {
     provide_i18n_context();
     provide_toast_context();
 
+    // Check for WebRTC support (RTCPeerConnection)
+    let is_webrtc_supported = if let Some(window) = web_sys::window() {
+        js_sys::Reflect::has(&window, &JsValue::from_str("RTCPeerConnection")).unwrap_or(false)
+    } else {
+        false
+    };
+
+    if !is_webrtc_supported {
+        return view! {
+            <div class="unsupported-browser-container" style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f8d7da; color: #721c24; text-align: center; font-family: sans-serif;">
+                <div>
+                    <h1 style="font-size: 2em; margin-bottom: 20px;">"Unsupported Browser"</h1>
+                    <p style="font-size: 1.2em;">"WebRTC is required to use this application."</p>
+                    <p>"Please upgrade your browser to a modern version (e.g., Chrome, Firefox, Safari, Edge) that supports WebRTC."</p>
+                </div>
+            </div>
+        }.into_view();
+    }
+
     view! {
         <ToastContainer />
         <Router>
@@ -40,7 +59,7 @@ fn App() -> impl IntoView {
                 </Routes>
             </main>
         </Router>
-    }
+    }.into_view()
 }
 
 #[wasm_bindgen(start)]

@@ -95,6 +95,9 @@ pub fn ParticipantsList(
                                 <div>
                                     <span>{p.name}</span>
                                     <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
+                                       " [" {format!("{:?}", p.presence)} "]"
+                                    </span>
+                                    <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
                                        "(" {format_time(p.speaking_time)} ")"
                                     </span>
                                     <Show when=move || host_id.get() == Some(p.id.clone())>
@@ -184,6 +187,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -192,6 +196,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -200,6 +205,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

@@ -143,6 +143,38 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::ToggleSubtitles => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.is_subtitles_enabled = !config.is_subtitles_enabled;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetPresence(status) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.presence = status;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                        }
+                                    }
+                                },
                                 ClientMessage::EndMeeting => {
                                     if let Some(uid) = &my_id {
                                         let host_id = {
@@ -237,6 +269,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_sharing_screen: false,
                                         is_muted: false,
                                         speaking_time: 0,
+                                        presence: shared::PresenceStatus::Connected,
                                     };
 
                                     if is_lobby && host_exists {

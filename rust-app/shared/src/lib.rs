@@ -26,6 +26,8 @@ pub struct RoomConfig {
     pub host_id: Option<String>,
     #[serde(default)]
     pub e2ee_enabled: bool,
+    #[serde(default)]
+    pub is_subtitles_enabled: bool,
 }
 
 impl Default for RoomConfig {
@@ -38,6 +40,7 @@ impl Default for RoomConfig {
             max_participants: 100,
             host_id: None,
             e2ee_enabled: false,
+            is_subtitles_enabled: false,
         }
     }
 }
@@ -71,6 +74,19 @@ pub struct ChatMessage {
     pub attachment: Option<FileAttachment>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum PresenceStatus {
+    #[default]
+    Connected,
+    Disconnected,
+    Busy,
+    Calling,
+    Ringing,
+    Rejected,
+    Ignored,
+    Expired,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Participant {
     pub id: String,
@@ -81,6 +97,8 @@ pub struct Participant {
     pub is_muted: bool,
     #[serde(default)]
     pub speaking_time: u64, // Total milliseconds spoken
+    #[serde(default)]
+    pub presence: PresenceStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -127,9 +145,11 @@ pub enum ClientMessage {
     TransferHost(String),    // Target ID
     SetMuteStatus(bool),
     EndMeeting,
+    SetPresence(PresenceStatus),
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
+    ToggleSubtitles,
     Typing(bool),
     StartShareVideo(String), // URL
     StopShareVideo,

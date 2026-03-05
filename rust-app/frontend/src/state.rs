@@ -37,6 +37,7 @@ pub struct RoomState {
     pub is_locked: ReadSignal<bool>,
     pub is_lobby_enabled: ReadSignal<bool>,
     pub is_recording: ReadSignal<bool>,
+    pub is_subtitles_enabled: ReadSignal<bool>,
     pub show_settings: ReadSignal<bool>,
     pub show_polls: ReadSignal<bool>,
     pub show_shortcuts: ReadSignal<bool>,
@@ -82,6 +83,7 @@ pub struct RoomState {
     pub toggle_lock: Callback<()>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
+    pub toggle_subtitles: Callback<()>,
     pub grant_access: Callback<String>,
     pub deny_access: Callback<String>,
     pub join_meeting: Callback<JoinOptions>,
@@ -101,6 +103,7 @@ pub struct RoomState {
     pub end_meeting: Callback<()>,
     pub mute_participant: Callback<String>,
     pub transfer_host: Callback<String>,
+    pub set_presence: Callback<shared::PresenceStatus>,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -118,6 +121,7 @@ pub fn use_room_state() -> RoomState {
     let (is_locked, set_is_locked) = create_signal(false);
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
+    let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
     let (show_polls, set_show_polls) = create_signal(false);
     let (show_shortcuts, set_show_shortcuts) = create_signal(false);
@@ -380,6 +384,7 @@ pub fn use_room_state() -> RoomState {
                                 set_is_recording.set(config.is_recording);
 
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
+                                set_is_subtitles_enabled.set(config.is_subtitles_enabled);
                                 set_room_config.set(config);
                             }
                             ServerMessage::Chat { message, .. } => {
@@ -711,6 +716,24 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_subtitles = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleSubtitles;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let set_presence = Callback::new(move |status: shared::PresenceStatus| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetPresence(status);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let grant_access = Callback::new(move |id: String| {
         set_knocking_participants.update(|list| list.retain(|p| p.id != id));
         if let Some(socket) = ws.get() {
@@ -1029,6 +1052,7 @@ pub fn use_room_state() -> RoomState {
         is_locked,
         is_lobby_enabled,
         is_recording,
+        is_subtitles_enabled,
         show_settings,
         show_polls,
         show_shortcuts,
@@ -1068,6 +1092,7 @@ pub fn use_room_state() -> RoomState {
         toggle_lock,
         toggle_lobby,
         toggle_recording,
+        toggle_subtitles,
         grant_access,
         deny_access,
         join_meeting,
@@ -1089,6 +1114,7 @@ pub fn use_room_state() -> RoomState {
         transfer_host,
         start_share_video,
         stop_share_video,
+        set_presence,
     }
 }
 

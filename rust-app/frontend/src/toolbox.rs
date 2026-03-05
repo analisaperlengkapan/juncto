@@ -6,9 +6,12 @@ pub fn Toolbox(
     is_host: Signal<bool>,
     is_lobby_enabled: ReadSignal<bool>,
     is_recording: ReadSignal<bool>,
+    is_subtitles_enabled: ReadSignal<bool>,
     on_toggle_lock: Callback<()>,
     on_toggle_lobby: Callback<()>,
     on_toggle_recording: Callback<()>,
+    on_toggle_subtitles: Callback<()>,
+    on_set_presence: Callback<shared::PresenceStatus>,
     on_invite: Callback<()>,
     on_toggle_chat: Callback<()>,
     on_settings: Callback<()>,
@@ -54,6 +57,12 @@ pub fn Toolbox(
                     style="padding: 8px 16px; background-color: #8b0000; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold;"
                 >
                     "End Meeting"
+                </button>
+                <button
+                    on:click=move |_| on_toggle_subtitles.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_subtitles_enabled.get() { "#28a745" } else { "#6c757d" })
+                >
+                    {move || if is_subtitles_enabled.get() { "Hide Subtitles" } else { "Show Subtitles" }}
                 </button>
             </Show>
             <button
@@ -177,6 +186,37 @@ pub fn Toolbox(
                 <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>
                 <button on:click=move |_| on_reaction.call("👏".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👏"</button>
                 <button on:click=move |_| on_reaction.call("😂".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"😂"</button>
+            </div>
+            <div class="presence-selector" style="display: flex; gap: 5px; align-items: center;">
+                <label for="presence-select" style="font-size: 0.9em;">"Presence:"</label>
+                <select
+                    id="presence-select"
+                    on:change=move |ev| {
+                        let value = event_target_value(&ev);
+                        let status = match value.as_str() {
+                            "Connected" => shared::PresenceStatus::Connected,
+                            "Disconnected" => shared::PresenceStatus::Disconnected,
+                            "Busy" => shared::PresenceStatus::Busy,
+                            "Calling" => shared::PresenceStatus::Calling,
+                            "Ringing" => shared::PresenceStatus::Ringing,
+                            "Rejected" => shared::PresenceStatus::Rejected,
+                            "Ignored" => shared::PresenceStatus::Ignored,
+                            "Expired" => shared::PresenceStatus::Expired,
+                            _ => shared::PresenceStatus::Connected,
+                        };
+                        on_set_presence.call(status);
+                    }
+                    style="padding: 4px; border-radius: 4px; border: 1px solid #ccc;"
+                >
+                    <option value="Connected">"Connected"</option>
+                    <option value="Busy">"Busy"</option>
+                    <option value="Disconnected">"Disconnected"</option>
+                    <option value="Calling">"Calling"</option>
+                    <option value="Ringing">"Ringing"</option>
+                    <option value="Rejected">"Rejected"</option>
+                    <option value="Ignored">"Ignored"</option>
+                    <option value="Expired">"Expired"</option>
+                </select>
             </div>
         </div>
     }

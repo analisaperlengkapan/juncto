@@ -318,6 +318,7 @@ mod tests {
                 is_sharing_screen: false,
                 is_muted: false,
                 speaking_time: 0,
+                presence: shared::PresenceStatus::Connected,
             },
             Participant {
                 id: "u2".to_string(),
@@ -326,6 +327,7 @@ mod tests {
                 is_sharing_screen: false,
                 is_muted: false,
                 speaking_time: 0,
+                presence: shared::PresenceStatus::Connected,
             },
         ];
 
