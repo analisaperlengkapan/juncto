@@ -92,105 +92,111 @@ pub fn VideoGrid(
     });
 
     view! {
-        <div class="video-grid-container" style="display: flex; flex-direction: column; width: 100%; height: 100%; position: relative;">
-            <div class="layout-controls" style="position: absolute; top: 10px; right: 10px; z-index: 100;">
+        <div class="flex flex-col w-full h-full relative bg-gray-900">
+            <div class="absolute top-4 right-4 z-50">
                 <button
                     on:click=move |_| set_layout.update(|l| *l = if *l == "grid" { "spotlight" } else { "grid" })
-                    style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
+                    class="px-3 py-1.5 bg-gray-800 bg-opacity-70 hover:bg-opacity-90 text-white text-xs font-medium rounded shadow-sm border border-gray-600 transition duration-150 backdrop-blur-sm focus:outline-none"
                 >
-                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
+                    {move || if layout.get() == "grid" { "Spotlight View" } else { "Grid View" }}
                 </button>
             </div>
 
             <div
-                class=move || format!("video-grid {}", layout.get())
-                style=move || if layout.get() == "grid" {
-                    "display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%; align-items: center; align-content: flex-start;"
-                } else {
-                    "display: flex; flex-direction: column; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%;"
-                }
+                class=move || format!("w-full h-full p-4 overflow-y-auto {}",
+                    if layout.get() == "grid" {
+                        "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr place-content-center place-items-center"
+                    } else {
+                        "flex flex-col gap-4"
+                    })
             >
+
             // Local Screen Share
             <Show when=move || local_screen_stream.get().is_some()>
-                <div class="video-card screen-share" style=move || if layout.get() == "spotlight" {
-                    "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
-                } else {
-                    "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
-                }>
+                <div class=move || format!("relative bg-black rounded-xl overflow-hidden shadow-lg border-2 border-green-500 group {}",
+                    if layout.get() == "spotlight" { "w-full flex-1 min-h-0" } else { "w-full aspect-video max-h-[300px]" })
+                >
                     <video
                         _ref=screen_ref
                         autoplay
                         playsinline
                         muted
-                        style="width: 100%; height: 100%; object-fit: contain;"
+                        class="w-full h-full object-contain"
                     />
-                    <button
-                        on:click=move |_| {
-                            if let Some(video) = screen_ref.get() {
-                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                        let promise = func.call0(js_video);
-                                        let _ = promise;
+
+                    // Controls overlay (hover)
+                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition duration-200">
+                        <button
+                            on:click=move |_| {
+                                if let Some(video) = screen_ref.get() {
+                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                            let _ = func.call0(js_video);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                        title="Picture-in-Picture"
-                    >
-                        "PiP"
-                    </button>
-                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                        "My Screen"
+                            class="absolute top-3 left-3 bg-gray-900 bg-opacity-60 hover:bg-opacity-80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition duration-200 focus:outline-none"
+                            title="Picture-in-Picture"
+                        >
+                            "PiP"
+                        </button>
+                    </div>
+
+                    <div class="absolute bottom-3 left-3 bg-gray-900 bg-opacity-60 text-white text-xs font-medium px-2.5 py-1 rounded backdrop-blur-sm shadow-sm flex items-center space-x-1 border border-gray-700">
+                        <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <span>"My Screen"</span>
                     </div>
                 </div>
             </Show>
 
             // Local User Video
-            <div class="video-card local-video" style=move || if layout.get() == "spotlight" && local_screen_stream.get().is_none() {
-                 "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
-            } else {
-                 "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
-            }>
+            <div class=move || format!("relative bg-gray-800 rounded-xl overflow-hidden shadow-lg border-2 border-blue-500 group {}",
+                 if layout.get() == "spotlight" && local_screen_stream.get().is_none() { "w-full flex-1 min-h-0" } else { "w-full aspect-video max-h-[300px]" })
+            >
                 <Show when=move || {
                     local_stream.get()
                         .map(|s| s.get_video_tracks().length() > 0)
                         .unwrap_or(false)
                 } fallback=move || view! {
-                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white;">
-                        "Camera Off"
+                    <div class="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-800 space-y-2">
+                        <svg class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                        <span class="text-sm font-medium">"Camera Off"</span>
                     </div>
                 }>
                     <video
                         _ref=video_ref
                         autoplay
                         playsinline
-                        muted // Mute local video to avoid feedback
-                        style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" // Mirror
+                        muted
+                        class="w-full h-full object-cover transform scale-x-[-1]"
                     />
-                    <button
-                        on:click=move |_| {
-                            if let Some(video) = video_ref.get() {
-                                let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                        let promise = func.call0(js_video);
-                                        let _ = promise;
+
+                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition duration-200">
+                        <button
+                            on:click=move |_| {
+                                if let Some(video) = video_ref.get() {
+                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                            let _ = func.call0(js_video);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                        title="Picture-in-Picture"
-                    >
-                        "PiP"
-                    </button>
+                            class="absolute top-3 left-3 bg-gray-900 bg-opacity-60 hover:bg-opacity-80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition duration-200 focus:outline-none"
+                            title="Picture-in-Picture"
+                        >
+                            "PiP"
+                        </button>
+                    </div>
                 </Show>
-                <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                    "Me"
+
+                <div class="absolute bottom-3 left-3 bg-gray-900 bg-opacity-60 text-white text-xs font-medium px-2.5 py-1 rounded backdrop-blur-sm shadow-sm flex items-center space-x-1 border border-gray-700">
+                    <span>"Me"</span>
                 </div>
             </div>
 
@@ -201,9 +207,7 @@ pub fn VideoGrid(
                 children=move |item| {
                     match item {
                         GridItem::SharedVideo(url) => {
-                            // Extract video ID if YouTube
                             let video_id = if url.contains("youtube.com") || url.contains("youtu.be") {
-                                // Basic extraction
                                 if let Some(idx) = url.find("v=") {
                                     url[idx+2..].split('&').next().unwrap_or("").to_string()
                                 } else if let Some(idx) = url.rfind('/') {
@@ -222,16 +226,15 @@ pub fn VideoGrid(
                             };
 
                             view! {
-                                <div class="video-card shared-video" style="flex: 1 1 100%; max-width: 800px; height: 450px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">
+                                <div class="col-span-full relative bg-black rounded-xl overflow-hidden shadow-lg border-2 border-orange-500 w-full max-w-4xl mx-auto aspect-video">
                                     <iframe
-                                        width="100%"
-                                        height="100%"
+                                        class="w-full h-full"
                                         src=embed_url
                                         frameborder="0"
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         allowfullscreen
                                     ></iframe>
-                                    <div class="name-tag" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
+                                    <div class="absolute top-3 left-3 bg-gray-900 bg-opacity-60 text-white text-xs font-medium px-2.5 py-1 rounded backdrop-blur-sm shadow-sm border border-gray-700">
                                         "Shared Video"
                                     </div>
                                 </div>
@@ -243,7 +246,6 @@ pub fn VideoGrid(
                             let id_clone = p.id.clone();
                             let id_clone_2 = id_clone.clone();
 
-                            // Derive reactive participant properties using the `participants` signal
                             let p_id_for_props = p.id.clone();
                             let p_name = Signal::derive(move || {
                                 participants.with(|ps| {
@@ -282,69 +284,43 @@ pub fn VideoGrid(
                                 })
                             });
 
-                            let is_speaking = move || speaking_peers.get().contains(&id_clone);
+                            let is_speaking = Signal::derive(move || speaking_peers.get().contains(&id_clone));
 
-                            // Remote Stream Logic
                             let remote_video_ref = create_node_ref::<html::Video>();
                             let stream_signal = Signal::derive(move || {
-                                // Performance: Use .with() to avoid cloning the entire HashMap of streams
                                 remote_streams.with(|map| {
                                     if let Some(streams) = map.get(&id_clone_2) {
                                         if is_screen {
-                                            // Bug 4: Stream disambiguation relies on displaySurface (not universally supported).
-                                            // Fallback assumes second stream is screen share.
-
-                                            // Try to find a stream with displaySurface (best effort)
                                             let screen_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    // use Reflect to check displaySurface prop safely
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return true;
+                                                let tracks = s.get_video_tracks();
+                                                for i in 0..tracks.length() {
+                                                    let track_val = tracks.get(i);
+                                                    if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        let settings = track.get_settings();
+                                                        if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                            if !val.is_undefined() { return true; }
                                                         }
                                                     }
                                                 }
-                                            }
-                                            false
-                                        });
-
-                                        if let Some(s) = screen_stream {
-                                            return Some(s.clone());
-                                        }
-
-                                        // Fallback: use second stream if available (assuming order: camera, screen)
-                                        if streams.len() > 1 {
-                                            Some(streams[1].clone())
+                                                false
+                                            });
+                                            if let Some(s) = screen_stream { return Some(s.clone()); }
+                                            if streams.len() > 1 { Some(streams[1].clone()) } else { streams.first().cloned() }
                                         } else {
-                                            streams.first().cloned()
-                                        }
-                                    } else {
-                                        // User card: use the first stream (or one that isn't screen)
-                                         let camera_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return false; // This is a screen
+                                            let camera_stream = streams.iter().find(|s| {
+                                                let tracks = s.get_video_tracks();
+                                                for i in 0..tracks.length() {
+                                                    let track_val = tracks.get(i);
+                                                    if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        let settings = track.get_settings();
+                                                        if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                                            if !val.is_undefined() { return false; }
                                                         }
                                                     }
                                                 }
-                                            }
-                                            true // Assume camera if no displaySurface
-                                        });
-
-                                        if let Some(s) = camera_stream {
-                                            Some(s.clone())
-                                        } else {
-                                            streams.first().cloned()
-                                        }
+                                                true
+                                            });
+                                            if let Some(s) = camera_stream { Some(s.clone()) } else { streams.first().cloned() }
                                         }
                                     } else {
                                         None
@@ -364,18 +340,26 @@ pub fn VideoGrid(
                             });
 
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                <div class=move || format!("relative rounded-xl overflow-hidden shadow-lg group transition-all duration-200 border-2 {} {}",
+                                    if is_speaking.get() { "border-green-500 bg-gray-800 ring-2 ring-green-500 ring-opacity-50" } else { "border-gray-700 bg-gray-800" },
+                                    if layout.get() == "spotlight" { "w-full max-h-[300px] aspect-video" } else { "w-full aspect-video" }
+                                )>
                                     <Show when=move || stream_signal.get().is_some() fallback=move || {
                                         if is_screen {
                                             view! {
-                                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
-                                                    "Waiting for screen..."
+                                                <div class="w-full h-full flex items-center justify-center text-gray-500 bg-gray-900">
+                                                    <div class="flex flex-col items-center space-y-2">
+                                                        <svg class="w-10 h-10 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                                        <span class="text-sm">"Loading screen..."</span>
+                                                    </div>
                                                 </div>
                                             }.into_view()
                                         } else {
                                             view! {
-                                                <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                                    {initial_char.get()}
+                                                <div class="w-full h-full flex items-center justify-center bg-gray-800">
+                                                    <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-inner">
+                                                        {initial_char.get()}
+                                                    </div>
                                                 </div>
                                             }.into_view()
                                         }
@@ -384,39 +368,47 @@ pub fn VideoGrid(
                                             node_ref=remote_video_ref
                                             autoplay
                                             playsinline
-                                            style=move || if is_screen {
-                                                "width: 100%; height: 100%; object-fit: contain;"
-                                            } else {
-                                                "width: 100%; height: 100%; object-fit: cover;"
-                                            }
+                                            class=move || format!("w-full h-full {}", if is_screen { "object-contain bg-black" } else { "object-cover bg-gray-900" })
                                         />
-                                        <button
-                                            on:click=move |_| {
-                                                if let Some(video) = remote_video_ref.get() {
-                                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                                            let promise = func.call0(js_video);
-                                                            let _ = promise;
+
+                                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition duration-200">
+                                            <button
+                                                on:click=move |_| {
+                                                    if let Some(video) = remote_video_ref.get() {
+                                                        let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                                                        let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                                                        if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                                            if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                                                let _ = func.call0(js_video);
+                                                            }
                                                         }
                                                     }
                                                 }
-                                            }
-                                            style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                                            title="Picture-in-Picture"
-                                        >
-                                            "PiP"
-                                        </button>
+                                                class="absolute top-3 left-3 bg-gray-900 bg-opacity-60 hover:bg-opacity-80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition duration-200 focus:outline-none"
+                                                title="Picture-in-Picture"
+                                            >
+                                                "PiP"
+                                            </button>
+                                        </div>
                                     </Show>
 
-                                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                        {move || p_name.get()}
+                                    <div class="absolute bottom-3 left-3 flex items-center space-x-2">
+                                        <div class="bg-gray-900 bg-opacity-60 text-white text-xs font-medium px-2.5 py-1 rounded backdrop-blur-sm shadow-sm border border-gray-700">
+                                            {move || p_name.get()}
+                                        </div>
+
+                                        <Show when=move || is_speaking.get()>
+                                            <div class="bg-green-500 rounded-full p-1 border-2 border-white shadow-sm animate-pulse">
+                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                                            </div>
+                                        </Show>
                                     </div>
 
-                                    <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                    <div class="absolute top-3 right-3 flex space-x-1">
                                         <Show when=move || is_hand_raised.get() && !is_screen>
-                                            <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
+                                            <div class="bg-yellow-400 bg-opacity-90 rounded p-1.5 shadow-sm transform transition hover:scale-110" title="Hand Raised">
+                                                <svg class="w-4 h-4 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"></path></svg>
+                                            </div>
                                         </Show>
                                     </div>
                                 </div>

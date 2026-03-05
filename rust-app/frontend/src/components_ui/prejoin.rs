@@ -163,109 +163,134 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
     });
 
     view! {
-        <div class="prejoin-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f0f0; font-family: sans-serif;">
-            <div class="card" style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; max-width: 500px; width: 100%;">
-                <h2 style="margin-bottom: 20px; color: #333;">"Join Meeting"</h2>
+        <div class="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+            <div class="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
 
-                // Video Preview
-                <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 20px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                    <Show when=move || is_camera_on.get() fallback=|| view! { <div class="camera-off-text" style="color: white;">"Camera is Off"</div> }>
+                // Left side: Video Preview
+                <div class="md:w-3/5 bg-gray-900 p-6 flex flex-col items-center justify-center relative min-h-[300px] md:min-h-[500px]">
+                    <Show when=move || is_camera_on.get() fallback=|| view! {
+                        <div class="flex flex-col items-center justify-center text-gray-400 space-y-4">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                            <p class="text-lg font-medium">"Camera is off"</p>
+                        </div>
+                    }>
                         <video
                             node_ref=video_ref
                             autoplay
-                            muted // Always mute local preview to avoid feedback
+                            muted
                             playsinline
-                            style="width: 100%; height: 100%; object-fit: cover;"
+                            class="w-full h-full object-cover rounded-xl shadow-lg border border-gray-700 transform scale-x-[-1]"
                         />
                     </Show>
 
-                    // Audio Meter Indicator
-                    <Show when=move || is_speaking.get() && is_mic_on.get()>
-                        <div style="position: absolute; bottom: 10px; right: 10px; width: 15px; height: 15px; background: #28a745; border-radius: 50%; border: 2px solid white;"></div>
-                    </Show>
-                    <Show when=move || !is_mic_on.get()>
-                        <div style="position: absolute; bottom: 10px; right: 10px; color: #dc3545; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; font-size: 12px;">"Muted"</div>
-                    </Show>
-                </div>
-
-                // Controls
-                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
-                    <button
-                        on:click=move |_| set_is_camera_on.update(|v| *v = !*v)
-                        style=move || format!("padding: 10px; border-radius: 50%; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; background-color: {};", if is_camera_on.get() { "#007bff" } else { "#dc3545" })
-                        title="Toggle Camera"
-                    >
-                         {move || if is_camera_on.get() { "📷" } else { "🚫" }}
-                    </button>
-                    <button
-                        on:click=move |_| set_is_mic_on.update(|v| *v = !*v)
-                        style=move || format!("padding: 10px; border-radius: 50%; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; background-color: {};", if is_mic_on.get() { "#007bff" } else { "#dc3545" })
-                        title="Toggle Microphone"
-                    >
-                         {move || if is_mic_on.get() { "🎤" } else { "🔇" }}
-                    </button>
-                </div>
-
-                // Device Selectors
-                <div style="margin-bottom: 20px; text-align: left;">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Camera"</label>
-                        <select
-                            on:change=move |ev| set_selected_video_device.set(Some(event_target_value(&ev)))
-                            prop:value=move || selected_video_device.get().unwrap_or_default()
-                            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                            disabled=move || !is_camera_on.get()
-                        >
-                            <For
-                                each=move || video_devices.get()
-                                key=|d| d.device_id.clone()
-                                children=move |device| {
-                                    view! {
-                                        <option value=device.device_id>{device.label}</option>
-                                    }
-                                }
-                            />
-                        </select>
+                    // Audio Meter / Mute indicator
+                    <div class="absolute bottom-10 right-10 flex items-center space-x-2">
+                        <Show when=move || is_speaking.get() && is_mic_on.get()>
+                            <div class="w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+                        </Show>
+                        <Show when=move || !is_mic_on.get()>
+                            <div class="bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm flex items-center space-x-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+                                <span>"Muted"</span>
+                            </div>
+                        </Show>
                     </div>
-                    <div>
-                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Microphone"</label>
-                        <select
-                            on:change=move |ev| set_selected_audio_device.set(Some(event_target_value(&ev)))
-                            prop:value=move || selected_audio_device.get().unwrap_or_default()
-                            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+
+                    // Quick Toggle Controls overlaid on video
+                    <div class="absolute bottom-8 flex space-x-4 bg-gray-900 bg-opacity-60 px-6 py-3 rounded-full backdrop-blur-sm border border-gray-700">
+                        <button
+                            on:click=move |_| set_is_mic_on.update(|v| *v = !*v)
+                            class=move || format!("p-3 rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 {}",
+                                if is_mic_on.get() { "bg-gray-700 text-white hover:bg-gray-600" } else { "bg-red-500 text-white hover:bg-red-600" })
+                            title="Toggle Microphone"
                         >
-                            <For
-                                each=move || audio_devices.get()
-                                key=|d| d.device_id.clone()
-                                children=move |device| {
-                                    view! {
-                                        <option value=device.device_id>{device.label}</option>
-                                    }
-                                }
-                            />
-                        </select>
+                            <Show when=move || is_mic_on.get() fallback=|| view! { <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg> }>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                            </Show>
+                        </button>
+                        <button
+                            on:click=move |_| set_is_camera_on.update(|v| *v = !*v)
+                            class=move || format!("p-3 rounded-full transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 {}",
+                                if is_camera_on.get() { "bg-gray-700 text-white hover:bg-gray-600" } else { "bg-red-500 text-white hover:bg-red-600" })
+                            title="Toggle Camera"
+                        >
+                            <Show when=move || is_camera_on.get() fallback=|| view! { <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> }>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </Show>
+                        </button>
                     </div>
                 </div>
 
-                // Name Input
-                <div style="margin-bottom: 20px; text-align: left;">
-                    <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Display Name"</label>
-                    <input
-                        type="text"
-                        prop:value=display_name
-                        on:input=move |ev| set_display_name.set(event_target_value(&ev))
-                        style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
-                        placeholder="Enter your name"
-                    />
-                </div>
+                // Right side: Join Form
+                <div class="md:w-2/5 p-8 flex flex-col justify-center bg-white">
+                    <h2 class="text-3xl font-extrabold text-gray-900 mb-6 tracking-tight">"Ready to join?"</h2>
 
-                <button
-                    class="join-btn"
-                    on:click=handle_join
-                    style="padding: 12px 24px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;"
-                >
-                    "Join Meeting"
-                </button>
+                    <div class="space-y-5">
+                        // Name Input
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">"Display Name"</label>
+                            <input
+                                type="text"
+                                prop:value=display_name
+                                on:input=move |ev| set_display_name.set(event_target_value(&ev))
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                placeholder="Enter your name"
+                            />
+                        </div>
+
+                        // Settings Accordion / Details
+                        <div class="pt-4 border-t border-gray-200">
+                            <h3 class="text-sm font-medium text-gray-900 mb-3">"Device Settings"</h3>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">"Microphone"</label>
+                                    <select
+                                        on:change=move |ev| set_selected_audio_device.set(Some(event_target_value(&ev)))
+                                        prop:value=move || selected_audio_device.get().unwrap_or_default()
+                                        class="w-full pl-3 pr-10 py-2 text-sm border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md bg-gray-50"
+                                    >
+                                        <For
+                                            each=move || audio_devices.get()
+                                            key=|d| d.device_id.clone()
+                                            children=move |device| {
+                                                view! { <option value=device.device_id>{device.label}</option> }
+                                            }
+                                        />
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">"Camera"</label>
+                                    <select
+                                        on:change=move |ev| set_selected_video_device.set(Some(event_target_value(&ev)))
+                                        prop:value=move || selected_video_device.get().unwrap_or_default()
+                                        disabled=move || !is_camera_on.get()
+                                        class="w-full pl-3 pr-10 py-2 text-sm border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <For
+                                            each=move || video_devices.get()
+                                            key=|d| d.device_id.clone()
+                                            children=move |device| {
+                                                view! { <option value=device.device_id>{device.label}</option> }
+                                            }
+                                        />
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        // Join Button
+                        <div class="pt-6">
+                            <button
+                                on:click=handle_join
+                                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out transform hover:-translate-y-0.5"
+                            >
+                                "Join Meeting"
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     }
