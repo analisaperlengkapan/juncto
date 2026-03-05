@@ -145,7 +145,7 @@ pub fn Room() -> impl IntoView {
                                                 "REC"
                                             </div>
                                         </Show>
-                                        <Show when=move || state.is_connected.get()>
+                                        <Show when=move || !state.is_connected.get()>
                                             <AlwaysOnTop
                                                 is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
                                                 is_audio_muted=Signal::derive(move || state.is_muted.get())
