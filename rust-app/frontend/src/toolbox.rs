@@ -185,7 +185,7 @@ pub fn Toolbox(
                                 cb.call(());
                             }
                         }
-                        class="px-4 py-2 bg-red-900 hover:bg-red-800 text-red-100 rounded-lg font-medium border border-red-700 shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 hidden sm:block"
+                        class="px-4 py-2 bg-red-900 hover:bg-red-800 text-red-100 rounded-lg font-medium border border-red-700 shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
                     >
                         "End Meeting"
                     </button>
