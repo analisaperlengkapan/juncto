@@ -204,24 +204,24 @@ pub fn Room() -> impl IntoView {
                                     <Toolbox
                                         is_locked=state.is_locked
                                         is_host=state.is_host
-                                        _is_lobby_enabled=state.is_lobby_enabled
+                                        is_lobby_enabled=state.is_lobby_enabled
                                         is_recording=state.is_recording
                                         on_toggle_lock=state.toggle_lock
-                                        _on_toggle_lobby=state.toggle_lobby
+                                        on_toggle_lobby=state.toggle_lobby
                                         on_toggle_recording=state.toggle_recording
                                         on_invite=Callback::new(move |_| set_show_invite.set(true))
                                         on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                                         on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                         on_polls=Callback::new(move |_| state.set_show_polls.set(true))
-                                        _on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
+                                        on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                         on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
-                                        _on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
-                                        _on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
+                                        on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
+                                        on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
                                         on_raise_hand=state.toggle_raise_hand
                                         on_screen_share=state.toggle_screen_share
-                                        _on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
-                                        _on_stop_share_video=state.stop_share_video
-                                        _is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
+                                        on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
+                                        on_stop_share_video=state.stop_share_video
+                                        is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                         on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                         on_reaction=state.send_reaction
                                         on_toggle_camera=state.toggle_camera
