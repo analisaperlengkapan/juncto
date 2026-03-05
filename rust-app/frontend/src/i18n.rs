@@ -102,6 +102,16 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "please_select_rating") => "Silakan pilih peringkat".to_string(),
         (Locale::En, "submit") => "Submit".to_string(),
         (Locale::Id, "submit") => "Kirim".to_string(),
+        (Locale::En, "mute") => "Mute".to_string(),
+        (Locale::Id, "mute") => "Bisukan".to_string(),
+        (Locale::En, "unmute") => "Unmute".to_string(),
+        (Locale::Id, "unmute") => "Bunyikan".to_string(),
+        (Locale::En, "camera_on") => "Turn Camera On".to_string(),
+        (Locale::Id, "camera_on") => "Nyalakan Kamera".to_string(),
+        (Locale::En, "camera_off") => "Turn Camera Off".to_string(),
+        (Locale::Id, "camera_off") => "Matikan Kamera".to_string(),
+        (Locale::En, "leave_room") => "Leave Room".to_string(),
+        (Locale::Id, "leave_room") => "Keluar Ruangan".to_string(),
         // Add more keys as needed
         (_, k) => k.to_string(),
     }

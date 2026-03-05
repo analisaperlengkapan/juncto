@@ -1,4 +1,5 @@
 use crate::chat::Chat;
+use crate::components_ui::always_on_top::AlwaysOnTop;
 use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::feedback::FeedbackDialog;
 use crate::components_ui::invite::InviteDialog;
@@ -20,6 +21,7 @@ use crate::whiteboard::Whiteboard;
 use gloo_timers::callback::Interval;
 use leptos::*;
 use leptos_router::*;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn Room() -> impl IntoView {
@@ -39,7 +41,17 @@ pub fn Room() -> impl IntoView {
         }
     });
 
+    let state_clone = state.clone();
     let leave_room = Callback::new(move |_| {
+        // perform explicit cleanups before leaving
+        if let Some(stream) = state_clone.local_stream.get_untracked() {
+            let tracks = stream.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+        }
         if let Some(window) = web_sys::window() {
             let _ = window.location().set_href("/");
         }
@@ -132,6 +144,15 @@ pub fn Room() -> impl IntoView {
                                             <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
                                                 "REC"
                                             </div>
+                                        </Show>
+                                        <Show when=move || !state.is_connected.get()>
+                                            <AlwaysOnTop
+                                                is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
+                                                is_audio_muted=Signal::derive(move || state.is_muted.get())
+                                                on_toggle_video=state.toggle_camera
+                                                on_toggle_audio=state.toggle_mic
+                                                on_leave=leave_room
+                                            />
                                         </Show>
                                         <VideoGrid
                                             participants=state.participants
