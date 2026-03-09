@@ -225,6 +225,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut vid = state.shared_video_url.lock().unwrap();
                                                 *vid = None;
                                             }
+                                            {
+                                                let mut fb = state.feedback.lock().unwrap();
+                                                fb.clear();
+                                            }
                                         }
                                     }
                                 },
