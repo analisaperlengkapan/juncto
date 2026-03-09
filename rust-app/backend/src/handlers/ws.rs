@@ -526,10 +526,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Chat { content, recipient_id, attachment, room_id } => {
                                     if let Some(uid) = &my_id {
-                                        let effective_room = room_id.clone().or_else(|| my_room_id.clone());
+                                        // Security: Only allow the client to send a chat message if the room_id they provided
+                                        // matches the room_id the server believes they are currently in.
+                                        let is_authorized = room_id == my_room_id;
+
+                                        if !is_authorized {
+                                            let _ = internal_tx.send(ServerMessage::Error("Unauthorized: Cannot send message to a different room".to_string())).await;
+                                            continue;
+                                        }
+
                                         let res = chat::process_chat_message(
                                             uid,
-                                            &effective_room,
+                                            &room_id,
                                             content,
                                             recipient_id,
                                             attachment,

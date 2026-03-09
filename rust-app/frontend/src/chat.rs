@@ -156,6 +156,7 @@ pub fn Chat(
         if !content.is_empty() || attachment.is_some() {
             on_send.call((content, target, attachment, current_room_id.get()));
             on_typing.call(false);
+            // Ensure optimistic UI is disabled by skipping local addition if backend echoes back
             set_input_value.set("".to_string());
             set_selected_file.set(None);
             if let Some(input) = file_input_ref.get() {
