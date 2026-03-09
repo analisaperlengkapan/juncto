@@ -223,6 +223,7 @@ pub fn Room() -> impl IntoView {
                                 on_typing=state.set_is_typing
                                 is_connected=state.is_connected
                                 my_id=state.my_id
+                                current_room_id=state.current_room_id
                             />
                         </div>
                         <InviteDialog

@@ -77,7 +77,7 @@ pub struct RoomState {
     pub set_show_virtual_background: WriteSignal<bool>,
     pub set_show_feedback: WriteSignal<bool>,
     pub send_ping: Callback<()>,
-    pub send_message: Callback<(String, Option<String>, Option<FileAttachment>)>, // content, recipient_id, attachment
+    pub send_message: Callback<(String, Option<String>, Option<FileAttachment>, Option<String>)>, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
@@ -680,16 +680,18 @@ pub fn use_room_state() -> RoomState {
     });
 
     let send_message = Callback::new(
-        move |(content, recipient_id, attachment): (
+        move |(content, recipient_id, attachment, room_id): (
             String,
             Option<String>,
             Option<FileAttachment>,
+            Option<String>,
         )| {
             if let Some(socket) = ws.get() {
                 let msg = ClientMessage::Chat {
                     content,
                     recipient_id,
                     attachment,
+                    room_id,
                 };
                 if let Ok(json) = serde_json::to_string(&msg) {
                     let _ = socket.send_with_str(&json);

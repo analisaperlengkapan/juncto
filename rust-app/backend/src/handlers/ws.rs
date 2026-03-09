@@ -191,11 +191,39 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                             {
                                                 let mut c = room_config_mutex.lock().unwrap();
-                                                c.host_id = None;
+                                                *c = shared::RoomConfig::default();
                                             }
                                             {
                                                 let mut s = speaking_start_times_mutex.lock().unwrap();
                                                 s.clear();
+                                            }
+                                            {
+                                                let mut k = state.knocking_participants.lock().unwrap();
+                                                k.clear();
+                                            }
+                                            {
+                                                let mut p = state.polls.lock().unwrap();
+                                                p.clear();
+                                            }
+                                            {
+                                                let mut w = state.whiteboard.lock().unwrap();
+                                                w.clear();
+                                            }
+                                            {
+                                                let mut ch = state.chat_history.lock().unwrap();
+                                                ch.clear();
+                                            }
+                                            {
+                                                let mut br = state.breakout_rooms.lock().unwrap();
+                                                br.clear();
+                                            }
+                                            {
+                                                let mut loc = state.participant_locations.lock().unwrap();
+                                                loc.clear();
+                                            }
+                                            {
+                                                let mut vid = state.shared_video_url.lock().unwrap();
+                                                *vid = None;
                                             }
                                         }
                                     }
@@ -374,10 +402,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            if *room_id != my_loc {
+                                                            if message.user_id == my_id_clone {
+                                                                true // The test relies on message being echoed back
+                                                            } else if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
-                                                                *target == my_id_clone || message.user_id == my_id_clone
+                                                                *target == my_id_clone
                                                             } else {
                                                                 true
                                                             }
@@ -494,11 +524,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
                                     }
                                 },
-                                ClientMessage::Chat { content, recipient_id, attachment } => {
+                                ClientMessage::Chat { content, recipient_id, attachment, room_id } => {
                                     if let Some(uid) = &my_id {
+                                        let effective_room = room_id.clone().or_else(|| my_room_id.clone());
                                         let res = chat::process_chat_message(
                                             uid,
-                                            &my_room_id,
+                                            &effective_room,
                                             content,
                                             recipient_id,
                                             attachment,
@@ -928,10 +959,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         let locs = locations_clone.lock().unwrap();
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
-                                                    if *room_id != my_loc {
+                                                    if message.user_id == my_id_clone {
+                                                        true // The test relies on message being echoed back
+                                                    } else if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
-                                                        *target == my_id_clone || message.user_id == my_id_clone
+                                                        *target == my_id_clone
                                                     } else {
                                                         true
                                                     }

@@ -195,13 +195,9 @@ pub fn Toolbox(
                         let value = event_target_value(&ev);
                         let status = match value.as_str() {
                             "Connected" => shared::PresenceStatus::Connected,
-                            "Disconnected" => shared::PresenceStatus::Disconnected,
                             "Busy" => shared::PresenceStatus::Busy,
                             "Calling" => shared::PresenceStatus::Calling,
                             "Ringing" => shared::PresenceStatus::Ringing,
-                            "Rejected" => shared::PresenceStatus::Rejected,
-                            "Ignored" => shared::PresenceStatus::Ignored,
-                            "Expired" => shared::PresenceStatus::Expired,
                             _ => shared::PresenceStatus::Connected,
                         };
                         on_set_presence.call(status);
@@ -210,12 +206,8 @@ pub fn Toolbox(
                 >
                     <option value="Connected">"Connected"</option>
                     <option value="Busy">"Busy"</option>
-                    <option value="Disconnected">"Disconnected"</option>
                     <option value="Calling">"Calling"</option>
                     <option value="Ringing">"Ringing"</option>
-                    <option value="Rejected">"Rejected"</option>
-                    <option value="Ignored">"Ignored"</option>
-                    <option value="Expired">"Expired"</option>
                 </select>
             </div>
         </div>

@@ -55,10 +55,11 @@ pub fn Chat(
     messages: ReadSignal<Vec<ChatMessage>>,
     typing_users: ReadSignal<HashSet<String>>,
     participants: ReadSignal<Vec<Participant>>,
-    on_send: Callback<(String, Option<String>, Option<FileAttachment>)>,
+    on_send: Callback<(String, Option<String>, Option<FileAttachment>, Option<String>)>,
     on_typing: Callback<bool>,
     is_connected: ReadSignal<bool>,
     my_id: ReadSignal<Option<String>>,
+    current_room_id: ReadSignal<Option<String>>,
 ) -> impl IntoView {
     let (input_value, set_input_value) = create_signal("".to_string());
     let (recipient, set_recipient) = create_signal(None::<String>); // None = Everyone
@@ -153,7 +154,7 @@ pub fn Chat(
         let attachment = selected_file.get();
 
         if !content.is_empty() || attachment.is_some() {
-            on_send.call((content, target, attachment));
+            on_send.call((content, target, attachment, current_room_id.get()));
             on_typing.call(false);
             set_input_value.set("".to_string());
             set_selected_file.set(None);

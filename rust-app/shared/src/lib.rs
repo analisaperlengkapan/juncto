@@ -72,9 +72,12 @@ pub struct ChatMessage {
     pub timestamp: u64,
     #[serde(default)] // Default to None for backward compatibility during migration
     pub attachment: Option<FileAttachment>,
+    #[serde(default)]
+    pub room_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Eq, Hash)]
 pub enum PresenceStatus {
     #[default]
     Connected,
@@ -130,6 +133,8 @@ pub enum ClientMessage {
         content: String,
         recipient_id: Option<String>,
         attachment: Option<FileAttachment>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     ToggleRoomLock,
     ToggleRecording,
@@ -183,12 +188,14 @@ pub struct BreakoutRoom {
 pub enum ServerMessage {
     Chat {
         message: ChatMessage,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     PeerTyping {
         user_id: String,
         is_typing: bool,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     Kicked { target_id: String, room_id: Option<String> },
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
@@ -196,7 +203,8 @@ pub enum ServerMessage {
     ParticipantJoined(Participant),
     ParticipantLeft {
         id: String,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     ParticipantList(Vec<Participant>),
     KnockingParticipant(Participant),
