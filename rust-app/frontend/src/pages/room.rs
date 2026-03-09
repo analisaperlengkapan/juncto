@@ -191,6 +191,14 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 is_subtitles_enabled=state.is_subtitles_enabled
                                 on_toggle_subtitles=state.toggle_subtitles
+                                current_presence=Signal::derive(move || {
+                                    if let Some(my_id) = state.my_id.get() {
+                                        if let Some(me) = state.participants.get().iter().find(|p| p.id == my_id) {
+                                            return me.presence.clone();
+                                        }
+                                    }
+                                    shared::PresenceStatus::Connected
+                                })
                                 on_set_presence=state.set_presence
                                 on_invite=Callback::new(move |_| set_show_invite.set(true))
                                 on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))

@@ -225,10 +225,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut vid = state.shared_video_url.lock().unwrap();
                                                 *vid = None;
                                             }
-                                            {
-                                                let mut fb = state.feedback.lock().unwrap();
-                                                fb.clear();
-                                            }
                                         }
                                     }
                                 },
@@ -530,7 +526,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Chat { content, recipient_id, attachment, room_id } => {
                                     if let Some(uid) = &my_id {
-                                        let effective_room = my_room_id.clone();
+                                        let effective_room = room_id.clone().or_else(|| my_room_id.clone());
                                         let res = chat::process_chat_message(
                                             uid,
                                             &effective_room,

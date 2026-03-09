@@ -7,6 +7,7 @@ pub fn Toolbox(
     is_lobby_enabled: ReadSignal<bool>,
     is_recording: ReadSignal<bool>,
     is_subtitles_enabled: ReadSignal<bool>,
+    current_presence: Signal<shared::PresenceStatus>,
     on_toggle_lock: Callback<()>,
     on_toggle_lobby: Callback<()>,
     on_toggle_recording: Callback<()>,
@@ -191,6 +192,13 @@ pub fn Toolbox(
                 <label for="presence-select" style="font-size: 0.9em;">"Presence:"</label>
                 <select
                     id="presence-select"
+                    prop:value=move || match current_presence.get() {
+                        shared::PresenceStatus::Connected => "Connected",
+                        shared::PresenceStatus::Busy => "Busy",
+                        shared::PresenceStatus::Calling => "Calling",
+                        shared::PresenceStatus::Ringing => "Ringing",
+                        _ => "Connected",
+                    }
                     on:change=move |ev| {
                         let value = event_target_value(&ev);
                         let status = match value.as_str() {
