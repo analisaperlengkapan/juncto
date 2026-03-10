@@ -187,6 +187,7 @@ pub fn Toolbox(
                 <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>
                 <button on:click=move |_| on_reaction.call("👏".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👏"</button>
                 <button on:click=move |_| on_reaction.call("😂".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"😂"</button>
+                <button on:click=move |_| on_reaction.call("❤️".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"❤️"</button>
             </div>
             <div class="presence-selector" style="display: flex; gap: 5px; align-items: center;">
                 <label for="presence-select" style="font-size: 0.9em;">"Presence:"</label>
