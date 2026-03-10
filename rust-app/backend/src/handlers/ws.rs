@@ -402,12 +402,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            if message.user_id == my_id_clone {
-                                                                *room_id == my_loc // Ensure sender only sees it if they are in the correct room
-                                                            } else if *room_id != my_loc {
+                                                            if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
-                                                                *target == my_id_clone
+                                                                *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
+                                                            } else if message.user_id == my_id_clone {
+                                                                true // Echo to self
                                                             } else {
                                                                 true
                                                             }
@@ -967,12 +967,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         let locs = locations_clone.lock().unwrap();
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
-                                                    if message.user_id == my_id_clone {
-                                                        *room_id == my_loc // Ensure sender only sees it if they are in the correct room
-                                                    } else if *room_id != my_loc {
+                                                    if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
-                                                        *target == my_id_clone
+                                                        *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
+                                                    } else if message.user_id == my_id_clone {
+                                                        true // Echo to self
                                                     } else {
                                                         true
                                                     }
