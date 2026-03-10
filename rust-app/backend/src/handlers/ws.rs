@@ -403,7 +403,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
                                                             if message.user_id == my_id_clone {
-                                                                true // The test relies on message being echoed back
+                                                                *room_id == my_loc // Ensure sender only sees it if they are in the correct room
                                                             } else if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
@@ -968,7 +968,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
                                                     if message.user_id == my_id_clone {
-                                                        true // The test relies on message being echoed back
+                                                        *room_id == my_loc // Ensure sender only sees it if they are in the correct room
                                                     } else if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
