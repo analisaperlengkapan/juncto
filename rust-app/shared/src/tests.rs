@@ -7,6 +7,7 @@ fn test_chat_message_serialization() {
         recipient_id: None,
         timestamp: 1627840000,
         attachment: None,
+        room_id: None,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
@@ -27,6 +28,7 @@ fn test_chat_message_with_attachment_serialization() {
         recipient_id: None,
         timestamp: 1627840000,
         attachment: Some(attachment),
+        room_id: None,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
