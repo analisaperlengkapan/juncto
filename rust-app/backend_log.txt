@@ -1,0 +1,4 @@
+   Compiling backend v0.1.0 (/app/rust-app/backend)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.12s
+     Running `target/debug/backend`
+Listening on 0.0.0.0:3000

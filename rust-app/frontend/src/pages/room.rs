@@ -88,7 +88,7 @@ pub fn Room() -> impl IntoView {
     };
 
     view! {
-        <div class="h-screen w-full bg-gray-900 overflow-hidden font-sans text-white">
+        <div style="height: 100vh;">
             {move || match state.connection_state.get() {
                 RoomConnectionState::Prejoin => view! {
                     <PrejoinScreen on_join=state.join_meeting />
@@ -97,7 +97,7 @@ pub fn Room() -> impl IntoView {
                     <LobbyScreen />
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
-                    <div class="flex flex-col h-full w-full">
+                    <div class="room-container" style="display: flex; height: 100vh;">
                         <KeyboardShortcuts
                             on_toggle_mic=state.toggle_mic
                             on_toggle_camera=state.toggle_camera
@@ -108,64 +108,44 @@ pub fn Room() -> impl IntoView {
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-
-                        // Top Bar
-                        <div class="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 shadow-sm z-10">
-                            <div class="flex items-center space-x-3">
-                                <h2 class="text-lg font-semibold tracking-wide">
-                                    "Meeting Room: " <span class="text-blue-400">{room_id}</span>
-                                </h2>
-                                <Show when=move || state.current_room_id.get().is_some()>
-                                    <span class="px-2 py-1 text-xs font-medium text-cyan-800 bg-cyan-100 rounded-full">
-                                        "Breakout"
-                                    </span>
-                                </Show>
-                                <Show when=move || state.is_recording.get()>
-                                    <div class="flex items-center space-x-1 px-2 py-1 bg-red-900 bg-opacity-50 text-red-400 text-xs font-bold rounded animate-pulse">
-                                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                                        <span>"REC"</span>
-                                    </div>
-                                </Show>
-                            </div>
-                            <div class="flex items-center space-x-4">
-                                <div class="font-mono text-sm text-gray-400 bg-gray-900 px-3 py-1 rounded">
-                                    {format_time}
-                                </div>
-                            </div>
-                        </div>
-
-                        // Main Content Area
-                        <div class="flex flex-1 overflow-hidden relative">
-                            // Left sidebar (Participants/Breakout)
-                            <div class="w-64 bg-gray-800 border-r border-gray-700 hidden md:flex flex-col">
-                                <ParticipantsList
-                                    participants=state.participants
-                                    knocking_participants=state.knocking_participants
-                                    host_id=state.host_id
-                                    is_host=state.is_host
-                                    my_id=state.my_id
-                                    on_allow=state.grant_access
-                                    on_deny=state.deny_access
-                                    on_kick=state.kick_participant
-                                    on_mute=state.mute_participant
-                                    on_transfer_host=state.transfer_host
-                                />
-                                <div class="border-t border-gray-700 flex-1">
-                                    <BreakoutRooms
-                                        breakout_rooms=state.breakout_rooms
-                                        current_room_id=state.current_room_id
-                                        is_host=state.is_host
-                                        on_create=state.create_breakout_room
-                                        on_join=state.join_breakout_room
-                                    />
-                                </div>
-                            </div>
-
-                            // Video / Whiteboard Area
-                            <div class="flex-1 relative flex flex-col bg-black">
-                                <Show when=move || !state.is_connected.get()>
-                                    <div class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-                                        <div class="pointer-events-auto">
+                        <ParticipantsList
+                            participants=state.participants
+                            knocking_participants=state.knocking_participants
+                            host_id=state.host_id
+                            is_host=state.is_host
+                            my_id=state.my_id
+                            on_allow=state.grant_access
+                            on_deny=state.deny_access
+                            on_kick=state.kick_participant
+                            on_mute=state.mute_participant
+                            on_transfer_host=state.transfer_host
+                        />
+                        <div class="main-content" style="flex: 1; display: flex; flex-direction: column; background: #333; color: white;">
+                            <BreakoutRooms
+                                breakout_rooms=state.breakout_rooms
+                                current_room_id=state.current_room_id
+                                is_host=state.is_host
+                                on_create=state.create_breakout_room
+                                on_join=state.join_breakout_room
+                            />
+                            <div style="position: relative; flex: 1; width: 100%; height: 100%;">
+                                <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                                    <div>
+                                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                                            <h2>"Meeting Room: " {room_id}</h2>
+                                            <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
+                                                {format_time}
+                                            </span>
+                                        </div>
+                                        <Show when=move || state.current_room_id.get().is_some()>
+                                            <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
+                                        </Show>
+                                        <Show when=move || state.is_recording.get()>
+                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
+                                                "REC"
+                                            </div>
+                                        </Show>
+                                        <Show when=move || !state.is_connected.get()>
                                             <AlwaysOnTop
                                                 is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
                                                 is_audio_muted=Signal::derive(move || state.is_muted.get())
@@ -173,86 +153,87 @@ pub fn Room() -> impl IntoView {
                                                 on_toggle_audio=state.toggle_mic
                                                 on_leave=leave_room
                                             />
-                                        </div>
+                                        </Show>
+                                        <VideoGrid
+                                            participants=state.participants
+                                            local_stream=state.local_stream
+                                            local_screen_stream=state.local_screen_stream
+                                            my_id=state.my_id
+                                            shared_video_url=state.shared_video_url
+                                            speaking_peers=state.speaking_peers
+                                            remote_streams=state.remote_streams
+                                        />
+                                    </div>
+                                </div>
+                                <ReactionDisplay last_reaction=state.last_reaction />
+                                <Show when=move || state.is_subtitles_enabled.get()>
+                                    <div class="subtitles-overlay" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2em; text-align: center; z-index: 100; max-width: 80%;">
+                                        "Subtitles are currently enabled. (Transcriptions will appear here)"
                                     </div>
                                 </Show>
-
-                                <div class="flex-1 overflow-hidden relative">
-                                    <VideoGrid
-                                        participants=state.participants
-                                        local_stream=state.local_stream
-                                        local_screen_stream=state.local_screen_stream
-                                        my_id=state.my_id
-                                        shared_video_url=state.shared_video_url
-                                        speaking_peers=state.speaking_peers
-                                        remote_streams=state.remote_streams
-                                    />
-                                    <ReactionDisplay last_reaction=state.last_reaction />
-                                    <Show when=move || state.show_whiteboard.get()>
-                                        <div class="absolute inset-0 z-40 bg-white">
-                                            <Whiteboard
-                                                on_draw=state.send_draw
-                                                history=state.whiteboard_history
-                                                my_id=state.my_id
-                                            />
-                                        </div>
-                                    </Show>
-                                </div>
-
-                                // Bottom Toolbar
-                                <div class="flex-shrink-0 relative z-50">
-                                    <Toolbox
-                                        is_locked=state.is_locked
-                                        is_host=state.is_host
-                                        is_lobby_enabled=state.is_lobby_enabled
-                                        is_recording=state.is_recording
-                                        on_toggle_lock=state.toggle_lock
-                                        on_toggle_lobby=state.toggle_lobby
-                                        on_toggle_recording=state.toggle_recording
-                                        on_invite=Callback::new(move |_| set_show_invite.set(true))
-                                        on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
-                                        on_settings=Callback::new(move |_| state.set_show_settings.set(true))
-                                        on_polls=Callback::new(move |_| state.set_show_polls.set(true))
-                                        on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
-                                        on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
-                                        on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
-                                        on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
-                                        on_raise_hand=state.toggle_raise_hand
-                                        on_screen_share=state.toggle_screen_share
-                                        on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
-                                        on_stop_share_video=state.stop_share_video
-                                        is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
-                                        on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
-                                        on_reaction=state.send_reaction
-                                        on_toggle_camera=state.toggle_camera
-                                        on_toggle_mic=state.toggle_mic
-                                        is_muted=state.is_muted
-                                        on_leave=leave_room
-                                        on_end_meeting=end_meeting_and_leave
-                                    />
-                                </div>
-                            </div>
-
-                            // Right sidebar (Chat)
-                            <div
-                                class="bg-gray-800 border-l border-gray-700 flex flex-col transition-all duration-300 ease-in-out"
-                                style=move || if show_chat.get() { "width: 320px;" } else { "width: 0px; border: none; overflow: hidden;" }
-                            >
-                                <div class="w-[320px] h-full flex flex-col">
-                                    <Chat
-                                        messages=state.messages
-                                        typing_users=state.typing_users
-                                        participants=state.participants
-                                        on_send=state.send_message
-                                        on_typing=state.set_is_typing
-                                        is_connected=state.is_connected
+                                <Show when=move || state.show_whiteboard.get()>
+                                    <Whiteboard
+                                        on_draw=state.send_draw
+                                        history=state.whiteboard_history
                                         my_id=state.my_id
                                     />
-                                </div>
+                                </Show>
                             </div>
+                            <Toolbox
+                                is_locked=state.is_locked
+                                is_host=state.is_host
+                                is_lobby_enabled=state.is_lobby_enabled
+                                class="room-toolbox"
+                                style="position: relative; z-index: 20;" // Ensure toolbox is above whiteboard
+                                is_recording=state.is_recording
+                                on_toggle_lock=state.toggle_lock
+                                on_toggle_lobby=state.toggle_lobby
+                                on_toggle_recording=state.toggle_recording
+                                is_subtitles_enabled=state.is_subtitles_enabled
+                                on_toggle_subtitles=state.toggle_subtitles
+                                current_presence=Signal::derive(move || {
+                                    if let Some(my_id) = state.my_id.get() {
+                                        if let Some(me) = state.participants.get().iter().find(|p| p.id == my_id) {
+                                            return me.presence.clone();
+                                        }
+                                    }
+                                    shared::PresenceStatus::Connected
+                                })
+                                on_set_presence=state.set_presence
+                                on_invite=Callback::new(move |_| set_show_invite.set(true))
+                                on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
+                                on_settings=Callback::new(move |_| state.set_show_settings.set(true))
+                                on_polls=Callback::new(move |_| state.set_show_polls.set(true))
+                                on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
+                                on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
+                                on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
+                                on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
+                                on_raise_hand=state.toggle_raise_hand
+                                on_screen_share=state.toggle_screen_share
+                                on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
+                                on_stop_share_video=state.stop_share_video
+                                is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
+                                on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
+                                on_reaction=state.send_reaction
+                                on_toggle_camera=state.toggle_camera
+                                on_toggle_mic=state.toggle_mic
+                                is_muted=state.is_muted
+                                on_leave=leave_room
+                                on_end_meeting=end_meeting_and_leave
+                            />
                         </div>
-
-                        // Dialogs
+                        <div style=move || if show_chat.get() { "display: block;" } else { "display: none;" }>
+                            <Chat
+                                messages=state.messages
+                                typing_users=state.typing_users
+                                participants=state.participants
+                                on_send=state.send_message
+                                on_typing=state.set_is_typing
+                                is_connected=state.is_connected
+                                my_id=state.my_id
+                                current_room_id=state.current_room_id
+                            />
+                        </div>
                         <InviteDialog
                             show=show_invite
                             on_close=Callback::new(move |_| set_show_invite.set(false))

@@ -143,6 +143,38 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::ToggleSubtitles => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.is_subtitles_enabled = !config.is_subtitles_enabled;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetPresence(status) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.presence = status;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                        }
+                                    }
+                                },
                                 ClientMessage::EndMeeting => {
                                     if let Some(uid) = &my_id {
                                         let host_id = {
@@ -159,11 +191,39 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             }
                                             {
                                                 let mut c = room_config_mutex.lock().unwrap();
-                                                c.host_id = None;
+                                                *c = shared::RoomConfig::default();
                                             }
                                             {
                                                 let mut s = speaking_start_times_mutex.lock().unwrap();
                                                 s.clear();
+                                            }
+                                            {
+                                                let mut k = state.knocking_participants.lock().unwrap();
+                                                k.clear();
+                                            }
+                                            {
+                                                let mut p = state.polls.lock().unwrap();
+                                                p.clear();
+                                            }
+                                            {
+                                                let mut w = state.whiteboard.lock().unwrap();
+                                                w.clear();
+                                            }
+                                            {
+                                                let mut ch = state.chat_history.lock().unwrap();
+                                                ch.clear();
+                                            }
+                                            {
+                                                let mut br = state.breakout_rooms.lock().unwrap();
+                                                br.clear();
+                                            }
+                                            {
+                                                let mut loc = state.participant_locations.lock().unwrap();
+                                                loc.clear();
+                                            }
+                                            {
+                                                let mut vid = state.shared_video_url.lock().unwrap();
+                                                *vid = None;
                                             }
                                         }
                                     }
@@ -237,6 +297,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_sharing_screen: false,
                                         is_muted: false,
                                         speaking_time: 0,
+                                        presence: shared::PresenceStatus::Connected,
                                     };
 
                                     if is_lobby && host_exists {
@@ -344,7 +405,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
-                                                                *target == my_id_clone || message.user_id == my_id_clone
+                                                                *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
+                                                            } else if message.user_id == my_id_clone {
+                                                                true // Echo to self
                                                             } else {
                                                                 true
                                                             }
@@ -461,11 +524,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::VideoShared(url)).await;
                                     }
                                 },
-                                ClientMessage::Chat { content, recipient_id, attachment } => {
+                                ClientMessage::Chat { content, recipient_id, attachment, room_id } => {
                                     if let Some(uid) = &my_id {
+                                        // Security: Only allow the client to send a chat message if the room_id they provided
+                                        // matches the room_id the server believes they are currently in.
+                                        let is_authorized = room_id == my_room_id;
+
+                                        if !is_authorized {
+                                            let _ = internal_tx.send(ServerMessage::Error("Unauthorized: Cannot send message to a different room".to_string())).await;
+                                            continue;
+                                        }
+
                                         let res = chat::process_chat_message(
                                             uid,
-                                            &my_room_id,
+                                            &room_id,
                                             content,
                                             recipient_id,
                                             attachment,
@@ -898,7 +970,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
-                                                        *target == my_id_clone || message.user_id == my_id_clone
+                                                        *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
+                                                    } else if message.user_id == my_id_clone {
+                                                        true // Echo to self
                                                     } else {
                                                         true
                                                     }

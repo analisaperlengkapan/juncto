@@ -23,6 +23,7 @@ pub fn process_chat_message(
         recipient_id: recipient_id.clone(),
         timestamp: chrono::Utc::now().timestamp_millis() as u64,
         attachment,
+        room_id: room_id.clone(),
     };
 
     // Only store history for global chat (main room, public messages)
@@ -93,7 +94,8 @@ mod tests {
         });
 
         let res =
-            process_chat_message("user1", &None, "file".to_string(), None, attachment, &state);
+            process_chat_message("user1", &None, "file".to_string(), None, attachment,
+            &state);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), "File too large");
     }

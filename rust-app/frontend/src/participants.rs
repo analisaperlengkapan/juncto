@@ -86,7 +86,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted)
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone())
                     children=move |p| {
                         let id_kick = p.id.clone();
                         // Use reactive check for host status
@@ -94,6 +94,9 @@ pub fn ParticipantsList(
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div>
                                     <span>{p.name}</span>
+                                    <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
+                                       " [" {format!("{:?}", p.presence)} "]"
+                                    </span>
                                     <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
                                        "(" {format_time(p.speaking_time)} ")"
                                     </span>
@@ -184,6 +187,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -192,6 +196,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -200,6 +205,7 @@ mod tests {
             is_sharing_screen: false,
             is_muted: false,
             speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

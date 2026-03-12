@@ -7,6 +7,7 @@ fn test_chat_message_serialization() {
         recipient_id: None,
         timestamp: 1627840000,
         attachment: None,
+        room_id: None,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
@@ -27,6 +28,7 @@ fn test_chat_message_with_attachment_serialization() {
         recipient_id: None,
         timestamp: 1627840000,
         attachment: Some(attachment),
+        room_id: None,
     };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ChatMessage = serde_json::from_str(&json).unwrap();
@@ -44,6 +46,7 @@ fn test_server_message_serialization() {
         is_sharing_screen: false,
         is_muted: false,
         speaking_time: 0,
+        presence: PresenceStatus::Connected,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -168,6 +171,18 @@ fn test_speaking_message() {
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(msg, deserialized);
+}
+
+#[test]
+fn test_presence_status_default() {
+    let default_presence: PresenceStatus = Default::default();
+    assert_eq!(default_presence, PresenceStatus::Connected);
+}
+
+#[test]
+fn test_room_config_subtitles_default() {
+    let config: RoomConfig = Default::default();
+    assert_eq!(config.is_subtitles_enabled, false);
 }
 
 #[test]

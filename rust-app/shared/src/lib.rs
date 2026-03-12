@@ -26,6 +26,8 @@ pub struct RoomConfig {
     pub host_id: Option<String>,
     #[serde(default)]
     pub e2ee_enabled: bool,
+    #[serde(default)]
+    pub is_subtitles_enabled: bool,
 }
 
 impl Default for RoomConfig {
@@ -38,6 +40,7 @@ impl Default for RoomConfig {
             max_participants: 100,
             host_id: None,
             e2ee_enabled: false,
+            is_subtitles_enabled: false,
         }
     }
 }
@@ -69,6 +72,22 @@ pub struct ChatMessage {
     pub timestamp: u64,
     #[serde(default)] // Default to None for backward compatibility during migration
     pub attachment: Option<FileAttachment>,
+    #[serde(default)]
+    pub room_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Eq, Hash)]
+pub enum PresenceStatus {
+    #[default]
+    Connected,
+    Disconnected,
+    Busy,
+    Calling,
+    Ringing,
+    Rejected,
+    Ignored,
+    Expired,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -81,6 +100,8 @@ pub struct Participant {
     pub is_muted: bool,
     #[serde(default)]
     pub speaking_time: u64, // Total milliseconds spoken
+    #[serde(default)]
+    pub presence: PresenceStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -112,6 +133,8 @@ pub enum ClientMessage {
         content: String,
         recipient_id: Option<String>,
         attachment: Option<FileAttachment>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     ToggleRoomLock,
     ToggleRecording,
@@ -127,9 +150,11 @@ pub enum ClientMessage {
     TransferHost(String),    // Target ID
     SetMuteStatus(bool),
     EndMeeting,
+    SetPresence(PresenceStatus),
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     Draw(DrawAction),
+    ToggleSubtitles,
     Typing(bool),
     StartShareVideo(String), // URL
     StopShareVideo,
@@ -163,12 +188,14 @@ pub struct BreakoutRoom {
 pub enum ServerMessage {
     Chat {
         message: ChatMessage,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     PeerTyping {
         user_id: String,
         is_typing: bool,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     Kicked { target_id: String, room_id: Option<String> },
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
@@ -176,7 +203,8 @@ pub enum ServerMessage {
     ParticipantJoined(Participant),
     ParticipantLeft {
         id: String,
-        room_id: Option<String>,
+    #[serde(default)]
+    room_id: Option<String>,
     },
     ParticipantList(Vec<Participant>),
     KnockingParticipant(Participant),

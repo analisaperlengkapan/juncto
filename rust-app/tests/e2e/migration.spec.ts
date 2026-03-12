@@ -585,6 +585,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // We need to look at actual messages list to be completely safe against test flakes
   // where it picks up the text from input field being typed and cleared.
+  // Note: Guest's message goes to Main room, host is in Breakout, shouldn't receive.
   await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
 
   // Host returns to Main
@@ -1070,7 +1071,7 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     // Let's iterate options to find Bob's ID.
     // Or cleaner: locate by label.
 
-    await page1.locator('select').selectOption({ label: 'Bob' });
+    await page1.locator('.chat-container select').selectOption({ label: 'Bob' });
     await page1.locator('.chat-container input[type="text"]').fill('Secret for Bob');
     await page1.click('.chat-container button');
 
@@ -1088,7 +1089,7 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     await expect(page3.locator('.messages')).not.toContainText('Secret for Bob');
 
     // Send public message
-    await page1.locator('select').selectOption({ label: 'Everyone' });
+    await page1.locator('.chat-container select').selectOption({ label: 'Everyone' });
     await page1.locator('.chat-container input[type="text"]').fill('Hello All');
     await page1.click('.chat-container button');
 
