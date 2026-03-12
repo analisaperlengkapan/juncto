@@ -196,6 +196,7 @@ impl AudioMonitor {
                         did_trigger = true;
                     }
                     no_audio_triggered = did_trigger;
+                }
             } else {
                 silence_counter = 0;
             }
