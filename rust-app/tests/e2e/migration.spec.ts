@@ -588,7 +588,9 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // We need to look at actual messages list to be completely safe against test flakes
   // where it picks up the text from input field being typed and cleared.
   // Note: Guest's message goes to Main room, host is in Breakout, shouldn't receive.
-  await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message', { timeout: 2000 });
+  await expect(hostPage.locator('.chat-container .messages')).toContainText('Secret Message');
+  const text = await hostPage.locator('.chat-container .messages').innerText();
+  expect(text).not.toContain('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();

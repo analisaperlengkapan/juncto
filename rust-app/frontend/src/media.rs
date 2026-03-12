@@ -190,12 +190,10 @@ impl AudioMonitor {
             if avg < 1.0 {
                 silence_counter += 1;
                 if silence_counter > 50 && !no_audio_triggered { // 50 * 100ms = 5 seconds
-                    let mut did_trigger = false;
+                    no_audio_triggered = true;
                     if let Some(cb) = on_no_audio.as_mut() {
                         cb();
-                        did_trigger = true;
                     }
-                    no_audio_triggered = did_trigger;
                 }
             } else {
                 silence_counter = 0;

@@ -316,9 +316,7 @@ pub fn use_room_state() -> RoomState {
 
                 let add_toast_clone = add_toast;
                 let on_no_audio = Box::new(move || {
-                    if !is_muted.get_untracked() {
-                        add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
-                    }
+                    add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
                 if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
