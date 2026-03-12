@@ -1,5 +1,13 @@
 use leptos::*;
 
+
+fn escape_html(s: &str) -> String {
+    s.replace("&", "&amp;")
+     .replace("<", "&lt;")
+     .replace(">", "&gt;")
+     .replace("\"", "&quot;")
+}
+
 #[component]
 pub fn EmbedMeetingDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl IntoView {
     let (copy_success, set_copy_success) = create_signal(false);
@@ -12,7 +20,7 @@ pub fn EmbedMeetingDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> imp
                 if let Ok(loc) = window.location().href() {
                     set_iframe_code.set(format!(
                         "<iframe src=\"{}\" allow=\"camera; microphone; display-capture; fullscreen\" width=\"100%\" height=\"600px\" style=\"border: none;\"></iframe>",
-                        loc
+                        escape_html(&loc)
                     ));
                     set_copy_success.set(false);
                 }
@@ -23,7 +31,7 @@ pub fn EmbedMeetingDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> imp
     let copy_to_clipboard = move |_| {
         if let Some(window) = web_sys::window() {
             let clipboard = window.navigator().clipboard();
-            let promise = clipboard.write_text(&iframe_code.get());
+            if true {
                 let promise = clipboard.write_text(&iframe_code.get());
                 wasm_bindgen_futures::spawn_local(async move {
                     if wasm_bindgen_futures::JsFuture::from(promise).await.is_ok() {
