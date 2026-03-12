@@ -14,8 +14,10 @@ derived_signal_code = """
                             });
 """
 
-# Find where to insert it (near p_name and is_hand_raised)
-content = content.replace('let is_hand_raised = Signal::derive(move || {', derived_signal_code + '\n                            let is_hand_raised = Signal::derive(move || {')
+# Check if it was already added in the previous run but maybe the file wasn't committed properly
+if 'let p_id_for_presence = p.id.clone();' not in content:
+    # Find where to insert it (near p_name and is_hand_raised)
+    content = content.replace('let is_hand_raised = Signal::derive(move || {', derived_signal_code + '\n                            let is_hand_raised = Signal::derive(move || {')
 
 # Replace the specific Show condition
 content = content.replace('<Show when=move || p.presence == shared::PresenceStatus::Connected>', '<Show when=move || is_connected.get()>')
