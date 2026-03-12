@@ -169,6 +169,7 @@ impl AudioMonitor {
 
         let mut silence_counter = 0;
         let mut no_audio_triggered = false;
+        let mut has_ever_talked = false;
 
         let closure = Closure::wrap(Box::new(move || {
             let mut array = data_array.clone();
@@ -181,15 +182,19 @@ impl AudioMonitor {
             // Threshold for talking
             let is_talking = avg > 20.0;
 
+            if is_talking {
+                has_ever_talked = true;
+            }
+
             if is_talking != was_talking {
                 was_talking = is_talking;
                 callback(is_talking);
             }
 
             // If audio level is practically zero for a long time, and we haven't triggered yet
-            if avg < 1.0 {
+            if avg < 1.0 && !has_ever_talked {
                 silence_counter += 1;
-                if silence_counter > 50 && !no_audio_triggered { // 50 * 100ms = 5 seconds
+                if silence_counter > 100 && !no_audio_triggered { // 100 * 100ms = 10 seconds
                     no_audio_triggered = true;
                     if let Some(cb) = on_no_audio.as_mut() {
                         cb();
