@@ -1,4 +1,5 @@
 use leptos::*;
+use wasm_bindgen::JsCast;
 
 
 fn escape_html(s: &str) -> String {
@@ -30,14 +31,20 @@ pub fn EmbedMeetingDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> imp
 
     let copy_to_clipboard = move |_| {
         if let Some(window) = web_sys::window() {
-            let clipboard = window.navigator().clipboard();
-            if true {
-                let promise = clipboard.write_text(&iframe_code.get());
-                wasm_bindgen_futures::spawn_local(async move {
-                    if wasm_bindgen_futures::JsFuture::from(promise).await.is_ok() {
-                        set_copy_success.set(true);
+            let navigator = window.navigator();
+            let clipboard_prop = js_sys::Reflect::get(&navigator, &"clipboard".into());
+
+            if let Ok(val) = clipboard_prop {
+                if !val.is_undefined() && !val.is_null() {
+                    if let Ok(clipboard) = val.dyn_into::<web_sys::Clipboard>() {
+                        let promise = clipboard.write_text(&iframe_code.get());
+                        wasm_bindgen_futures::spawn_local(async move {
+                            if wasm_bindgen_futures::JsFuture::from(promise).await.is_ok() {
+                                set_copy_success.set(true);
+                            }
+                        });
                     }
-                });
+                }
             }
         }
     };
