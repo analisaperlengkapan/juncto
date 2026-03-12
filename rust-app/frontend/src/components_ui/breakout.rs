@@ -102,8 +102,8 @@ mod tests {
         let on_close = Callback::new(|_: ()| {});
         let on_create = Callback::new(|_: String| {});
         let on_join = Callback::new(|_: Option<String>| {});
-        let is_host = create_rw_signal(true);
 
+        let is_host = create_rw_signal(true);
         let _view = view! {
             <BreakoutRooms
                 breakout_rooms=breakout_rooms.read_only()

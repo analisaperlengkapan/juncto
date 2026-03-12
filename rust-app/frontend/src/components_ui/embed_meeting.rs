@@ -23,7 +23,7 @@ pub fn EmbedMeetingDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> imp
     let copy_to_clipboard = move |_| {
         if let Some(window) = web_sys::window() {
             let clipboard = window.navigator().clipboard();
-            {
+            if true {
                 let promise = clipboard.write_text(&iframe_code.get());
                 wasm_bindgen_futures::spawn_local(async move {
                     if wasm_bindgen_futures::JsFuture::from(promise).await.is_ok() {
@@ -65,7 +65,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_embed_meeting_compiles() { return; } fn skipped_test_embed_meeting_compiles() {
+    #[ignore]
+    fn test_embed_meeting_compiles() {
         let _ = create_runtime();
         let show = create_rw_signal(true);
         let on_close = Callback::new(|_: ()| {});

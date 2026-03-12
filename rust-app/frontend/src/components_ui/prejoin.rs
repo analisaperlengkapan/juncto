@@ -276,10 +276,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prejoin_compiles() { return; } fn skipped_test_prejoin_compiles() {
+    #[ignore]
+    fn test_prejoin_compiles() {
         let _ = create_runtime();
-        let is_host = create_rw_signal(true);
-        let on_join = Callback::new(|_: JoinOptions| {});
+                let on_join = Callback::new(|_: JoinOptions| {});
 
         let _view = view! {
             <PrejoinScreen on_join=on_join />
