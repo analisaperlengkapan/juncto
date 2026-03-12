@@ -77,7 +77,7 @@ pub struct RoomState {
     pub set_show_virtual_background: WriteSignal<bool>,
     pub set_show_feedback: WriteSignal<bool>,
     pub send_ping: Callback<()>,
-    pub send_message: Callback<(String, Option<String>, Option<FileAttachment>, Option<String>)>, // content, recipient_id, attachment
+    pub send_message: crate::chat::ChatSendCallback, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,

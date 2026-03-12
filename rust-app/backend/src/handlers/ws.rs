@@ -406,8 +406,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
                                                                 *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
-                                                            } else if message.user_id == my_id_clone {
-                                                                true // Echo to self
                                                             } else {
                                                                 true
                                                             }
@@ -971,8 +969,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
                                                         *target == my_id_clone || message.user_id == my_id_clone // Must echo private message back to self
-                                                    } else if message.user_id == my_id_clone {
-                                                        true // Echo to self
                                                     } else {
                                                         true
                                                     }
