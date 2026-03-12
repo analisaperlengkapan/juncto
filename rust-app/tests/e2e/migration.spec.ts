@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+test.setTimeout(180000);
+
  // 3 minutes timeout for slower CI environments
 
 test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
@@ -586,7 +588,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // We need to look at actual messages list to be completely safe against test flakes
   // where it picks up the text from input field being typed and cleared.
   // Note: Guest's message goes to Main room, host is in Breakout, shouldn't receive.
-  // // try { await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message', { timeout: 2000 }); } catch (e) { /* Flaky assertion */ }
+  // // await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();
