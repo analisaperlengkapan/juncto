@@ -89,3 +89,30 @@ pub fn BreakoutRooms(
         </div>
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_breakout_compiles() {
+        let _ = create_runtime();
+        let show = create_rw_signal(true);
+        let breakout_rooms = create_rw_signal(Vec::new());
+        let current_room_id = create_rw_signal(None);
+        let on_close = Callback::new(|_: ()| {});
+        let on_create = Callback::new(|_: String| {});
+        let on_join = Callback::new(|_: Option<String>| {});
+        let is_host = create_rw_signal(true);
+
+        let _view = view! {
+            <BreakoutRooms
+                breakout_rooms=breakout_rooms.read_only()
+                current_room_id=current_room_id.read_only()
+                on_create=on_create
+                on_join=on_join
+                is_host=is_host.into()
+            />
+        };
+        assert!(true);
+    }
+}

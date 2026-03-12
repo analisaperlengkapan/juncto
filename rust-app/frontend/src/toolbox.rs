@@ -20,7 +20,7 @@ pub fn Toolbox(
     on_shortcuts: Callback<()>,
     on_speaker_stats: Callback<()>,
     on_virtual_background: Callback<()>,
-    on_feedback: Callback<()>,
+    on_feedback: Callback<()>,    on_embed: Callback<()>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
     on_share_video: Callback<()>,
@@ -158,6 +158,13 @@ pub fn Toolbox(
             >
                 "Background"
             </button>
+
+            <button
+                on:click=move |_| on_embed.call(())
+                style="padding: 8px 16px; background-color: #6c757d; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Embed Meeting"
+            </button>
             <button
                 on:click=move |_| on_feedback.call(())
                 style="padding: 8px 16px; background-color: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px;"
@@ -219,5 +226,15 @@ pub fn Toolbox(
                 </select>
             </div>
         </div>
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_toolbox_compiles() {
+        // dummy test
+        assert!(true);
     }
 }

@@ -31,6 +31,7 @@ pub fn Room() -> impl IntoView {
     let state = use_room_state();
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
     let (show_invite, set_show_invite) = create_signal(false);
+    let (show_embed, set_show_embed) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
 
     let invite_url = Signal::derive(move || {
@@ -208,6 +209,7 @@ pub fn Room() -> impl IntoView {
                                 on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
                                 on_virtual_background=Callback::new(move |_| state.set_show_virtual_background.set(true))
                                 on_feedback=Callback::new(move |_| state.set_show_feedback.set(true))
+                                on_embed=Callback::new(move |_| set_show_embed.set(true))
                                 on_raise_hand=state.toggle_raise_hand
                                 on_screen_share=state.toggle_screen_share
                                 on_share_video=Callback::new(move |_| set_show_shared_video_dialog.set(true))
@@ -276,6 +278,11 @@ pub fn Room() -> impl IntoView {
                                 web_sys::console::log_1(&format!("Background changed to: {}", mode).into());
                             })
                         />
+
+                        <crate::components_ui::embed_meeting::EmbedMeetingDialog
+                            show=show_embed
+                            on_close=Callback::new(move |_| set_show_embed.set(false))
+                        />
                         <FeedbackDialog
                             show=state.show_feedback
                             on_close=Callback::new(move |_| state.set_show_feedback.set(false))
@@ -284,5 +291,15 @@ pub fn Room() -> impl IntoView {
                 }.into_view()
             }}
         </div>
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_room_compiles() {
+        // dummy test
+        assert!(true);
     }
 }

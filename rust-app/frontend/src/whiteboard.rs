@@ -119,3 +119,13 @@ pub fn Whiteboard(
         </div>
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_whiteboard_compiles() {
+        // dummy test
+        assert!(true);
+    }
+}

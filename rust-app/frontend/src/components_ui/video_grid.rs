@@ -189,6 +189,10 @@ pub fn VideoGrid(
                         "PiP"
                     </button>
                 </Show>
+
+                <Show when=move || speaking_peers.get().contains(&my_id.get().unwrap_or_default())>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 3px solid #28a745; box-sizing: border-box; border-radius: 8px; pointer-events: none; z-index: 5;"></div>
+                </Show>
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
                 </div>
@@ -414,6 +418,12 @@ pub fn VideoGrid(
                                         {move || p_name.get()}
                                     </div>
 
+
+                                    <Show when=move || p.presence == shared::PresenceStatus::Connected>
+                                        <Show when={let p_id = p.id.clone(); move || speaking_peers.get().contains(&p_id)}>
+                                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 3px solid #28a745; box-sizing: border-box; border-radius: 8px; pointer-events: none; z-index: 5;"></div>
+                                        </Show>
+                                    </Show>
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>

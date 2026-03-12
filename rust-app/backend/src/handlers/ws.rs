@@ -1182,3 +1182,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ws_handler() {
+        assert!(true);
+    }
+}

@@ -313,7 +313,7 @@ pub fn use_room_state() -> RoomState {
                     }
                 });
 
-                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None) {
                     set_audio_monitor.set(Some(monitor));
                 }
             }

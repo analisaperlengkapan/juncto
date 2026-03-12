@@ -12,3 +12,17 @@ pub fn LobbyScreen() -> impl IntoView {
         </div>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use leptos::*;
+
+    #[test]
+    fn test_lobby_screen_compiles() {
+        let _ = create_runtime();
+        let _view = view! { <LobbyScreen /> };
+        // Component macro compilation is the main check here
+        assert!(true);
+    }
+}

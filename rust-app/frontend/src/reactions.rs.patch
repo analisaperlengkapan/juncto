@@ -1,0 +1,18 @@
+--- rust-app/frontend/src/reactions.rs
++++ rust-app/frontend/src/reactions.rs
+@@ -73,11 +73,10 @@
+     fn test_reactions_compiles() {
+         let _ = create_runtime();
+-        let current_reaction = create_rw_signal(None);
+-        let send_reaction = Callback::new(|_: String| {});
++        let reaction = create_rw_signal(None);
+
+         let _view = view! {
+-            <ReactionsBar
+-                current_reaction=current_reaction.read_only()
+-                send_reaction=send_reaction
++            <ReactionDisplay
++                reaction=reaction.read_only()
+             />
+         };
+         assert!(true);

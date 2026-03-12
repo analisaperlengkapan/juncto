@@ -1,0 +1,21 @@
+--- rust-app/frontend/src/components_ui/breakout.rs
++++ rust-app/frontend/src/components_ui/breakout.rs
+@@ -104,15 +104,13 @@
+         let on_create = Callback::new(|_: String| {});
+         let on_join = Callback::new(|_: Option<String>| {});
+-        let is_host = true;
++        let is_host = create_rw_signal(true);
+
+         let _view = view! {
+-            <BreakoutRoomsDialog
+-                show=show.read_only()
++            <BreakoutRooms
+                 breakout_rooms=breakout_rooms.read_only()
+                 current_room_id=current_room_id.read_only()
+-                on_close=on_close
+                 on_create=on_create
+                 on_join=on_join
+-                is_host=is_host
++                is_host=is_host.into()
+             />
+         };

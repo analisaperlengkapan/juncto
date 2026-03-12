@@ -1,0 +1,11 @@
+--- rust-app/frontend/src/components_ui/feedback.rs
++++ rust-app/frontend/src/components_ui/feedback.rs
+@@ -106,7 +106,7 @@
+         let on_cancel = Callback::new(|_: ()| {});
+
+         let _view = view! {
+-            <FeedbackDialog show=show on_submit=on_submit on_cancel=on_cancel />
++            <FeedbackDialog show=show.into() on_close=on_cancel />
+         };
+         assert!(true);
+     }

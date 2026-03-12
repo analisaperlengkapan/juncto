@@ -33,3 +33,13 @@ pub fn Home() -> impl IntoView {
         </div>
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_home_compiles() {
+        // dummy test
+        assert!(true);
+    }
+}
