@@ -492,6 +492,7 @@ pub fn use_room_state() -> RoomState {
                                             ToastType::Info,
                                         );
                                         set_is_muted.set(true);
+                                        set_audio_monitor.set(None); // Drop AudioMonitor to prevent false 'no audio' toast
                                         if let Some(stream) = local_stream.get_untracked() {
                                             let audio_tracks = stream.get_audio_tracks();
                                             for i in 0..audio_tracks.length() {
