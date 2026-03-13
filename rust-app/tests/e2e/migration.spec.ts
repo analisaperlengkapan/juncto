@@ -575,7 +575,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   await hostPage.waitForTimeout(1500);
 
   // Wait to ensure chat is visible after joining breakout room (sometimes it flashes or re-renders)
-  await hostPage.locator('.chat-container input[type="text"]').waitFor({ state: 'visible' });
+  await hostPage.locator('.chat-container input[type="text"]').first().waitFor({ state: 'visible' });
 
   // Add a small wait before typing to ensure the websocket is fully connected for the new room context
   await hostPage.waitForTimeout(1000);
