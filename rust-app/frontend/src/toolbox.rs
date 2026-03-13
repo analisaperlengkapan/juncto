@@ -15,6 +15,7 @@ pub fn Toolbox(
     on_set_presence: Callback<shared::PresenceStatus>,
     on_invite: Callback<()>,
     on_toggle_chat: Callback<()>,
+    on_toggle_participants: Callback<()>,
     on_settings: Callback<()>,
     on_polls: Callback<()>,
     on_shortcuts: Callback<()>,
@@ -145,6 +146,12 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Chat"
+            </button>
+            <button
+                on:click=move |_| on_toggle_participants.call(())
+                style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Participants"
             </button>
             <button
                 on:click=move |_| on_speaker_stats.call(())

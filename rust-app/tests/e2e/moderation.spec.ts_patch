@@ -1,0 +1,20 @@
+<<<<<<< SEARCH
+    // Let's wait for participant list to populate.
+    const userBRow = pageA.locator('li').filter({ hasText: 'User B' });
+    await expect(userBRow).toBeVisible();
+=======
+    // Let's wait for participant list to populate.
+    await pageA.click('.toolbox button:has-text("Participants")');
+    const userBRow = pageA.locator('li').filter({ hasText: 'User B' });
+    await expect(userBRow).toBeVisible();
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    // 3. Host transfers role to User B
+    const userBRow = pageA.locator('li').filter({ hasText: 'User B' });
+    await expect(userBRow).toBeVisible();
+=======
+    // 3. Host transfers role to User B
+    await pageA.click('.toolbox button:has-text("Participants")');
+    const userBRow = pageA.locator('li').filter({ hasText: 'User B' });
+    await expect(userBRow).toBeVisible();
+>>>>>>> REPLACE

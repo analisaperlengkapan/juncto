@@ -110,19 +110,7 @@ pub fn Room() -> impl IntoView {
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <ParticipantsList
-                            participants=state.participants
-                            knocking_participants=state.knocking_participants
-                            host_id=state.host_id
-                            is_host=state.is_host
-                            my_id=state.my_id
-                            on_allow=state.grant_access
-                            on_deny=state.deny_access
-                            on_kick=state.kick_participant
-                            on_mute=state.mute_participant
-                            on_transfer_host=state.transfer_host
-                        />
-                        <div class="main-content" style=move || format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}", if show_chat.get() || show_participants.get() { "320px" } else { "0" })>
+                        <div class="main-content" style=move || format!("margin-right: {}", if show_chat.get() || show_participants.get() { "320px" } else { "0" })>
                             <BreakoutRooms
                                 breakout_rooms=state.breakout_rooms
                                 current_room_id=state.current_room_id
@@ -204,6 +192,7 @@ pub fn Room() -> impl IntoView {
                                 on_set_presence=state.set_presence
                                 on_invite=Callback::new(move |_| set_show_invite.set(true))
                                 on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
+                                on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
@@ -225,48 +214,44 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=end_meeting_and_leave
                             />
                         </div>
-                        <Show when=move || show_chat.get()>
-                            <div class="side-panel chat-container">
-                                <div class="panel-header">
-                                    <h3>"Chat"</h3>
-                                    <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"✕"</button>
-                                </div>
-                                <div class="panel-content" style="padding: 0;">
-                                    <Chat
-                                        messages=state.messages
-                                        typing_users=state.typing_users
-                                        participants=state.participants
-                                        on_send=state.send_message
-                                        on_typing=state.set_is_typing
-                                        is_connected=state.is_connected
-                                        my_id=state.my_id
-                                        current_room_id=state.current_room_id
-                                    />
-                                </div>
+                        <div class="side-panel chat-container" style=move || if show_chat.get() { "display: flex;" } else { "display: none;" }>
+                            <div class="panel-header">
+                                <h3>"Chat"</h3>
+                                <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"✕"</button>
                             </div>
-                        </Show>
-                        <Show when=move || show_participants.get()>
-                            <div class="side-panel participants-container">
-                                <div class="panel-header">
-                                    <h3>"Participants"</h3>
-                                    <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"✕"</button>
-                                </div>
-                                <div class="panel-content" style="padding: 0;">
-                                    <ParticipantsList
-                                        participants=state.participants
-                                        knocking_participants=state.knocking_participants
-                                        host_id=state.host_id
-                                        is_host=state.is_host
-                                        my_id=state.my_id
-                                        on_allow=state.grant_access
-                                        on_deny=state.deny_access
-                                        on_kick=state.kick_participant
-                                        on_mute=state.mute_participant
-                                        on_transfer_host=state.transfer_host
-                                    />
-                                </div>
+                            <div class="panel-content" style="padding: 0;">
+                                <Chat
+                                    messages=state.messages
+                                    typing_users=state.typing_users
+                                    participants=state.participants
+                                    on_send=state.send_message
+                                    on_typing=state.set_is_typing
+                                    is_connected=state.is_connected
+                                    my_id=state.my_id
+                                    current_room_id=state.current_room_id
+                                />
                             </div>
-                        </Show>
+                        </div>
+                        <div class="side-panel participants-container" style=move || if show_participants.get() { "display: flex;" } else { "display: none;" }>
+                            <div class="panel-header">
+                                <h3>"Participants"</h3>
+                                <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"✕"</button>
+                            </div>
+                            <div class="panel-content" style="padding: 0;">
+                                <ParticipantsList
+                                    participants=state.participants
+                                    knocking_participants=state.knocking_participants
+                                    host_id=state.host_id
+                                    is_host=state.is_host
+                                    my_id=state.my_id
+                                    on_allow=state.grant_access
+                                    on_deny=state.deny_access
+                                    on_kick=state.kick_participant
+                                    on_mute=state.mute_participant
+                                    on_transfer_host=state.transfer_host
+                                />
+                            </div>
+                        </div>
                         <InviteDialog
                             show=show_invite
                             on_close=Callback::new(move |_| set_show_invite.set(false))

@@ -15,10 +15,11 @@ test.describe('Subtitles and Presence Status Features', () => {
     await page.click('button:has-text("Join Meeting")');
 
     // Wait for the room to load
+    await page.click('.toolbox button:has-text("Participants")');
     await expect(page.locator('.participants-list')).toBeVisible({ timeout: 10000 });
 
     // 2. Verify Presence Status "Connected" is displayed next to name
-    const participantLocator = page.locator('li:has-text("SubtitleTestUser")');
+    const participantLocator = page.locator('.participants-list li:has-text("SubtitleTestUser")');
     await expect(participantLocator).toContainText('[Connected]');
 
     // 3. Toggle Subtitles

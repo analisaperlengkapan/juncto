@@ -67,7 +67,9 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(page.getByText('Hello from E2E')).toBeVisible();
 
   // 6. Verify Participants List
-  const participantsList = page.locator('.participants-list');
+  // We must click the "Participants" button first to make it visible
+  await page.click('.toolbox button:has-text("Participants")');
+  const participantsList = page.locator('.participants-container .participants-list');
   await expect(participantsList).toBeVisible();
   // Should contain at least "User ..." because backend assigns random names starting with "User"
   // Actually, E2E User joins, so it should be E2E User.
@@ -246,6 +248,7 @@ test('Lobby Feature E2E', async ({ browser }) => {
 
   // --- HOST ---
   // Verify Host sees Guest knocking
+  await hostPage.click('.toolbox button:has-text("Participants")');
   await expect(hostPage.locator('.knocking-list')).toBeVisible();
   await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
 
@@ -306,7 +309,7 @@ test('Max Participants E2E', async ({ browser, request }) => {
   await expect(user2Page.getByText(`Meeting Room: ${roomName}`)).not.toBeVisible();
 
   // Verify User 1 sees no User 2
-  await expect(user1Page.locator('.participants-list')).not.toContainText('User2');
+  await expect(user1Page.locator('.participants-container .participants-list')).not.toContainText('User2');
 
   await user1Context.close();
   await user2Context.close();
@@ -437,6 +440,9 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   await expect(guestPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
 
   // Host should see "Kick" button for Guest
+  // Open participants panel
+  await hostPage.click('.toolbox button:has-text("Participants")');
+
   // Note: Guest item text contains "Guest"
   const guestItem = hostPage.locator('.participants-list li').filter({ hasText: 'Guest' });
   await expect(guestItem.getByRole('button', { name: 'Kick' })).toBeVisible();
@@ -459,7 +465,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   await expect(guestPage.locator('input[type="text"]')).toBeVisible({ timeout: 15000 });
 
   // Host list should not have Guest
-  await expect(hostPage.locator('.participants-list')).not.toContainText('Guest');
+  await expect(hostPage.locator('.participants-container .participants-list')).not.toContainText('Guest');
 
   await hostContext.close();
   await guestContext.close();
@@ -1075,8 +1081,9 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     await page3.click('button.join-btn');
 
     // Wait for everyone to join
+    await page1.click('.toolbox button:has-text("Participants")');
     // Use more specific locator to avoid strict mode violation
-    await expect(page1.locator('.participants-list').getByText('Eve')).toBeVisible();
+    await expect(page1.locator('.participants-container .participants-list').getByText('Eve')).toBeVisible();
 
     // Alice sends private message to Bob
     // Select Bob from dropdown
@@ -1229,6 +1236,7 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await g2Page.click('button.join-btn');
 
     // Verify Host sees 2 guests in waiting room
+    await hostPage.click('.toolbox button:has-text("Participants")');
     await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
 
     // Click Allow All
