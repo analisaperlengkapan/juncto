@@ -150,6 +150,7 @@ pub struct AudioMonitor {
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
     is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
+    isolated_stream: MediaStream,
 }
 
 impl AudioMonitor {
@@ -269,6 +270,7 @@ impl AudioMonitor {
             _closure: closure,
             interval_id,
             is_muted,
+            isolated_stream,
         })
     }
 
@@ -283,6 +285,14 @@ impl Drop for AudioMonitor {
             window.clear_interval_with_handle(self.interval_id);
         }
         let _ = self.context.close();
+
+        // Ensure cloned tracks are explicitly stopped to release microphone
+        let tracks = self.isolated_stream.get_tracks();
+        for i in 0..tracks.length() {
+            if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                track.stop();
+            }
+        }
     }
 }
 
