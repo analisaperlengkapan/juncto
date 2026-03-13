@@ -255,9 +255,8 @@ pub fn use_room_state() -> RoomState {
     create_effect(move |_| {
         use wasm_bindgen::JsCast;
         if let Some(window) = web_sys::window() {
-            let toast_ctx = toast_context.clone();
             let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
-                toast_ctx.add(
+                toast_context.add(
                     "You are muted. Please unmute to speak.".to_string(),
                     crate::components_ui::toast::ToastType::Error,
                 );
