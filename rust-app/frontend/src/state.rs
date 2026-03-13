@@ -343,8 +343,9 @@ pub fn use_room_state() -> RoomState {
                 });
 
                 if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
-
+                    monitor.set_muted(is_muted.get_untracked());
                     set_audio_monitor.set(Some(monitor));
+                }
                 }
             }
         });
