@@ -492,7 +492,6 @@ pub fn use_room_state() -> RoomState {
                                             ToastType::Info,
                                         );
                                         set_is_muted.set(true);
-                                        set_audio_monitor.set(None); // Drop AudioMonitor to prevent false 'no audio' toast
                                         if let Some(stream) = local_stream.get_untracked() {
                                             let audio_tracks = stream.get_audio_tracks();
                                             for i in 0..audio_tracks.length() {
@@ -1040,30 +1039,14 @@ pub fn use_room_state() -> RoomState {
                 }
             }
 
-            // Bug 2 Fix: If muting, drop the existing AudioMonitor so the "no audio"
-            // timeout doesn't falsely trigger while legitimately muted.
-            // If unmuting, recreate the AudioMonitor to resume tracking.
-            if new_state { // Muted
-                set_audio_monitor.set(None);
-            } else { // Unmuted
-                let ws_clone = ws.get_untracked();
-                let on_speaking = Box::new(move |is_speaking: bool| {
-                    if let Some(socket) = &ws_clone {
-                        let msg = ClientMessage::Speaking(is_speaking);
-                        if let Ok(json) = serde_json::to_string(&msg) {
-                            let _ = socket.send_with_str(&json);
-                        }
-                    }
-                });
-
-                let on_no_audio = Box::new(move || {
-                    toast_ctx.add("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
-                });
-
-                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
-                    set_audio_monitor.set(Some(monitor));
+            // Bug 2 Fix: Update muted state on the existing AudioMonitor
+            // rather than dropping and recreating it. This preserves the
+            // `has_ever_talked` state (Bug 1) and prevents `AudioContext` exhaustion.
+            set_audio_monitor.update(|monitor| {
+                if let Some(m) = monitor.as_mut() {
+                    m.set_muted(new_state);
                 }
-            }
+            });
         }
 
         if let Some(socket) = ws.get() {

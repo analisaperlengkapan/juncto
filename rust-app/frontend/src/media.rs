@@ -149,6 +149,7 @@ pub struct AudioMonitor {
     _source: web_sys::MediaStreamAudioSourceNode,
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
+    is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
 }
 
 impl AudioMonitor {
@@ -166,12 +167,25 @@ impl AudioMonitor {
 
         let analyser_clone = analyser.clone();
 
+        let is_muted = std::rc::Rc::new(std::cell::RefCell::new(false));
+        let is_muted_clone = is_muted.clone();
 
         let mut silence_counter = 0;
         let mut no_audio_triggered = false;
         let mut has_ever_talked = false;
 
         let closure = Closure::wrap(Box::new(move || {
+            // Do not analyze or trigger callbacks while explicitly muted
+            if *is_muted_clone.borrow() {
+                // If we are muted, we don't count silence towards the broken mic timeout.
+                // We also ensure the "was_talking" state is cleanly suppressed.
+                if was_talking {
+                    was_talking = false;
+                    callback(false);
+                }
+                return;
+            }
+
             let mut array = data_array.clone();
 
             analyser_clone.get_byte_frequency_data(&mut array);
@@ -219,7 +233,12 @@ impl AudioMonitor {
             _source: source,
             _closure: closure,
             interval_id,
+            is_muted,
         })
+    }
+
+    pub fn set_muted(&self, muted: bool) {
+        *self.is_muted.borrow_mut() = muted;
     }
 }
 
