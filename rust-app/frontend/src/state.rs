@@ -1049,9 +1049,8 @@ pub fn use_room_state() -> RoomState {
                     }
                 });
 
-                let toast_ctx_clone = toast_ctx.clone();
                 let on_no_audio = Box::new(move || {
-                    toast_ctx_clone.add("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
+                    toast_ctx.add("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
                 if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
