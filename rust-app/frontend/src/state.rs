@@ -502,6 +502,13 @@ pub fn use_room_state() -> RoomState {
                                                     track.set_enabled(false);
                                                 }
                                             }
+
+                                            // Pause the AudioMonitor so we don't get false positive "no audio" warnings while muted by host
+                                            set_audio_monitor.update(|monitor| {
+                                                if let Some(m) = monitor.as_mut() {
+                                                    m.set_muted(true);
+                                                }
+                                            });
                                         }
                                         // Confirm state to server
                                         if let Some(socket) = ws.get_untracked() {
