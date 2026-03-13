@@ -1032,6 +1032,32 @@ pub fn use_room_state() -> RoomState {
                     track.set_enabled(!new_state); // enabled = !muted
                 }
             }
+
+            // Bug 2 Fix: If muting, drop the existing AudioMonitor so the "no audio"
+            // timeout doesn't falsely trigger while legitimately muted.
+            // If unmuting, recreate the AudioMonitor to resume tracking.
+            if new_state { // Muted
+                set_audio_monitor.set(None);
+            } else { // Unmuted
+                let ws_clone = ws.get_untracked();
+                let on_speaking = Box::new(move |is_speaking: bool| {
+                    if let Some(socket) = &ws_clone {
+                        let msg = ClientMessage::Speaking(is_speaking);
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            let _ = socket.send_with_str(&json);
+                        }
+                    }
+                });
+
+                let toast_ctx_clone = toast_ctx.clone();
+                let on_no_audio = Box::new(move || {
+                    toast_ctx_clone.add("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
+                });
+
+                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
+                    set_audio_monitor.set(Some(monitor));
+                }
+            }
         }
 
         if let Some(socket) = ws.get() {

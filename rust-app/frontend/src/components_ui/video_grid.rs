@@ -267,7 +267,7 @@ pub fn VideoGrid(
                             let p_id_for_hand = p.id.clone();
 
                             let p_id_for_presence = p.id.clone();
-                            let is_connected = Signal::derive(move || {
+                            let _is_connected = Signal::derive(move || {
                                 participants.with(|ps| {
                                     ps.iter()
                                         .find(|pp| pp.id == p_id_for_presence)
@@ -430,11 +430,6 @@ pub fn VideoGrid(
                                     </div>
 
 
-                                    <Show when=move || is_connected.get()>
-                                        <Show when={let p_id = p.id.clone(); move || speaking_peers.get().contains(&p_id)}>
-                                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 3px solid #28a745; box-sizing: border-box; border-radius: 8px; pointer-events: none; z-index: 5;"></div>
-                                        </Show>
-                                    </Show>
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
