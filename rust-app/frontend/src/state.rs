@@ -394,11 +394,17 @@ pub fn use_room_state() -> RoomState {
                                 set_is_subtitles_enabled.set(config.is_subtitles_enabled);
                                 set_room_config.set(config);
                             }
-                            ServerMessage::Chat { message, .. } => {
-                                set_messages.update(|msgs| msgs.push(message));
+                            ServerMessage::Chat { message, room_id } => {
+                                let current_room = current_room_id.get_untracked();
+                                if room_id == current_room {
+                                    set_messages.update(|msgs| msgs.push(message));
+                                }
                             }
                             ServerMessage::ChatHistory(history) => {
-                                set_messages.set(history);
+                                // Only accept chat history if we are in the main room
+                                if current_room_id.get_untracked().is_none() {
+                                    set_messages.set(history);
+                                }
                             }
                             ServerMessage::ParticipantJoined(p) => {
                                 set_knocking_participants
@@ -1039,8 +1045,9 @@ pub fn use_room_state() -> RoomState {
             if new_state { // Muted
                 set_audio_monitor.set(None);
             } else { // Unmuted
+                let ws_clone = ws.get_untracked();
                 let on_speaking = Box::new(move |is_speaking: bool| {
-                    if let Some(socket) = ws.get_untracked() {
+                    if let Some(socket) = &ws_clone {
                         let msg = ClientMessage::Speaking(is_speaking);
                         if let Ok(json) = serde_json::to_string(&msg) {
                             let _ = socket.send_with_str(&json);
