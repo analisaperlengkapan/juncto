@@ -122,7 +122,7 @@ pub fn Room() -> impl IntoView {
                             on_mute=state.mute_participant
                             on_transfer_host=state.transfer_host
                         />
-                        <div class="main-content" style=move || format!("margin-right: {}", if show_chat.get() || show_participants.get() { "320px" } else { "0" })>
+                        <div class="main-content" style=move || format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}", if show_chat.get() || show_participants.get() { "320px" } else { "0" })>
                             <BreakoutRooms
                                 breakout_rooms=state.breakout_rooms
                                 current_room_id=state.current_room_id
