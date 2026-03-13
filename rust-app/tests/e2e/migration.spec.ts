@@ -564,6 +564,10 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // Guest stays in Main
   await expect(guestPage.getByText('(In Breakout Room)')).not.toBeVisible();
 
+  // Give backend ample time to process the JoinBreakoutRoom WebSocket message
+  // so the host isn't marked as "unauthorized" for sending a message to a room they technically aren't in yet.
+  await hostPage.waitForTimeout(1500);
+
   // Host chats in Breakout
   await hostPage.locator('.chat-container input[type="text"]').fill('Secret Message');
   await hostPage.click('.chat-container button'); // Send
