@@ -10,3 +10,4 @@ playwright_output.txt
 playwright-report/
 test-results/
 *.log
+backend_log.txt

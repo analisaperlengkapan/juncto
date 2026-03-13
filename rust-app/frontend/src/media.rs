@@ -154,8 +154,24 @@ pub struct AudioMonitor {
 
 impl AudioMonitor {
     pub fn new(stream: &MediaStream, on_talking: Box<dyn FnMut(bool)>, mut on_no_audio: Option<Box<dyn FnMut()>>) -> Result<Self, JsValue> {
+        // Bug 1 Fix: The original `stream`'s tracks are disabled when the user mutes themselves,
+        // which sends silence to the Web Audio API. To detect talking while muted, we must
+        // clone the audio track and keep it enabled, feeding the cloned stream to the AnalyserNode.
+        let audio_tracks = stream.get_audio_tracks();
+        let isolated_stream = MediaStream::new()?;
+
+        for i in 0..audio_tracks.length() {
+            let track_val = audio_tracks.get(i);
+            if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                let cloned_track = track.clone();
+                // Ensure the cloned track remains enabled for local analysis even if original is disabled
+                cloned_track.set_enabled(true);
+                isolated_stream.add_track(&cloned_track);
+            }
+        }
+
         let context = AudioContext::new()?;
-        let source = context.create_media_stream_source(stream)?;
+        let source = context.create_media_stream_source(&isolated_stream)?;
         let analyser = context.create_analyser()?;
         analyser.set_fft_size(256);
         source.connect_with_audio_node(&analyser)?;
