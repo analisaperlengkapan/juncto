@@ -1039,9 +1039,8 @@ pub fn use_room_state() -> RoomState {
             if new_state { // Muted
                 set_audio_monitor.set(None);
             } else { // Unmuted
-                let ws_clone = ws.get_untracked();
                 let on_speaking = Box::new(move |is_speaking: bool| {
-                    if let Some(socket) = &ws_clone {
+                    if let Some(socket) = ws.get_untracked() {
                         let msg = ClientMessage::Speaking(is_speaking);
                         if let Ok(json) = serde_json::to_string(&msg) {
                             let _ = socket.send_with_str(&json);
