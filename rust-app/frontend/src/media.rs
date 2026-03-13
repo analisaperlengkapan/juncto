@@ -149,10 +149,11 @@ pub struct AudioMonitor {
     _source: web_sys::MediaStreamAudioSourceNode,
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
+    is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
 }
 
 impl AudioMonitor {
-    pub fn new(stream: &MediaStream, on_talking: Box<dyn FnMut(bool)>) -> Result<Self, JsValue> {
+    pub fn new(stream: &MediaStream, on_talking: Box<dyn FnMut(bool)>, mut on_no_audio: Option<Box<dyn FnMut()>>) -> Result<Self, JsValue> {
         let context = AudioContext::new()?;
         let source = context.create_media_stream_source(stream)?;
         let analyser = context.create_analyser()?;
@@ -166,11 +167,26 @@ impl AudioMonitor {
 
         let analyser_clone = analyser.clone();
 
+        let is_muted = std::rc::Rc::new(std::cell::RefCell::new(false));
+        let is_muted_clone = is_muted.clone();
+
+        let mut silence_counter = 0;
+        let mut no_audio_triggered = false;
+        let mut has_ever_talked = false;
+
         let closure = Closure::wrap(Box::new(move || {
-            let mut array = data_array.clone(); // Clone for safety in loop, ideally we reuse buffer but closure ownership is tricky
-                                                // Wait, copying vec every frame is bad. But with `move` closure, we own `data_array`.
-                                                // `get_byte_frequency_data` takes `&mut [u8]`.
-                                                // We need `data_array` to be mutable inside closure.
+            // Do not analyze or trigger callbacks while explicitly muted
+            if *is_muted_clone.borrow() {
+                // If we are muted, we don't count silence towards the broken mic timeout.
+                // We also ensure the "was_talking" state is cleanly suppressed.
+                if was_talking {
+                    was_talking = false;
+                    callback(false);
+                }
+                return;
+            }
+
+            let mut array = data_array.clone();
 
             analyser_clone.get_byte_frequency_data(&mut array);
 
@@ -180,10 +196,28 @@ impl AudioMonitor {
             // Threshold for talking
             let is_talking = avg > 20.0;
 
+            if is_talking {
+                has_ever_talked = true;
+            }
+
             if is_talking != was_talking {
                 was_talking = is_talking;
                 callback(is_talking);
             }
+
+            // If audio level is practically zero for a long time, and we haven't triggered yet
+            if avg < 1.0 && !has_ever_talked {
+                silence_counter += 1;
+                if silence_counter > 100 && !no_audio_triggered { // 100 * 100ms = 10 seconds
+                    no_audio_triggered = true;
+                    if let Some(cb) = on_no_audio.as_mut() {
+                        cb();
+                    }
+                }
+            } else {
+                silence_counter = 0;
+            }
+
         }) as Box<dyn FnMut()>);
 
         // Run interval
@@ -199,7 +233,12 @@ impl AudioMonitor {
             _source: source,
             _closure: closure,
             interval_id,
+            is_muted,
         })
+    }
+
+    pub fn set_muted(&self, muted: bool) {
+        *self.is_muted.borrow_mut() = muted;
     }
 }
 

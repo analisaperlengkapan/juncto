@@ -564,6 +564,10 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // Guest stays in Main
   await expect(guestPage.getByText('(In Breakout Room)')).not.toBeVisible();
 
+  // Give backend ample time to process the JoinBreakoutRoom WebSocket message
+  // so the host isn't marked as "unauthorized" for sending a message to a room they technically aren't in yet.
+  await hostPage.waitForTimeout(1500);
+
   // Host chats in Breakout
   await hostPage.locator('.chat-container input[type="text"]').fill('Secret Message');
   await hostPage.click('.chat-container button'); // Send
@@ -586,6 +590,7 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // We need to look at actual messages list to be completely safe against test flakes
   // where it picks up the text from input field being typed and cleared.
   // Note: Guest's message goes to Main room, host is in Breakout, shouldn't receive.
+  await expect(hostPage.locator('.chat-container .messages')).toContainText('Secret Message');
   await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
 
   // Host returns to Main

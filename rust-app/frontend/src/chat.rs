@@ -1,3 +1,4 @@
+pub type ChatSendCallback = Callback<(String, Option<String>, Option<shared::FileAttachment>, Option<String>)>;
 use gloo_timers::callback::Timeout;
 use leptos::*;
 use shared::{ChatMessage, FileAttachment, Participant};
@@ -55,7 +56,7 @@ pub fn Chat(
     messages: ReadSignal<Vec<ChatMessage>>,
     typing_users: ReadSignal<HashSet<String>>,
     participants: ReadSignal<Vec<Participant>>,
-    on_send: Callback<(String, Option<String>, Option<FileAttachment>, Option<String>)>,
+    on_send: ChatSendCallback,
     on_typing: Callback<bool>,
     is_connected: ReadSignal<bool>,
     my_id: ReadSignal<Option<String>>,

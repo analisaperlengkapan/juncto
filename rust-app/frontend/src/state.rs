@@ -77,7 +77,7 @@ pub struct RoomState {
     pub set_show_virtual_background: WriteSignal<bool>,
     pub set_show_feedback: WriteSignal<bool>,
     pub send_ping: Callback<()>,
-    pub send_message: Callback<(String, Option<String>, Option<FileAttachment>, Option<String>)>, // content, recipient_id, attachment
+    pub send_message: crate::chat::ChatSendCallback, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
@@ -313,7 +313,14 @@ pub fn use_room_state() -> RoomState {
                     }
                 });
 
-                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking) {
+
+                let add_toast_clone = add_toast;
+                let on_no_audio = Box::new(move || {
+                    add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
+                });
+
+                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
+
                     set_audio_monitor.set(Some(monitor));
                 }
             }
@@ -387,11 +394,17 @@ pub fn use_room_state() -> RoomState {
                                 set_is_subtitles_enabled.set(config.is_subtitles_enabled);
                                 set_room_config.set(config);
                             }
-                            ServerMessage::Chat { message, .. } => {
-                                set_messages.update(|msgs| msgs.push(message));
+                            ServerMessage::Chat { message, room_id } => {
+                                let current_room = current_room_id.get_untracked();
+                                if room_id == current_room {
+                                    set_messages.update(|msgs| msgs.push(message));
+                                }
                             }
                             ServerMessage::ChatHistory(history) => {
-                                set_messages.set(history);
+                                // Only accept chat history if we are in the main room
+                                if current_room_id.get_untracked().is_none() {
+                                    set_messages.set(history);
+                                }
                             }
                             ServerMessage::ParticipantJoined(p) => {
                                 set_knocking_participants
@@ -489,6 +502,13 @@ pub fn use_room_state() -> RoomState {
                                                     track.set_enabled(false);
                                                 }
                                             }
+
+                                            // Pause the AudioMonitor so we don't get false positive "no audio" warnings while muted by host
+                                            set_audio_monitor.update(|monitor| {
+                                                if let Some(m) = monitor.as_mut() {
+                                                    m.set_muted(true);
+                                                }
+                                            });
                                         }
                                         // Confirm state to server
                                         if let Some(socket) = ws.get_untracked() {
@@ -1025,6 +1045,15 @@ pub fn use_room_state() -> RoomState {
                     track.set_enabled(!new_state); // enabled = !muted
                 }
             }
+
+            // Bug 2 Fix: Update muted state on the existing AudioMonitor
+            // rather than dropping and recreating it. This preserves the
+            // `has_ever_talked` state (Bug 1) and prevents `AudioContext` exhaustion.
+            set_audio_monitor.update(|monitor| {
+                if let Some(m) = monitor.as_mut() {
+                    m.set_muted(new_state);
+                }
+            });
         }
 
         if let Some(socket) = ws.get() {

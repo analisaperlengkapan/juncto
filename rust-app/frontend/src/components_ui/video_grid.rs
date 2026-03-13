@@ -189,6 +189,10 @@ pub fn VideoGrid(
                         "PiP"
                     </button>
                 </Show>
+
+                <Show when=move || speaking_peers.get().contains(&my_id.get().unwrap_or_default())>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 3px solid #28a745; box-sizing: border-box; border-radius: 8px; pointer-events: none; z-index: 5;"></div>
+                </Show>
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
                 </div>
@@ -261,6 +265,17 @@ pub fn VideoGrid(
                             });
 
                             let p_id_for_hand = p.id.clone();
+
+                            let p_id_for_presence = p.id.clone();
+                            let _is_connected = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_presence)
+                                        .map(|pp| pp.presence == shared::PresenceStatus::Connected)
+                                        .unwrap_or(false)
+                                })
+                            });
+
                             let is_hand_raised = Signal::derive(move || {
                                 participants.with(|ps| {
                                     ps.iter()
@@ -413,6 +428,7 @@ pub fn VideoGrid(
                                     <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                                         {move || p_name.get()}
                                     </div>
+
 
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
                                         <Show when=move || is_hand_raised.get() && !is_screen>
