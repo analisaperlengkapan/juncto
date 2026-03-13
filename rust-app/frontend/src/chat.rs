@@ -167,8 +167,7 @@ pub fn Chat(
     };
 
     view! {
-        <div class="chat-container" style="border-left: 1px solid #ccc; width: 300px; padding: 10px; display: flex; flex-direction: column; background: white;">
-            <h3>"Chat"</h3>
+        <div class="chat-container" style="display: flex; flex-direction: column; height: 100%; width: 100%; padding: 10px;">
             <div class="recipient-selector" style="margin-bottom: 10px;">
                 <label>"To: "</label>
                 <select

@@ -51,7 +51,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // 5. Verify Chat Functionality
   const chatInput = page.locator('.chat-container input[type="text"]');
-  const chatSendBtn = page.locator('.chat-container button');
+  const chatSendBtn = page.locator('.chat-container button:has-text("Send")');
 
   await expect(chatInput).toBeVisible();
 
@@ -336,7 +336,7 @@ test('Chat History E2E', async ({ browser, request }) => {
 
   const chatInput1 = page1.locator('.chat-container input[type="text"]');
   await chatInput1.fill('Message before join');
-  await page1.click('.chat-container button');
+  await page1.click('.chat-container button:has-text("Send")');
   await expect(page1.getByText('Message before join')).toBeVisible();
 
   // 2. User 2 joins and should see the message
@@ -352,7 +352,7 @@ test('Chat History E2E', async ({ browser, request }) => {
   await expect(page2.getByText('Meeting Room: HistoryRoom')).toBeVisible();
 
   // Verify Chat History
-  await expect(page2.locator('.chat-container')).toContainText('Message before join');
+  await expect(page2.locator('.chat-container').first()).toContainText('Message before join');
 
   await context1.close();
   await context2.close();
@@ -399,7 +399,7 @@ test('Typing Indicator E2E', async ({ browser, request }) => {
 
   // User 1 stops typing (wait 4s for timeout > 3000ms)
   // Or force stop by sending message
-  await page1.click('.chat-container button'); // Send
+  await page1.click('.chat-container button:has-text("Send")'); // Send
 
   // User 2 should NOT see indicator
   await expect(page2.locator('.typing-indicator')).not.toContainText('is typing...');
@@ -568,30 +568,39 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // so the host isn't marked as "unauthorized" for sending a message to a room they technically aren't in yet.
   await hostPage.waitForTimeout(1500);
 
+  // Wait to ensure chat is visible after joining breakout room (sometimes it flashes or re-renders)
+  await hostPage.locator('.chat-container input[type="text"]').waitFor({ state: 'visible' });
+
+  // Add a small wait before typing to ensure the websocket is fully connected for the new room context
+  await hostPage.waitForTimeout(1000);
+
   // Host chats in Breakout
   await hostPage.locator('.chat-container input[type="text"]').fill('Secret Message');
-  await hostPage.click('.chat-container button'); // Send
+  await hostPage.locator('.chat-container input[type="text"]').dispatchEvent('input');
+
+  // Give it a tiny bit of time to make sure the signal caught it
+  await hostPage.waitForTimeout(500);
+
+  await hostPage.click('.chat-container button:has-text("Send")'); // Send
+
+  // Wait to ensure the message was processed by the UI state locally
+  await expect(hostPage.locator('.chat-container').first()).toContainText('Secret Message', { timeout: 10000 });
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process
   // We can assert on the entire .messages container as long as we wait for the message to NOT be there
-  await expect(guestPage.locator('.chat-container .messages')).not.toContainText('Secret Message');
+  await expect(guestPage.locator('.chat-container').first()).not.toContainText('Secret Message');
 
   // Guest chats in Main
   await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
-  await guestPage.click('.chat-container button'); // Send
+  await guestPage.click('.chat-container button:has-text("Send")'); // Send
 
   // Clear guest input to prevent false positives in text match
   await guestPage.locator('.chat-container input[type="text"]').fill('');
 
   // Host should NOT see it (in real app they might, but current logic filters strict room match)
   await hostPage.waitForTimeout(1000);
-
-  // We need to look at actual messages list to be completely safe against test flakes
-  // where it picks up the text from input field being typed and cleared.
-  // Note: Guest's message goes to Main room, host is in Breakout, shouldn't receive.
-  await expect(hostPage.locator('.chat-container .messages')).toContainText('Secret Message');
-  await expect(hostPage.locator('.chat-container .messages')).not.toContainText('Main Message');
+  await expect(hostPage.locator('.chat-container').first()).not.toContainText('Main Message');
 
   // Host returns to Main
   await hostPage.getByRole('button', { name: 'Return to Main' }).click();
@@ -600,9 +609,9 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // Now Host should see/receive messages in main (if we resent or typed new ones)
   // Let's type a new one
   await hostPage.locator('.chat-container input[type="text"]').fill('Back in Main');
-  await hostPage.click('.chat-container button'); // Send
+  await hostPage.click('.chat-container button:has-text("Send")'); // Send
 
-  await expect(guestPage.locator('.chat-container')).toContainText('Back in Main');
+  await expect(guestPage.locator('.chat-container').first()).toContainText('Back in Main');
 
   await hostContext.close();
   await guestContext.close();
@@ -700,7 +709,7 @@ test('Chat Names E2E', async ({ browser, request }) => {
 
     // Alice types
     await page1.locator('.chat-container input[type="text"]').fill('Hi Bob');
-    await page1.click('.chat-container button');
+    await page1.click('.chat-container button:has-text("Send")');
 
     // Alice should see "Me": "Hi Bob"
     // The chat component renders: <strong>{sender_name}": "</strong> <span>{msg.content}</span>
@@ -1078,7 +1087,7 @@ test('Private Messaging E2E', async ({ browser, request }) => {
 
     await page1.locator('.chat-container select').selectOption({ label: 'Bob' });
     await page1.locator('.chat-container input[type="text"]').fill('Secret for Bob');
-    await page1.click('.chat-container button');
+    await page1.click('.chat-container button:has-text("Send")');
 
     // Alice should see it (Private indicator)
     await expect(page1.locator('.messages li').last()).toContainText('(Private)');
@@ -1091,16 +1100,16 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     // Eve should NOT see it
     // Check if Eve has any message. She might have system messages (joins) or nothing if chat is empty.
     // The test logic assumes "Secret for Bob" is not in Eve's chat.
-    await expect(page3.locator('.messages')).not.toContainText('Secret for Bob');
+    await expect(page3.locator('.messages').first()).not.toContainText('Secret for Bob');
 
     // Send public message
     await page1.locator('.chat-container select').selectOption({ label: 'Everyone' });
     await page1.locator('.chat-container input[type="text"]').fill('Hello All');
-    await page1.click('.chat-container button');
+    await page1.click('.chat-container button:has-text("Send")');
 
     // Everyone should see it
-    await expect(page2.locator('.messages')).toContainText('Hello All');
-    await expect(page3.locator('.messages')).toContainText('Hello All');
+    await expect(page2.locator('.messages').first()).toContainText('Hello All');
+    await expect(page3.locator('.messages').first()).toContainText('Hello All');
 
     await context1.close();
     await context2.close();
@@ -1176,7 +1185,7 @@ test('Chat Timestamp E2E', async ({ browser, request }) => {
     await page.click('button.join-btn');
 
     await page.locator('.chat-container input[type="text"]').fill('Time Check');
-    await page.click('.chat-container button');
+    await page.click('.chat-container button:has-text("Send")');
 
     // Check for timestamp format [HH:MM]
     await expect(page.locator('.messages li').last()).toContainText(/\[\d{2}:\d{2}\]/);

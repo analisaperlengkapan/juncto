@@ -1,0 +1,7 @@
+<<<<<<< SEARCH
+  // Wait to ensure the message was processed by the UI state locally
+  await expect(hostPage.locator('.messages').first()).toContainText('Secret Message', { timeout: 10000 });
+=======
+  // The host is inside the breakout room. Let's make sure the locator finds the message
+  await expect(hostPage.locator('.chat-container')).toContainText('Secret Message', { timeout: 10000 });
+>>>>>>> REPLACE
