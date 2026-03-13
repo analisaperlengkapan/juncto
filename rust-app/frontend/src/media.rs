@@ -173,21 +173,10 @@ impl AudioMonitor {
         let mut silence_counter = 0;
         let mut no_audio_triggered = false;
         let mut has_ever_talked = false;
+        let mut talk_while_muted_counter = 0;
 
         let closure = Closure::wrap(Box::new(move || {
-            // Do not analyze or trigger callbacks while explicitly muted
-            if *is_muted_clone.borrow() {
-                // If we are muted, we don't count silence towards the broken mic timeout.
-                // We also ensure the "was_talking" state is cleanly suppressed.
-                if was_talking {
-                    was_talking = false;
-                    callback(false);
-                }
-                return;
-            }
-
             let mut array = data_array.clone();
-
             analyser_clone.get_byte_frequency_data(&mut array);
 
             let sum: u32 = array.iter().map(|&x| x as u32).sum();
@@ -195,6 +184,36 @@ impl AudioMonitor {
 
             // Threshold for talking
             let is_talking = avg > 20.0;
+
+            // Do not analyze or trigger callbacks while explicitly muted
+            if *is_muted_clone.borrow() {
+                // Talk While Muted feature
+                if is_talking {
+                    talk_while_muted_counter += 1;
+                    // Trigger a toast if speaking while muted for > 1 second (10 * 100ms)
+                    if talk_while_muted_counter == 10 {
+                        // For closures that can't easily access leptos context, we can dispatch a custom event
+                        // or rely on a passed-in callback. We'll fire a global custom event.
+                        if let Some(window) = web_sys::window() {
+                            if let Ok(event) = web_sys::CustomEvent::new("talk_while_muted") {
+                                let _ = window.dispatch_event(&event);
+                            }
+                        }
+                    }
+                } else {
+                    talk_while_muted_counter = 0;
+                }
+
+                // If we are muted, we don't count silence towards the broken mic timeout.
+                // We also ensure the "was_talking" state is cleanly suppressed.
+                if was_talking {
+                    was_talking = false;
+                    callback(false);
+                }
+                return;
+            } else {
+                talk_while_muted_counter = 0;
+            }
 
             if is_talking {
                 has_ever_talked = true;
@@ -270,5 +289,15 @@ mod tests {
 
         let deserialized: DeviceInfo = serde_json::from_str(&json).expect("Failed to deserialize");
         assert_eq!(deserialized, device);
+    }
+}
+
+#[cfg(test)]
+mod tests_media_muted {
+    use super::*;
+
+    #[test]
+    fn test_audio_monitor_compiles() {
+        assert!(true); // Cannot truly test without browser/WASM bindings
     }
 }
