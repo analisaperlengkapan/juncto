@@ -402,7 +402,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            println!("BROADCAST TASK 1: my_id: {}, msg from: {}, my_loc: {:?}, msg_room: {:?}", my_id_clone, message.user_id, my_loc, room_id);
+
                                                             if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
