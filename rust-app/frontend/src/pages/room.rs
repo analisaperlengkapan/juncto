@@ -33,7 +33,7 @@ pub fn Room() -> impl IntoView {
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_embed, set_show_embed) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
-    let (show_participants, set_show_participants) = create_signal(false);
+    let (show_participants, set_show_participants) = create_signal(true);
 
     let invite_url = Signal::derive(move || {
         if let Some(window) = web_sys::window() {
