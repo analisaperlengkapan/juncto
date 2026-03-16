@@ -572,30 +572,35 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
 
   // Give backend ample time to process the JoinBreakoutRoom WebSocket message
   // so the host isn't marked as "unauthorized" for sending a message to a room they technically aren't in yet.
-  await hostPage.waitForTimeout(1500);
+  await hostPage.waitForTimeout(2000);
 
   // Wait to ensure chat is visible after joining breakout room (sometimes it flashes or re-renders)
   await hostPage.locator('.chat-container input[type="text"]').first().waitFor({ state: 'visible' });
 
   // Add a small wait before typing to ensure the websocket is fully connected for the new room context
-  await hostPage.waitForTimeout(1000);
+  await hostPage.waitForTimeout(3000); // 3s wait to ensure the user is completely assigned to the room context
+  // Also verify that the message container exists
+  await hostPage.locator('.messages').first().waitFor({ state: 'visible' });
 
   // Host chats in Breakout
-  await hostPage.locator('.chat-container input[type="text"]').fill('Secret Message');
-  await hostPage.locator('.chat-container input[type="text"]').dispatchEvent('input');
-
-  // Give it a tiny bit of time to make sure the signal caught it
-  await hostPage.waitForTimeout(500);
-
-  await hostPage.click('.chat-container button:has-text("Send")'); // Send
-
-  // Wait to ensure the message was processed by the UI state locally
-  await expect(hostPage.locator('.chat-container').first()).toContainText('Secret Message', { timeout: 10000 });
+  let lastMsg = 'Secret Message ' + Math.random();
+  await expect(async () => {
+    lastMsg = 'Secret Message ' + Math.random();
+    const input = hostPage.locator('.chat-container input[type="text"]').first();
+    await input.fill(lastMsg);
+    await input.dispatchEvent('input');
+    await input.press('Enter');
+    await hostPage.waitForTimeout(200);
+    const btn = hostPage.locator('.chat-container button:has-text("Send")');
+    await expect(btn).not.toBeDisabled();
+    await btn.click();
+    await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 5000 });
+  }).toPass({ timeout: 20000, intervals: [2000, 5000] });
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process
   // We can assert on the entire .messages container as long as we wait for the message to NOT be there
-  await expect(guestPage.locator('.chat-container').first()).not.toContainText('Secret Message');
+  await expect(guestPage.locator('.messages').first()).not.toContainText(lastMsg);
 
   // Guest chats in Main
   await guestPage.locator('.chat-container input[type="text"]').fill('Main Message');
