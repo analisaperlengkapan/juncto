@@ -302,7 +302,11 @@ pub fn VideoGrid(
                             let id_clone_for_speaking = id_clone.clone();
                             let speaking_peers_for_speaking = speaking_peers;
                             let is_speaking = move || speaking_peers_for_speaking.get().contains(&id_clone_for_speaking);
-                            let audio_level_sig = Signal::derive(move || if speaking_peers.get().contains(&id_clone) { 0.8 } else { 0.0 });
+                            let audio_level_sig = Signal::derive(move || if speaking_peers.get().contains(&id_clone) {
+                                0.5 + js_sys::Math::random() * 0.5
+                            } else {
+                                0.0
+                            });
 
 
                             // Remote Stream Logic

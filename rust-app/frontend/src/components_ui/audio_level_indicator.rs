@@ -13,9 +13,9 @@ pub fn AudioLevelIndicator(
         let class_name = if distance_from_center == 0 {
             "audiodot-middle"
         } else if distance_from_center < 0 {
-            "audiodot-top"
-        } else {
             "audiodot-bottom"
+        } else {
+            "audiodot-top"
         };
 
         view! {
