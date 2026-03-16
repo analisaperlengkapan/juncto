@@ -216,7 +216,7 @@ impl AudioMonitor {
                 // Talk While Muted feature
                 if is_talking {
                     talk_while_muted_counter += 1;
-                    // Trigger a toast if speaking while muted for > 1 second (10 * 100ms)
+                    has_ever_talked = true;
                     if talk_while_muted_counter >= 10 && !toast_fired_for_this_mute_cycle {
                         toast_fired_for_this_mute_cycle = true;
                         // For closures that can't easily access leptos context, we can dispatch a custom event
