@@ -1,5 +1,4 @@
 use leptos::*;
-use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
 use shared::Participant;
 use std::collections::{HashMap, HashSet};
 use wasm_bindgen::JsCast;
@@ -298,20 +297,7 @@ pub fn VideoGrid(
                                 })
                             });
 
-
-                            let id_clone_for_speaking = id_clone.clone();
-                            let speaking_peers_for_speaking = speaking_peers;
-                            let is_speaking = move || speaking_peers_for_speaking.get().contains(&id_clone_for_speaking);
-                            let audio_level_sig = Signal::derive({
-                                let id_clone = id_clone.clone();
-                                let audio_level_memo = create_memo(move |_| if speaking_peers.get().contains(&id_clone) {
-                                    0.5 + js_sys::Math::random() * 0.5
-                                } else {
-                                    0.0
-                                });
-                                move || audio_level_memo.get()
-                            });
-
+                            let is_speaking = move || speaking_peers.get().contains(&id_clone);
 
                             // Remote Stream Logic
                             let remote_video_ref = create_node_ref::<html::Video>();
@@ -448,8 +434,6 @@ pub fn VideoGrid(
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
-                                        <AudioLevelIndicator audio_level=audio_level_sig />
-
                                     </div>
                                 </div>
                             }
@@ -465,8 +449,7 @@ pub fn VideoGrid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
-use shared::Participant;
+    use shared::Participant;
 
     #[test]
     fn test_grid_item_key() {
