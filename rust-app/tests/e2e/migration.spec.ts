@@ -233,8 +233,11 @@ test('Lobby Feature E2E', async ({ browser }) => {
   await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
 
   // Enable Lobby
-  await hostPage.getByRole('button', { name: 'Enable Lobby' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Disable Lobby' })).toBeVisible();
+  await hostPage.click('.toolbox button:has-text("Settings")');
+  await hostPage.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lobbyCheckbox = hostPage.locator('.modal-content input[type="checkbox"]').nth(1);
+  await lobbyCheckbox.check();
+  await hostPage.click('.modal-content button:has-text("×")');
 
   // --- GUEST ---
   // Need to get the room URL (encoded)
@@ -503,21 +506,25 @@ test('Room Lock E2E', async ({ browser, request }) => {
 
   // 1. Initial State: Unlocked
   // Wait for host status propagation (RoomUpdated -> set_room_config -> is_host derived)
-  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible({ timeout: 10000 });
+  await hostPage.click('.toolbox button:has-text("Settings")');
+  await hostPage.locator('.modal-content .tabs button:has-text("Moderator")').click();
+
+  const lockRoomCheckbox = hostPage.locator('.modal-content input[type="checkbox"]').nth(0);
+  await expect(lockRoomCheckbox).not.toBeChecked();
+
   await expect(guestPage.getByText('Unlocked')).toBeVisible();
-  await expect(guestPage.getByRole('button', { name: 'Lock Room' })).not.toBeVisible();
 
   // 2. Host Locks Room
-  await hostPage.getByRole('button', { name: 'Lock Room' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+  await lockRoomCheckbox.check();
+  await expect(lockRoomCheckbox).toBeChecked();
 
   // 3. Guest sees Locked state
   await expect(guestPage.getByText('Locked')).toBeVisible();
   await expect(guestPage.getByRole('button', { name: 'Unlock Room' })).not.toBeVisible();
 
   // 4. Host Unlocks Room
-  await hostPage.getByRole('button', { name: 'Unlock Room' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+  await lockRoomCheckbox.uncheck();
+  await expect(lockRoomCheckbox).not.toBeChecked();
   await expect(guestPage.getByText('Unlocked')).toBeVisible();
 
   await hostContext.close();

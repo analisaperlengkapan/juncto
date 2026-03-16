@@ -4,12 +4,12 @@ use leptos::*;
 pub fn Toolbox(
     is_locked: ReadSignal<bool>,
     is_host: Signal<bool>,
-    is_lobby_enabled: ReadSignal<bool>,
+    #[prop(optional)] _is_lobby_enabled: Option<ReadSignal<bool>>,
     is_recording: ReadSignal<bool>,
     is_subtitles_enabled: ReadSignal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
-    on_toggle_lock: Callback<()>,
-    on_toggle_lobby: Callback<()>,
+    #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
+    #[prop(optional)] _on_toggle_lobby: Option<Callback<()>>,
     on_toggle_recording: Callback<()>,
     on_toggle_subtitles: Callback<()>,
     on_set_presence: Callback<shared::PresenceStatus>,
@@ -117,23 +117,12 @@ pub fn Toolbox(
             >
                 "Raise Hand"
             </button>
-            <Show when=move || is_host.get() fallback=move || view! {
+            <Show when=move || !is_host.get()>
                 <div style="padding: 8px 16px; background-color: #ccc; color: white; border-radius: 4px;">
                     {move || if is_locked.get() { "Locked" } else { "Unlocked" }}
                 </div>
-            }>
-                <button
-                    on:click=move |_| on_toggle_lock.call(())
-                    style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;"
-                >
-                    {move || if is_locked.get() { "Unlock Room" } else { "Lock Room" }}
-                </button>
-                <button
-                    on:click=move |_| on_toggle_lobby.call(())
-                    style="padding: 8px 16px; background-color: #20c997; color: white; border: none; cursor: pointer; border-radius: 4px;"
-                >
-                    {move || if is_lobby_enabled.get() { "Disable Lobby" } else { "Enable Lobby" }}
-                </button>
+            </Show>
+            <Show when=move || is_host.get()>
                 <button
                     on:click=move |_| on_toggle_recording.call(())
                     style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })

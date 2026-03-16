@@ -22,6 +22,13 @@ pub fn SettingsDialog(
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
+
+    create_effect(move |_| {
+        if active_tab.get() == "moderator" && !is_host.map(|h| h.get()).unwrap_or(false) {
+            set_active_tab.set("profile");
+        }
+    });
+
     let (display_name, set_display_name) = create_signal("".to_string());
 
     // Initialize state from props if available
@@ -306,7 +313,7 @@ pub fn SettingsDialog(
                                 </button>
                             </div>
                         </Show>
-                        <Show when=move || active_tab.get() == "moderator" && is_host.map(|h| h.get()).unwrap_or(false)>
+                        <Show when=move || active_tab.get() == "moderator">
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
