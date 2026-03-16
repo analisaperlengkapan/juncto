@@ -121,5 +121,6 @@ test-results
 *.orig
 *.rej
 *.diff
-\n# Ignore pid files
+
+# Ignore pid files
 *.pid
