@@ -15,7 +15,7 @@ test.describe('Subtitles and Presence Status Features', () => {
     await page.click('button:has-text("Join Meeting")');
 
     // Wait for the room to load
-    await page.click('.toolbox button:has-text("Participants")');
+    if (await page.locator('.participants-list').isHidden()) { await page.click('.toolbox button:has-text("Participants")'); }
     await expect(page.locator('.participants-list')).toBeVisible({ timeout: 10000 });
 
     // 2. Verify Presence Status "Connected" is displayed next to name
