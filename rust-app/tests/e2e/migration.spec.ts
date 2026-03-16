@@ -68,7 +68,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // 6. Verify Participants List
   // We must click the "Participants" button first to make it visible
-  await page.click('.toolbox button:has-text("Participants")');
+  if (await page.locator('.participants-list').isHidden()) { await page.click('.toolbox button:has-text("Participants")'); }
   const participantsList = page.locator('.participants-container .participants-list');
   await expect(participantsList).toBeVisible();
   // Should contain at least "User ..." because backend assigns random names starting with "User"
@@ -248,7 +248,7 @@ test('Lobby Feature E2E', async ({ browser }) => {
 
   // --- HOST ---
   // Verify Host sees Guest knocking
-  await hostPage.click('.toolbox button:has-text("Participants")');
+  await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
   await expect(hostPage.locator('.knocking-list')).toBeVisible();
   await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
 
@@ -441,7 +441,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
 
   // Host should see "Kick" button for Guest
   // Open participants panel
-  await hostPage.click('.toolbox button:has-text("Participants")');
+  await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
 
   // Note: Guest item text contains "Guest"
   const guestItem = hostPage.locator('.participants-list li').filter({ hasText: 'Guest' });
@@ -454,7 +454,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   });
 
   // Host Kicks Guest
-  await guestItem.getByRole('button', { name: 'Kick' }).click({ force: true });
+  await guestItem.getByRole('button', { name: 'Kick' }).click();
 
   // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
   // Wait for the "You have been kicked" toast to show up first before the redirect hits
@@ -968,8 +968,8 @@ test('Participant Sorting E2E', async ({ browser, request }) => {
     await page2.click('button.join-btn');
 
     // Open participants panel for both
-    await page1.click('.toolbox button:has-text("Participants")');
-    await page2.click('.toolbox button:has-text("Participants")');
+    if (await page1.locator('.participants-list').isHidden()) { await page1.click('.toolbox button:has-text("Participants")'); }
+    if (await page2.locator('.participants-list').isHidden()) { await page2.click('.toolbox button:has-text("Participants")'); }
 
     // Check for (Host) label on HostUser in Host's view
     await expect(page1.locator('.participants-list li').filter({ hasText: 'HostUser' })).toContainText('(Host)');
@@ -1025,7 +1025,7 @@ test('Participant Sorting E2E Explicit', async ({ browser, request }) => {
     await page2.click('button.join-btn');
 
     // Open participants panel
-    await page1.click('.toolbox button:has-text("Participants")');
+    if (await page1.locator('.participants-list').isHidden()) { await page1.click('.toolbox button:has-text("Participants")'); }
 
     // Initial Order: Adam (Host), Zack
     // We check the text of the first li
@@ -1119,7 +1119,7 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     await page3.click('button.join-btn');
 
     // Wait for everyone to join
-    await page1.click('.toolbox button:has-text("Participants")');
+    if (await page1.locator('.participants-list').isHidden()) { await page1.click('.toolbox button:has-text("Participants")'); }
     // Use more specific locator to avoid strict mode violation
     await expect(page1.locator('.participants-container .participants-list').getByText('Eve')).toBeVisible();
 
@@ -1274,7 +1274,7 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await g2Page.click('button.join-btn');
 
     // Verify Host sees 2 guests in waiting room
-    await hostPage.click('.toolbox button:has-text("Participants")');
+    await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
     await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
 
     // Click Allow All

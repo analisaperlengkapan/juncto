@@ -51,7 +51,7 @@ test.describe('Moderation Controls', () => {
     // If User B joined muted, Host would see NO "Mute" button (because of `Show when=!is_muted`).
     // So if "Mute" button is missing, B is muted.
     // Let's wait for participant list to populate.
-    await pageA.click('.toolbox button:has-text("Participants")');
+    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('.toolbox button:has-text("Participants")'); }
     const userBRow = pageA.locator('.participants-list li').filter({ hasText: 'User B' });
     await expect(userBRow).toBeVisible();
 
@@ -109,7 +109,7 @@ test.describe('Moderation Controls', () => {
     await expect(pageB.locator('button:has-text("End Meeting")')).not.toBeVisible();
 
     // 3. Host transfers role to User B
-    await pageA.click('.toolbox button:has-text("Participants")');
+    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('.toolbox button:has-text("Participants")'); }
     const userBRow = pageA.locator('.participants-list li').filter({ hasText: 'User B' });
     await expect(userBRow).toBeVisible();
     await userBRow.locator('button:has-text("Host")').click();
