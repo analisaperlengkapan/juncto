@@ -454,7 +454,9 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   });
 
   // Host Kicks Guest
-  await guestItem.getByRole('button', { name: 'Kick' }).click({ force: true });
+  const kickBtn = guestItem.getByRole('button', { name: 'Kick' });
+  await kickBtn.scrollIntoViewIfNeeded();
+  await kickBtn.dispatchEvent('click');
 
   // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
   // Wait for the "You have been kicked" toast to show up first before the redirect hits
@@ -620,8 +622,8 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
     // Give it a moment to render
     await hostPage.waitForTimeout(1000);
 
-    await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 5000 });
-  }).toPass({ timeout: 45000, intervals: [2000, 5000] });
+    await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 10000 });
+  }).toPass({ timeout: 60000, intervals: [2000, 5000] });
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process

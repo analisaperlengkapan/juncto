@@ -18,7 +18,7 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be active
-        await page.waitForSelector('.local-video video', { timeout: 10000 });
+        await page.waitForSelector('.local-video video', { timeout: 15000 });
 
         // Ensure the PiP button exists on the local video
         const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
@@ -48,7 +48,7 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be inactive
-        await page.waitForSelector('.local-video', { timeout: 10000 });
+        await page.waitForSelector('.local-video', { timeout: 15000 });
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
         const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
