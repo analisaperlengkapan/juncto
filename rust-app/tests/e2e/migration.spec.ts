@@ -80,16 +80,21 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // 7. Verify Room Lock
   // Wait for host status to be synced
   // Because "E2E User" is the first one in this fresh room, they are the Host.
-  const lockBtn = page.getByRole('button', { name: 'Lock Room' });
-  await expect(lockBtn).toBeVisible({ timeout: 10000 });
-  await lockBtn.click();
+  await page.click('.toolbox button:has-text("Settings")');
+  await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lockBtn = page.locator('.modal-content input[type="checkbox"]').nth(0);
 
-  // Verify button text changes to "Unlock Room"
-  await expect(page.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+  await expect(lockBtn).toBeVisible({ timeout: 10000 });
+  await lockBtn.check();
+
+  // Verify button state changes
+  await expect(lockBtn).toBeChecked();
+  await page.click('.modal-content button:has-text("×")');
 
   // 8. Verify Settings / Profile Update
   // Open Settings
   await page.getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.modal-content .tabs button:has-text("Profile")').click();
   await expect(page.getByText('Save Profile')).toBeVisible();
 
   // Change Name
@@ -202,8 +207,12 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(canvas).not.toBeVisible();
 
   // Unlock the room to reset state for next test
-  await page.getByRole('button', { name: 'Unlock Room' }).click();
-  await expect(page.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+  await page.click('.toolbox button:has-text("Settings")');
+  await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lockBtnToUnlock = page.locator('.modal-content input[type="checkbox"]').nth(0);
+  await lockBtnToUnlock.uncheck();
+  await expect(lockBtnToUnlock).not.toBeChecked();
+  await page.click('.modal-content button:has-text("×")');
 });
 
 test('Lobby Feature E2E', async ({ browser }) => {
