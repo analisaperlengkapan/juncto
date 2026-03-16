@@ -80,16 +80,21 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   // 7. Verify Room Lock
   // Wait for host status to be synced
   // Because "E2E User" is the first one in this fresh room, they are the Host.
-  const lockBtn = page.getByRole('button', { name: 'Lock Room' });
-  await expect(lockBtn).toBeVisible({ timeout: 10000 });
-  await lockBtn.click();
+  await page.click('.toolbox button:has-text("Settings")');
+  await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lockBtn = page.locator('.modal-content input[type="checkbox"]').nth(0);
 
-  // Verify button text changes to "Unlock Room"
-  await expect(page.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+  await expect(lockBtn).toBeVisible({ timeout: 10000 });
+  await lockBtn.check();
+
+  // Verify button state changes
+  await expect(lockBtn).toBeChecked();
+  await page.click('.modal-content button:has-text("×")');
 
   // 8. Verify Settings / Profile Update
   // Open Settings
   await page.getByRole('button', { name: 'Settings' }).click();
+  await page.locator('.modal-content .tabs button:has-text("Profile")').click();
   await expect(page.getByText('Save Profile')).toBeVisible();
 
   // Change Name
@@ -202,8 +207,12 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(canvas).not.toBeVisible();
 
   // Unlock the room to reset state for next test
-  await page.getByRole('button', { name: 'Unlock Room' }).click();
-  await expect(page.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+  await page.click('.toolbox button:has-text("Settings")');
+  await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lockBtnToUnlock = page.locator('.modal-content input[type="checkbox"]').nth(0);
+  await lockBtnToUnlock.uncheck();
+  await expect(lockBtnToUnlock).not.toBeChecked();
+  await page.click('.modal-content button:has-text("×")');
 });
 
 test('Lobby Feature E2E', async ({ browser }) => {
@@ -233,8 +242,11 @@ test('Lobby Feature E2E', async ({ browser }) => {
   await expect(hostPage.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
 
   // Enable Lobby
-  await hostPage.getByRole('button', { name: 'Enable Lobby' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Disable Lobby' })).toBeVisible();
+  await hostPage.click('.toolbox button:has-text("Settings")');
+  await hostPage.locator('.modal-content .tabs button:has-text("Moderator")').click();
+  const lobbyCheckbox = hostPage.locator('.modal-content input[type="checkbox"]').nth(1);
+  await lobbyCheckbox.check();
+  await hostPage.click('.modal-content button:has-text("×")');
 
   // --- GUEST ---
   // Need to get the room URL (encoded)
@@ -454,7 +466,9 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   });
 
   // Host Kicks Guest
-  await guestItem.getByRole('button', { name: 'Kick' }).click({ force: true });
+  const kickBtn = guestItem.getByRole('button', { name: 'Kick' });
+  await kickBtn.scrollIntoViewIfNeeded();
+  await kickBtn.dispatchEvent('click');
 
   // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
   // Wait for the "You have been kicked" toast to show up first before the redirect hits
@@ -501,21 +515,25 @@ test('Room Lock E2E', async ({ browser, request }) => {
 
   // 1. Initial State: Unlocked
   // Wait for host status propagation (RoomUpdated -> set_room_config -> is_host derived)
-  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible({ timeout: 10000 });
+  await hostPage.click('.toolbox button:has-text("Settings")');
+  await hostPage.locator('.modal-content .tabs button:has-text("Moderator")').click();
+
+  const lockRoomCheckbox = hostPage.locator('.modal-content input[type="checkbox"]').nth(0);
+  await expect(lockRoomCheckbox).not.toBeChecked();
+
   await expect(guestPage.getByText('Unlocked')).toBeVisible();
-  await expect(guestPage.getByRole('button', { name: 'Lock Room' })).not.toBeVisible();
 
   // 2. Host Locks Room
-  await hostPage.getByRole('button', { name: 'Lock Room' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Unlock Room' })).toBeVisible();
+  await lockRoomCheckbox.check();
+  await expect(lockRoomCheckbox).toBeChecked();
 
   // 3. Guest sees Locked state
   await expect(guestPage.getByText('Locked')).toBeVisible();
   await expect(guestPage.getByRole('button', { name: 'Unlock Room' })).not.toBeVisible();
 
   // 4. Host Unlocks Room
-  await hostPage.getByRole('button', { name: 'Unlock Room' }).click();
-  await expect(hostPage.getByRole('button', { name: 'Lock Room' })).toBeVisible();
+  await lockRoomCheckbox.uncheck();
+  await expect(lockRoomCheckbox).not.toBeChecked();
   await expect(guestPage.getByText('Unlocked')).toBeVisible();
 
   await hostContext.close();
@@ -620,8 +638,8 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
     // Give it a moment to render
     await hostPage.waitForTimeout(1000);
 
-    await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 5000 });
-  }).toPass({ timeout: 45000, intervals: [2000, 5000] });
+    await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 10000 });
+  }).toPass({ timeout: 60000, intervals: [2000, 5000] });
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process

@@ -126,4 +126,54 @@ test.describe('Moderation Controls', () => {
     await contextA.close();
     await contextB.close();
   });
+
+
+  test('Moderator tab in settings', async ({ browser }) => {
+    const roomName = `ModeratorTabRoom_${Date.now()}`;
+    const contextA = await browser.newContext(); // Host
+    const pageA = await contextA.newPage();
+    const contextB = await browser.newContext(); // Participant
+    const pageB = await contextB.newPage();
+
+    // 1. Host joins
+    await pageA.goto('/');
+    await pageA.fill('input[type="text"]', roomName);
+    await pageA.click('button:has-text("Start Meeting")');
+    await pageA.locator('.prejoin-container input[type="text"]').fill('Host User');
+    await pageA.click('button:has-text("Join Meeting")');
+    await expect(pageA.locator('.video-grid')).toBeVisible();
+
+    // 2. Participant joins
+    await pageB.goto(`/room/${roomName}`);
+    await pageB.locator('.prejoin-container input[type="text"]').fill('User B');
+    await pageB.click('button:has-text("Join Meeting")');
+    await expect(pageB.locator('.video-grid')).toBeVisible();
+
+    // 3. Host opens settings and sees Moderator tab
+    await pageA.click('.toolbox button:has-text("Settings")');
+    await expect(pageA.locator('.modal-content')).toBeVisible();
+    const moderatorTabButtonA = pageA.locator('.modal-content .tabs button:has-text("Moderator")');
+    await expect(moderatorTabButtonA).toBeVisible();
+
+    // 4. Host uses Moderator tab
+    await moderatorTabButtonA.click();
+    const lockRoomCheckbox = pageA.locator('.modal-content input[type="checkbox"]').nth(0);
+    const lobbyCheckbox = pageA.locator('.modal-content input[type="checkbox"]').nth(1);
+
+    // Toggle lock
+    await lockRoomCheckbox.check();
+    // Verification logic can be added here if there's a UI indicator for lock, or just checking the checkbox state
+    await expect(lockRoomCheckbox).toBeChecked();
+
+    await pageA.click('.modal-content button:has-text("×")'); // Close settings
+
+    // 5. Participant opens settings and does NOT see Moderator tab
+    await pageB.click('.toolbox button:has-text("Settings")');
+    await expect(pageB.locator('.modal-content')).toBeVisible();
+    const moderatorTabButtonB = pageB.locator('.modal-content .tabs button:has-text("Moderator")');
+    await expect(moderatorTabButtonB).not.toBeVisible();
+
+    await contextA.close();
+    await contextB.close();
+  });
 });

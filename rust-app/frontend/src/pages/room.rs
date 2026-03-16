@@ -177,12 +177,12 @@ pub fn Room() -> impl IntoView {
                             <Toolbox
                                 is_locked=state.is_locked
                                 is_host=state.is_host
-                                is_lobby_enabled=state.is_lobby_enabled
+                                _is_lobby_enabled=state.is_lobby_enabled
                                 class="room-toolbox"
                                 style="position: relative; z-index: 20;" // Ensure toolbox is above whiteboard
                                 is_recording=state.is_recording
-                                on_toggle_lock=state.toggle_lock
-                                on_toggle_lobby=state.toggle_lobby
+                                _on_toggle_lock=state.toggle_lock
+                                _on_toggle_lobby=state.toggle_lobby
                                 on_toggle_recording=state.toggle_recording
                                 is_subtitles_enabled=state.is_subtitles_enabled
                                 on_toggle_subtitles=state.toggle_subtitles
@@ -283,6 +283,11 @@ pub fn Room() -> impl IntoView {
                             current_video_id=state.selected_camera_id
                             current_audio_id=state.selected_mic_id
                             current_resolution=state.video_resolution
+                            is_host=state.is_host
+                            is_locked=state.is_locked
+                            is_lobby_enabled=state.is_lobby_enabled
+                            on_toggle_lock=state.toggle_lock
+                            on_toggle_lobby=state.toggle_lobby
                         />
                         <SharedVideoDialog
                             show=show_shared_video_dialog
