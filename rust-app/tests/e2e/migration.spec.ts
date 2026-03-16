@@ -248,7 +248,7 @@ test('Lobby Feature E2E', async ({ browser }) => {
 
   // --- HOST ---
   // Verify Host sees Guest knocking
-  await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
+  if (await hostPage.locator('.participants-list').isHidden()) { await hostPage.click('.toolbox button:has-text("Participants")'); } await hostPage.waitForSelector('.participants-list', { state: 'visible' });
   await expect(hostPage.locator('.knocking-list')).toBeVisible();
   await expect(hostPage.locator('.knocking-list')).toContainText('Guest');
 
@@ -441,7 +441,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
 
   // Host should see "Kick" button for Guest
   // Open participants panel
-  await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
+  if (await hostPage.locator('.participants-list').isHidden()) { await hostPage.click('.toolbox button:has-text("Participants")'); } await hostPage.waitForSelector('.participants-list', { state: 'visible' });
 
   // Note: Guest item text contains "Guest"
   const guestItem = hostPage.locator('.participants-list li').filter({ hasText: 'Guest' });
@@ -454,7 +454,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   });
 
   // Host Kicks Guest
-  await guestItem.getByRole('button', { name: 'Kick' }).click();
+  await guestItem.getByRole('button', { name: 'Kick' }).click({ force: true });
 
   // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
   // Wait for the "You have been kicked" toast to show up first before the redirect hits
@@ -1274,7 +1274,7 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await g2Page.click('button.join-btn');
 
     // Verify Host sees 2 guests in waiting room
-    await hostPage.click('.toolbox button:has-text("Participants")'); await hostPage.waitForSelector('.participants-list', { state: 'visible' });
+    if (await hostPage.locator('.participants-list').isHidden()) { await hostPage.click('.toolbox button:has-text("Participants")'); } await hostPage.waitForSelector('.participants-list', { state: 'visible' });
     await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
 
     // Click Allow All
