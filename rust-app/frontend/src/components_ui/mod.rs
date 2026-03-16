@@ -1,5 +1,7 @@
 pub mod always_on_top;
+pub mod audio_level_indicator;
 pub mod breakout;
+pub mod embed_meeting;
 pub mod feedback;
 pub mod invite;
 pub mod lobby;
@@ -7,5 +9,3 @@ pub mod prejoin;
 pub mod shared_video_dialog;
 pub mod toast;
 pub mod video_grid;
-pub mod audio_level_indicator;
-pub mod embed_meeting;
