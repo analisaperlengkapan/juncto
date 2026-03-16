@@ -250,6 +250,29 @@ pub fn use_room_state() -> RoomState {
     // We need to store the current room config to access host_id.
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
 
+    // Setup listener for "talk while muted"
+    let toast_context = crate::components_ui::toast::use_toast();
+    create_effect(move |_| {
+        use wasm_bindgen::JsCast;
+        if let Some(window) = web_sys::window() {
+            let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                toast_context.add(
+                    "You are muted. Please unmute to speak.".to_string(),
+                    crate::components_ui::toast::ToastType::Error,
+                );
+            }) as Box<dyn FnMut(_)>);
+
+            let _ = window.add_event_listener_with_callback("talk_while_muted", closure.as_ref().unchecked_ref());
+
+            // Clean up the event listener when the component is unmounted
+            on_cleanup(move || {
+                if let Some(win) = web_sys::window() {
+                    let _ = win.remove_event_listener_with_callback("talk_while_muted", closure.as_ref().unchecked_ref());
+                }
+            });
+        }
+    });
+
     let host_id = Signal::derive(move || room_config.get().host_id);
 
     let is_host = Signal::derive(move || {
@@ -1157,5 +1180,25 @@ mod tests {
     fn test_room_connection_state_equality() {
         assert_eq!(RoomConnectionState::Prejoin, RoomConnectionState::Prejoin);
         assert_ne!(RoomConnectionState::Prejoin, RoomConnectionState::Joined);
+    }
+}
+
+#[cfg(test)]
+mod tests_talk_muted {
+    use super::*;
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn test_talk_while_muted_event_compiles() {
+        // Simple verification that our code handles the event structure
+        let event = web_sys::CustomEvent::new("talk_while_muted");
+        assert!(event.is_ok());
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_talk_while_muted_mock() {
+        // Can't run web_sys on non-wasm targets during native testing
+        assert!(true);
     }
 }

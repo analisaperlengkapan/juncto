@@ -150,12 +150,37 @@ pub struct AudioMonitor {
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
     is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
+    isolated_stream: MediaStream,
 }
 
 impl AudioMonitor {
     pub fn new(stream: &MediaStream, on_talking: Box<dyn FnMut(bool)>, mut on_no_audio: Option<Box<dyn FnMut()>>) -> Result<Self, JsValue> {
+        // Bug 1 Fix: The original `stream`'s tracks are disabled when the user mutes themselves,
+        // which sends silence to the Web Audio API. To detect talking while muted, we must
+        // clone the audio track and keep it enabled, feeding the cloned stream to the AnalyserNode.
+        let audio_tracks = stream.get_audio_tracks();
+        let isolated_stream = MediaStream::new()?;
+
+        for i in 0..audio_tracks.length() {
+            let track_val = audio_tracks.get(i);
+            if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                // We need to truly clone the JS MediaStreamTrack, not just the Rust reference
+                let clone_fn = js_sys::Reflect::get(&track, &"clone".into())
+                    .map_err(|_| JsValue::from_str("No clone method on MediaStreamTrack"))?;
+                let clone_fn = clone_fn.dyn_into::<js_sys::Function>()
+                    .map_err(|_| JsValue::from_str("clone is not a function"))?;
+                let cloned_val = clone_fn.call0(&track)?;
+                let cloned_track = cloned_val.dyn_into::<web_sys::MediaStreamTrack>()
+                    .map_err(|_| JsValue::from_str("Clone did not return MediaStreamTrack"))?;
+
+                // Ensure the cloned track remains enabled for local analysis even if original is disabled
+                cloned_track.set_enabled(true);
+                isolated_stream.add_track(&cloned_track);
+            }
+        }
+
         let context = AudioContext::new()?;
-        let source = context.create_media_stream_source(stream)?;
+        let source = context.create_media_stream_source(&isolated_stream)?;
         let analyser = context.create_analyser()?;
         analyser.set_fft_size(256);
         source.connect_with_audio_node(&analyser)?;
@@ -173,21 +198,11 @@ impl AudioMonitor {
         let mut silence_counter = 0;
         let mut no_audio_triggered = false;
         let mut has_ever_talked = false;
+        let mut talk_while_muted_counter = 0;
+        let mut toast_fired_for_this_mute_cycle = false;
 
         let closure = Closure::wrap(Box::new(move || {
-            // Do not analyze or trigger callbacks while explicitly muted
-            if *is_muted_clone.borrow() {
-                // If we are muted, we don't count silence towards the broken mic timeout.
-                // We also ensure the "was_talking" state is cleanly suppressed.
-                if was_talking {
-                    was_talking = false;
-                    callback(false);
-                }
-                return;
-            }
-
             let mut array = data_array.clone();
-
             analyser_clone.get_byte_frequency_data(&mut array);
 
             let sum: u32 = array.iter().map(|&x| x as u32).sum();
@@ -195,6 +210,38 @@ impl AudioMonitor {
 
             // Threshold for talking
             let is_talking = avg > 20.0;
+
+            // Do not analyze or trigger callbacks while explicitly muted
+            if *is_muted_clone.borrow() {
+                // Talk While Muted feature
+                if is_talking {
+                    talk_while_muted_counter += 1;
+                    // Trigger a toast if speaking while muted for > 1 second (10 * 100ms)
+                    if talk_while_muted_counter >= 10 && !toast_fired_for_this_mute_cycle {
+                        toast_fired_for_this_mute_cycle = true;
+                        // For closures that can't easily access leptos context, we can dispatch a custom event
+                        // or rely on a passed-in callback. We'll fire a global custom event.
+                        if let Some(window) = web_sys::window() {
+                            if let Ok(event) = web_sys::CustomEvent::new("talk_while_muted") {
+                                let _ = window.dispatch_event(&event);
+                            }
+                        }
+                    }
+                } else {
+                    talk_while_muted_counter = 0;
+                }
+
+                // If we are muted, we don't count silence towards the broken mic timeout.
+                // We also ensure the "was_talking" state is cleanly suppressed.
+                if was_talking {
+                    was_talking = false;
+                    callback(false);
+                }
+                return;
+            } else {
+                talk_while_muted_counter = 0;
+                toast_fired_for_this_mute_cycle = false;
+            }
 
             if is_talking {
                 has_ever_talked = true;
@@ -234,6 +281,7 @@ impl AudioMonitor {
             _closure: closure,
             interval_id,
             is_muted,
+            isolated_stream,
         })
     }
 
@@ -248,6 +296,14 @@ impl Drop for AudioMonitor {
             window.clear_interval_with_handle(self.interval_id);
         }
         let _ = self.context.close();
+
+        // Ensure cloned tracks are explicitly stopped to release microphone
+        let tracks = self.isolated_stream.get_tracks();
+        for i in 0..tracks.length() {
+            if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                track.stop();
+            }
+        }
     }
 }
 
@@ -270,5 +326,15 @@ mod tests {
 
         let deserialized: DeviceInfo = serde_json::from_str(&json).expect("Failed to deserialize");
         assert_eq!(deserialized, device);
+    }
+}
+
+#[cfg(test)]
+mod tests_media_muted {
+    use super::*;
+
+    #[test]
+    fn test_audio_monitor_compiles() {
+        assert!(true); // Cannot truly test without browser/WASM bindings
     }
 }

@@ -34,7 +34,7 @@ pub fn ParticipantsList(
     };
 
     view! {
-        <div class="participants-list" style="width: 200px; background: #eee; padding: 20px; height: 100%; position: relative; z-index: 50;">
+        <div class="participants-list" style="padding: 10px; width: 100%; height: 100%;">
             <Show when=move || !knocking_participants.get().is_empty()>
                 <div class="knocking-list" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ccc;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
