@@ -298,29 +298,27 @@ pub fn VideoGrid(
                                 })
                             });
 
-                            let is_speaking = move || speaking_peers.get().contains(&id_clone);
+                            let is_speaking_memo = create_memo(move |_| speaking_peers.get().contains(&id_clone));
                             let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
 
-                            create_effect({
-                                let is_speaking_cloned = is_speaking.clone();
-                                move |_| {
-                                    if is_speaking_cloned() {
-                                        let window = web_sys::window().unwrap();
-                                        let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
-                                            let random_val = 0.5 + js_sys::Math::random() * 0.5;
-                                            set_audio_level_sig.set(random_val);
-                                        }) as Box<dyn FnMut()>);
-                                        let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 200).unwrap();
+                            create_effect(move |_| {
+                                if is_speaking_memo.get() {
+                                    let window = web_sys::window().unwrap();
+                                    let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
+                                        // Use a wider range starting near 0.0 to ensure the outer dots actually fade in and out.
+                                        let random_val = js_sys::Math::random() * 0.8;
+                                        set_audio_level_sig.set(random_val);
+                                    }) as Box<dyn FnMut()>);
+                                    let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 200).unwrap();
 
-                                        on_cleanup(move || {
-                                            let window = web_sys::window().unwrap();
-                                            window.clear_interval_with_handle(interval_id);
-                                            drop(cb);
-                                            set_audio_level_sig.set(0.0);
-                                        });
-                                    } else {
-                                        set_audio_level_sig.set(0.0);
-                                    }
+                                    on_cleanup(move || {
+                                        let window = web_sys::window().unwrap();
+                                        window.clear_interval_with_handle(interval_id);
+                                        drop(cb);
+                                        // Do not reset to 0.0 here, only in the else branch, to prevent flashing
+                                    });
+                                } else {
+                                    set_audio_level_sig.set(0.0);
                                 }
                             });
 
@@ -404,7 +402,7 @@ pub fn VideoGrid(
                             });
 
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking() { "3px" } else { "1px" }, if is_speaking() { "#28a745" } else { "#444" })>
+                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking_memo.get() { "3px" } else { "1px" }, if is_speaking_memo.get() { "#28a745" } else { "#444" })>
                                     <Show when=move || stream_signal.get().is_some() fallback=move || {
                                         if is_screen {
                                             view! {
