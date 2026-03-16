@@ -7,4 +7,5 @@ pub mod prejoin;
 pub mod shared_video_dialog;
 pub mod toast;
 pub mod video_grid;
+pub mod audio_level_indicator;
 pub mod embed_meeting;
