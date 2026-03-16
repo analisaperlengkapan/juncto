@@ -1,4 +1,5 @@
 use leptos::*;
+use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
 use shared::Participant;
 use std::collections::{HashMap, HashSet};
 use wasm_bindgen::JsCast;
@@ -298,6 +299,30 @@ pub fn VideoGrid(
                             });
 
                             let is_speaking = move || speaking_peers.get().contains(&id_clone);
+                            let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
+
+                            create_effect({
+                                let is_speaking_cloned = is_speaking.clone();
+                                move |_| {
+                                    if is_speaking_cloned() {
+                                        let window = web_sys::window().unwrap();
+                                        let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
+                                            let random_val = 0.5 + js_sys::Math::random() * 0.5;
+                                            set_audio_level_sig.set(random_val);
+                                        }) as Box<dyn FnMut()>);
+                                        let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 200).unwrap();
+
+                                        on_cleanup(move || {
+                                            let window = web_sys::window().unwrap();
+                                            window.clear_interval_with_handle(interval_id);
+                                            drop(cb);
+                                            set_audio_level_sig.set(0.0);
+                                        });
+                                    } else {
+                                        set_audio_level_sig.set(0.0);
+                                    }
+                                }
+                            });
 
                             // Remote Stream Logic
                             let remote_video_ref = create_node_ref::<html::Video>();
@@ -434,6 +459,7 @@ pub fn VideoGrid(
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
+                                        <AudioLevelIndicator audio_level=audio_level_sig />
                                     </div>
                                 </div>
                             }
@@ -449,7 +475,8 @@ pub fn VideoGrid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared::Participant;
+    use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
+use shared::Participant;
 
     #[test]
     fn test_grid_item_key() {
