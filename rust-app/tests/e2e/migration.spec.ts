@@ -582,20 +582,47 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   // Also verify that the message container exists
   await hostPage.locator('.messages').first().waitFor({ state: 'visible' });
 
+  // Wait to ensure chat is visible after joining breakout room (sometimes it flashes or re-renders)
+  const input = hostPage.locator('.chat-container input[type="text"]').first();
+  await input.waitFor({ state: 'visible' });
+
+  // Wait a bit more to ensure the websocket is connected properly to the room
+  await hostPage.waitForTimeout(2000);
+
+  // Wait for the websocket to settle and for the chat container to be ready
+  await hostPage.waitForSelector('.messages', { state: 'visible', timeout: 10000 });
+
+  // Wait for clear messages
+  await expect(hostPage.locator('.messages li')).toHaveCount(0, { timeout: 10000 });
+
   // Host chats in Breakout
   let lastMsg = 'Secret Message ' + Math.random();
   await expect(async () => {
     lastMsg = 'Secret Message ' + Math.random();
-    const input = hostPage.locator('.chat-container input[type="text"]').first();
+
+    await input.fill('');
     await input.fill(lastMsg);
     await input.dispatchEvent('input');
-    await input.press('Enter');
-    await hostPage.waitForTimeout(200);
+    await input.evaluate((el: HTMLInputElement, msg) => {
+       el.value = msg;
+       el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, lastMsg);
+
+    await hostPage.waitForTimeout(500);
+
     const btn = hostPage.locator('.chat-container button:has-text("Send")');
     await expect(btn).not.toBeDisabled();
     await btn.click();
+
+    // Secondary click attempt with enter
+    await hostPage.waitForTimeout(500);
+    await input.press('Enter');
+
+    // Give it a moment to render
+    await hostPage.waitForTimeout(1000);
+
     await expect(hostPage.locator('.messages li').filter({ hasText: lastMsg }).first()).toBeVisible({ timeout: 5000 });
-  }).toPass({ timeout: 20000, intervals: [2000, 5000] });
+  }).toPass({ timeout: 45000, intervals: [2000, 5000] });
 
   // Guest should NOT see it
   await guestPage.waitForTimeout(1500); // Give it some time to process

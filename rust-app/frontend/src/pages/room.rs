@@ -110,7 +110,12 @@ pub fn Room() -> impl IntoView {
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <div class="main-content" style=move || format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}", if show_chat.get() || show_participants.get() { "320px" } else { "0" })>
+                        <div class="main-content" style=move || {
+                            let mut margin = 0;
+                            if show_chat.get() { margin += 320; }
+                            if show_participants.get() { margin += 320; }
+                            format!("margin-right: {}px", margin)
+                        }>
                             <BreakoutRooms
                                 breakout_rooms=state.breakout_rooms
                                 current_room_id=state.current_room_id
@@ -214,7 +219,14 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=end_meeting_and_leave
                             />
                         </div>
-                        <div class="side-panel chat-container" style=move || if show_chat.get() { "display: flex;" } else { "display: none;" }>
+                        <div class="side-panel chat-container" style=move || {
+                            if show_chat.get() {
+                                let right_pos = if show_participants.get() { "320px" } else { "0px" };
+                                format!("display: flex; position: fixed; top: 0; right: {}; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2);", right_pos)
+                            } else {
+                                "display: none;".to_string()
+                            }
+                        }>
                             <div class="panel-header">
                                 <h3>"Chat"</h3>
                                 <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"✕"</button>
@@ -232,7 +244,13 @@ pub fn Room() -> impl IntoView {
                                 />
                             </div>
                         </div>
-                        <div class="side-panel participants-container" style=move || if show_participants.get() { "display: flex;" } else { "display: none;" }>
+                        <div class="side-panel participants-container" style=move || {
+                            if show_participants.get() {
+                                "display: flex; position: fixed; top: 0; right: 0; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2);".to_string()
+                            } else {
+                                "display: none;".to_string()
+                            }
+                        }>
                             <div class="panel-header">
                                 <h3>"Participants"</h3>
                                 <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"✕"</button>
