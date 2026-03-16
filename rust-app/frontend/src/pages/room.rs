@@ -33,7 +33,7 @@ pub fn Room() -> impl IntoView {
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_embed, set_show_embed) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
-    let (show_participants, set_show_participants) = create_signal(false);
+    let (show_participants, set_show_participants) = create_signal(true);
 
     let invite_url = Signal::derive(move || {
         if let Some(window) = web_sys::window() {
@@ -114,7 +114,7 @@ pub fn Room() -> impl IntoView {
                             let mut margin = 0;
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
-                            format!("margin-right: {}px", margin)
+                            format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}px;", margin)
                         }>
                             <BreakoutRooms
                                 breakout_rooms=state.breakout_rooms
@@ -222,7 +222,7 @@ pub fn Room() -> impl IntoView {
                         <div class="side-panel chat-container" style=move || {
                             if show_chat.get() {
                                 let right_pos = if show_participants.get() { "320px" } else { "0px" };
-                                format!("display: flex; position: fixed; top: 0; right: {}; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2);", right_pos)
+                                format!("display: flex; position: fixed; top: 0; right: {}; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", right_pos)
                             } else {
                                 "display: none;".to_string()
                             }
@@ -246,7 +246,7 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <div class="side-panel participants-container" style=move || {
                             if show_participants.get() {
-                                "display: flex; position: fixed; top: 0; right: 0; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2);".to_string()
+                                "display: flex; position: fixed; top: 0; right: 0; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;".to_string()
                             } else {
                                 "display: none;".to_string()
                             }

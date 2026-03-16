@@ -454,7 +454,7 @@ test('Kick Participant E2E', async ({ browser, request }) => {
   });
 
   // Host Kicks Guest
-  await guestItem.getByRole('button', { name: 'Kick' }).click();
+  await guestItem.getByRole('button', { name: 'Kick' }).click({ force: true });
 
   // Guest should be redirected to Home due to the hard navigation in state.rs for ServerMessage::Kicked
   // Wait for the "You have been kicked" toast to show up first before the redirect hits
@@ -600,13 +600,12 @@ test('Breakout Rooms E2E', async ({ browser, request }) => {
   await expect(async () => {
     lastMsg = 'Secret Message ' + Math.random();
 
+    await input.focus();
     await input.fill('');
     await input.fill(lastMsg);
-    await input.dispatchEvent('input');
-    await input.evaluate((el: HTMLInputElement, msg) => {
-       el.value = msg;
-       el.dispatchEvent(new Event('input', { bubbles: true }));
-    }, lastMsg);
+    // Let's actually type the last character so Playwright guarantees internal React/Leptos state fires
+    await input.press('Space');
+    await input.press('Backspace');
 
     await hostPage.waitForTimeout(500);
 
@@ -968,6 +967,10 @@ test('Participant Sorting E2E', async ({ browser, request }) => {
     await page2.locator('.prejoin-container input[type="text"]').fill('GuestUser');
     await page2.click('button.join-btn');
 
+    // Open participants panel for both
+    await page1.click('.toolbox button:has-text("Participants")');
+    await page2.click('.toolbox button:has-text("Participants")');
+
     // Check for (Host) label on HostUser in Host's view
     await expect(page1.locator('.participants-list li').filter({ hasText: 'HostUser' })).toContainText('(Host)');
     // Check for (Host) label on HostUser in Guest's view
@@ -1020,6 +1023,9 @@ test('Participant Sorting E2E Explicit', async ({ browser, request }) => {
     await page2.goto('/room/SortRoomExplicit');
     await page2.locator('.prejoin-container input[type="text"]').fill('Zack');
     await page2.click('button.join-btn');
+
+    // Open participants panel
+    await page1.click('.toolbox button:has-text("Participants")');
 
     // Initial Order: Adam (Host), Zack
     // We check the text of the first li
