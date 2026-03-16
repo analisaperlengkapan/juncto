@@ -15,6 +15,11 @@ pub fn SettingsDialog(
     #[prop(optional)] current_video_id: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] current_audio_id: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] current_resolution: Option<ReadSignal<String>>,
+    #[prop(optional)] is_host: Option<Signal<bool>>,
+    #[prop(optional)] is_locked: Option<ReadSignal<bool>>,
+    #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
+    #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
     let (display_name, set_display_name) = create_signal("".to_string());
@@ -160,6 +165,14 @@ pub fn SettingsDialog(
                         >
                             {move || t("devices")}
                         </button>
+                        <Show when=move || is_host.map(|h| h.get()).unwrap_or(false)>
+                            <button
+                                on:click=move |_| set_active_tab.set("moderator")
+                                style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "moderator" { "#007bff" } else { "transparent" })
+                            >
+                                {move || t("moderator")}
+                            </button>
+                        </Show>
                     </div>
 
                     <div class="tab-content">
@@ -293,6 +306,38 @@ pub fn SettingsDialog(
                                 </button>
                             </div>
                         </Show>
+                        <Show when=move || active_tab.get() == "moderator">
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || is_locked.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_lock {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || t("lock_room")}
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || is_lobby_enabled.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_lobby {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || t("enable_lobby")}
+                                </label>
+                            </div>
+                        </Show>
                     </div>
                 </div>
             </div>
@@ -302,9 +347,27 @@ pub fn SettingsDialog(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     // Note: Component testing with web_sys/Leptos requires browser environment.
     #[test]
     fn test_settings_dialog_exists() {
         assert_eq!(1, 1);
+    }
+
+    #[test]
+    fn test_device_settings_tuple() {
+        let settings: DeviceSettings = (Some("cam1".to_string()), Some("mic1".to_string()), "hd".to_string());
+        assert_eq!(settings.0.unwrap(), "cam1");
+        assert_eq!(settings.1.unwrap(), "mic1");
+        assert_eq!(settings.2, "hd");
+    }
+
+    #[test]
+    fn test_empty_device_settings() {
+        let settings: DeviceSettings = (None, None, "sd".to_string());
+        assert_eq!(settings.0, None);
+        assert_eq!(settings.1, None);
+        assert_eq!(settings.2, "sd");
     }
 }

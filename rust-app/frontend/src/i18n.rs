@@ -112,6 +112,12 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "camera_off") => "Matikan Kamera".to_string(),
         (Locale::En, "leave_room") => "Leave Room".to_string(),
         (Locale::Id, "leave_room") => "Keluar Ruangan".to_string(),
+        (Locale::En, "moderator") => "Moderator".to_string(),
+        (Locale::Id, "moderator") => "Moderator".to_string(),
+        (Locale::En, "lock_room") => "Lock Room".to_string(),
+        (Locale::Id, "lock_room") => "Kunci Ruangan".to_string(),
+        (Locale::En, "enable_lobby") => "Enable Lobby".to_string(),
+        (Locale::Id, "enable_lobby") => "Aktifkan Lobi".to_string(),
         // Add more keys as needed
         (_, k) => k.to_string(),
     }
