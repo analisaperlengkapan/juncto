@@ -242,13 +242,16 @@ impl WebRTCManager {
 
         spawn_local(async move {
             // Ensure we use the existing or create new PC.
-            let pc = if let Some(pc) = peers.borrow().get(&source_id) {
-                pc.clone()
-            } else if let Ok(pc) = this.create_peer_connection(&source_id) {
-                peers.borrow_mut().insert(source_id.clone(), pc.clone());
-                pc
-            } else {
-                return;
+            let pc = {
+                let existing = peers.borrow().get(&source_id).cloned();
+                if let Some(pc) = existing {
+                    pc
+                } else if let Ok(pc) = this.create_peer_connection(&source_id) {
+                    peers.borrow_mut().insert(source_id.clone(), pc.clone());
+                    pc
+                } else {
+                    return;
+                }
             };
 
             // Perfect Negotiation Glare Handling
