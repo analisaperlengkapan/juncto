@@ -306,7 +306,7 @@ pub fn SettingsDialog(
                                 </button>
                             </div>
                         </Show>
-                        <Show when=move || active_tab.get() == "moderator" && is_host.map(|h| h.get()).unwrap_or(false)>
+                        <Show when=move || active_tab.get() == "moderator">
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
