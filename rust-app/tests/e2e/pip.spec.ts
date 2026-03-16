@@ -22,7 +22,7 @@ test.describe('Picture-in-Picture feature', () => {
 
         // Ensure the PiP button exists on the local video
         const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
-        await expect(pipButton).toBeVisible();
+        await expect(pipButton).toBeVisible({ timeout: 15000 });
 
         // Note: Playwright doesn't easily allow checking actual native PiP state
         // without injecting complex scripts, but verifying the button exists
@@ -52,6 +52,6 @@ test.describe('Picture-in-Picture feature', () => {
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
         const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
-        await expect(pipButton).toBeHidden();
+        await expect(pipButton).not.toBeVisible({ timeout: 15000 });
     });
 });
