@@ -33,13 +33,9 @@ test('Audio Level Indicator visibility and dots render properly', async ({ brows
 
   // Find status-icons
   const statusIcons = videoCard.locator('.status-icons');
-
-  // They might be visually hidden but exist in the DOM
   await expect(statusIcons).toBeAttached();
 
   const indicator = statusIcons.locator('.audioindicator');
-
-  // Assert on existence in DOM if visibility is flaky due to CSS
   await expect(indicator).toBeAttached();
 
   const spans = indicator.locator('span');
@@ -48,4 +44,7 @@ test('Audio Level Indicator visibility and dots render properly', async ({ brows
   await expect(indicator.locator('.audiodot-middle')).toHaveCount(1);
   await expect(indicator.locator('.audiodot-top')).toHaveCount(2);
   await expect(indicator.locator('.audiodot-bottom')).toHaveCount(2);
+
+  const middleDot = indicator.locator('.audiodot-middle').first();
+  await expect(middleDot).toHaveAttribute('style', /opacity/);
 });
