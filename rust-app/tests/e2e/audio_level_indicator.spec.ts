@@ -48,4 +48,7 @@ test('Audio Level Indicator visibility and dots render properly', async ({ brows
   await expect(indicator.locator('.audiodot-middle')).toHaveCount(1);
   await expect(indicator.locator('.audiodot-top')).toHaveCount(2);
   await expect(indicator.locator('.audiodot-bottom')).toHaveCount(2);
+
+  await context1.close();
+  await context2.close();
 });
