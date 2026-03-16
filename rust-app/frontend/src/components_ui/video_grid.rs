@@ -440,7 +440,9 @@ pub fn VideoGrid(
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
-                                        <AudioLevelIndicator audio_level=audio_level_sig />
+                                        <Show when=move || !is_screen>
+                                            <AudioLevelIndicator audio_level=audio_level_sig />
+                                        </Show>
 
                                     </div>
                                 </div>
