@@ -813,7 +813,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 ClientMessage::Authenticate { username, password } => {
                                     if let Some(_uid) = &my_id {
                                         // TODO: implement real authentication
-                                        if !username.is_empty() && password.is_some() {
+                                        if !username.is_empty() && password.as_ref().map_or(false, |p| !p.is_empty()) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
@@ -833,9 +833,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 ClientMessage::AnalyticsEvent { name, properties } => {
                                     if let Some(uid) = &my_id {
                                         // TODO: use proper tracing/logging framework
-                                        println!("INFO: Received Analytics Event from {}: {} - {}", uid, name, properties);
+                                        let safe_name: String = name.chars().take(200).filter(|c| !c.is_control()).collect();
+                                        let safe_props: String = properties.chars().take(1000).filter(|c| !c.is_control()).collect();
+                                        println!("INFO: Received Analytics Event from {}: {} - {}", uid, safe_name, safe_props);
                                     }
-                                }
+                                },
                                 ClientMessage::MuteParticipant(target_id) => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
