@@ -35,9 +35,9 @@ pub fn CalendarList(
                     }>
                         <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;">
                             <For
-                                each=move || events.get()
-                                key=|evt| evt.clone()
-                                children=move |evt| {
+                                each=move || events.get().into_iter().enumerate().collect::<Vec<_>>()
+                                key=|(i, _)| *i
+                                children=move |(_, evt)| {
                                     view! {
                                         <li style="background: #111; padding: 10px; border-radius: 4px; border: 1px solid #444;">
                                             {evt}
