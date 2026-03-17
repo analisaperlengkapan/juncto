@@ -122,7 +122,10 @@ pub fn Room() -> impl IntoView {
                                 <LoginDialog
                                     auth_error=state.auth_error
                                     on_login=state.authenticate
-                                    on_cancel=Callback::new(move |_| state.set_show_login_dialog.set(false))
+                                    on_cancel=Callback::new(move |_| {
+                                        state.set_auth_error.set(None);
+                                        state.set_show_login_dialog.set(false);
+                                    })
                                 />
                             </Show>
                             <Show when=move || state.show_calendar.get()>
@@ -231,7 +234,10 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_camera=state.toggle_camera
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
-                                on_auth_dialog=Callback::new(move |_| state.set_show_login_dialog.set(true))
+                                on_auth_dialog=Callback::new(move |_| {
+                                    state.set_auth_error.set(None);
+                                    state.set_show_login_dialog.set(true);
+                                })
                                 on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
                                 on_leave=leave_room
                                 on_end_meeting=end_meeting_and_leave
