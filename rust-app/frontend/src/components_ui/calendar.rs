@@ -34,17 +34,15 @@ pub fn CalendarList(
                         </div>
                     }>
                         <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;">
-                            <For
-                                each=move || events.get().into_iter().enumerate().collect::<Vec<_>>()
-                                key=|(i, _)| *i
-                                children=move |(_, evt)| {
+                            {move || {
+                                events.get().into_iter().enumerate().map(|(i, evt)| {
                                     view! {
-                                        <li style="background: #111; padding: 10px; border-radius: 4px; border: 1px solid #444;">
+                                        <li style="background: #111; padding: 10px; border-radius: 4px; border: 1px solid #444;" key=i>
                                             {evt}
                                         </li>
                                     }
-                                }
-                            />
+                                }).collect_view()
+                            }}
                         </ul>
                     </Show>
                 </div>
