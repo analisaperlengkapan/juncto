@@ -51,6 +51,12 @@ pub struct RoomState {
     pub host_id: Signal<Option<String>>,
     pub current_room_id: ReadSignal<Option<String>>,
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
+    #[allow(dead_code)]
+    pub is_authenticated: ReadSignal<bool>,
+    pub show_login_dialog: ReadSignal<bool>,
+    pub auth_error: ReadSignal<Option<String>>,
+    pub calendar_events: ReadSignal<Vec<String>>,
+    pub show_calendar: ReadSignal<bool>,
     pub local_stream: ReadSignal<Option<MediaStream>>,
     pub local_screen_stream: ReadSignal<Option<MediaStream>>,
     pub is_muted: ReadSignal<bool>,
@@ -76,6 +82,11 @@ pub struct RoomState {
     pub set_show_speaker_stats: WriteSignal<bool>,
     pub set_show_virtual_background: WriteSignal<bool>,
     pub set_show_feedback: WriteSignal<bool>,
+    pub set_show_login_dialog: WriteSignal<bool>,
+    pub set_auth_error: WriteSignal<Option<String>>,
+    pub authenticate: Callback<(String, Option<String>)>,
+    pub set_show_calendar: WriteSignal<bool>,
+    pub fetch_calendar: Callback<()>,
     pub send_ping: Callback<()>,
     pub send_message: crate::chat::ChatSendCallback, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
@@ -123,6 +134,11 @@ pub fn use_room_state() -> RoomState {
     let (is_recording, set_is_recording) = create_signal(false);
     let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
     let (show_settings, set_show_settings) = create_signal(false);
+    let (is_authenticated, set_is_authenticated) = create_signal(false);
+    let (show_login_dialog, set_show_login_dialog) = create_signal(false);
+    let (auth_error, set_auth_error) = create_signal(None::<String>);
+    let (calendar_events, set_calendar_events) = create_signal(Vec::<String>::new());
+    let (show_calendar, set_show_calendar) = create_signal(false);
     let (show_polls, set_show_polls) = create_signal(false);
     let (show_shortcuts, set_show_shortcuts) = create_signal(false);
     let (polls, set_polls) = create_signal(Vec::<Poll>::new());
@@ -656,6 +672,19 @@ pub fn use_room_state() -> RoomState {
                                     set_rtt.set(latency);
                                 }
                             }
+                            ServerMessage::AuthenticationResult(success) => {
+                                if success {
+                                    set_is_authenticated.set(true);
+                                    set_show_login_dialog.set(false);
+                                    set_auth_error.set(None);
+                                    add_toast("Authenticated successfully (mock)".to_string(), ToastType::Info);
+                                } else {
+                                    set_auth_error.set(Some("Invalid username or password".to_string()));
+                                }
+                            }
+                            ServerMessage::CalendarEvents(events) => {
+                                set_calendar_events.set(events);
+                            }
                             ServerMessage::Error(err) => {
                                 add_toast(err, ToastType::Error);
                             }
@@ -1087,6 +1116,24 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let authenticate = Callback::new(move |(username, password): (String, Option<String>)| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::Authenticate { username, password };
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let fetch_calendar = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::FetchCalendar;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let send_ping = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             set_last_ping_time.set(js_sys::Date::now());
@@ -1120,6 +1167,11 @@ pub fn use_room_state() -> RoomState {
         host_id,
         current_room_id,
         breakout_rooms,
+        is_authenticated,
+        show_login_dialog,
+        auth_error,
+        calendar_events,
+        show_calendar,
         local_stream,
         local_screen_stream,
         is_muted,
@@ -1141,6 +1193,11 @@ pub fn use_room_state() -> RoomState {
         set_show_speaker_stats,
         set_show_virtual_background,
         set_show_feedback,
+        set_show_login_dialog,
+        set_auth_error,
+        authenticate,
+        set_show_calendar,
+        fetch_calendar,
         send_ping,
         send_message,
         toggle_lock,

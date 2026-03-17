@@ -73,6 +73,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Track my current room locally for quick access
     let mut my_room_id: Option<String> = None;
     let mut broadcast_task: Option<tokio::task::JoinHandle<()>> = None;
+    // Rate limiting for analytics events: max 10 events per second per connection
+    let mut analytics_count: u32 = 0;
+    let mut analytics_window_start = std::time::Instant::now();
 
     // Send initial breakout rooms list
     let rooms: Vec<shared::BreakoutRoom> = {
@@ -808,6 +811,44 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if let Some(p) = updated_participant {
                                             let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                         }
+                                    }
+                                },
+                                ClientMessage::Authenticate { username, password } => {
+                                    if let Some(_uid) = &my_id {
+                                        // FIXME: mock auth — accepts any non-empty credentials. Replace with real authentication before using is_authenticated to gate features.
+                                        if !username.is_empty() && password.as_ref().map_or(false, |p| !p.is_empty()) {
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
+                                        } else {
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
+                                        }
+                                    }
+                                },
+                                ClientMessage::FetchCalendar => {
+                                    if let Some(_uid) = &my_id {
+                                        let mock_events = vec![
+                                            "Team Standup - 10:00 AM".to_string(),
+                                            "Project Sync - 1:00 PM".to_string(),
+                                            "1:1 with Manager - 3:30 PM".to_string()
+                                        ];
+                                        let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
+                                    }
+                                },
+                                ClientMessage::AnalyticsEvent { name, properties } => {
+                                    if let Some(uid) = &my_id {
+                                        // Rate limit: max 10 analytics events per second per connection
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
+                                        // TODO: use proper tracing/logging framework
+                                        let safe_name: String = name.chars().take(200).filter(|c| !c.is_control()).collect();
+                                        let safe_props: String = properties.chars().take(1000).filter(|c| !c.is_control()).collect();
+                                        println!("INFO: Received Analytics Event from {}: {} - {}", uid, safe_name, safe_props);
                                     }
                                 },
                                 ClientMessage::MuteParticipant(target_id) => {

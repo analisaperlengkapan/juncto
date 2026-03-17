@@ -1,6 +1,8 @@
 use crate::chat::Chat;
 use crate::components_ui::always_on_top::AlwaysOnTop;
+use crate::components_ui::authentication::LoginDialog;
 use crate::components_ui::breakout::BreakoutRooms;
+use crate::components_ui::calendar::CalendarList;
 use crate::components_ui::feedback::FeedbackDialog;
 use crate::components_ui::invite::InviteDialog;
 use crate::components_ui::lobby::LobbyScreen;
@@ -116,6 +118,23 @@ pub fn Room() -> impl IntoView {
                             if show_participants.get() { margin += 320; }
                             format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}px;", margin)
                         }>
+                            <Show when=move || state.show_login_dialog.get()>
+                                <LoginDialog
+                                    auth_error=state.auth_error
+                                    on_login=state.authenticate
+                                    on_cancel=Callback::new(move |_| {
+                                        state.set_auth_error.set(None);
+                                        state.set_show_login_dialog.set(false);
+                                    })
+                                />
+                            </Show>
+                            <Show when=move || state.show_calendar.get()>
+                                <CalendarList
+                                    events=state.calendar_events
+                                    on_refresh=state.fetch_calendar
+                                    on_close=Callback::new(move |_| state.set_show_calendar.set(false))
+                                />
+                            </Show>
                             <BreakoutRooms
                                 breakout_rooms=state.breakout_rooms
                                 current_room_id=state.current_room_id
@@ -215,6 +234,11 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_camera=state.toggle_camera
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
+                                on_auth_dialog=Callback::new(move |_| {
+                                    state.set_auth_error.set(None);
+                                    state.set_show_login_dialog.set(true);
+                                })
+                                on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
                                 on_leave=leave_room
                                 on_end_meeting=end_meeting_and_leave
                             />
