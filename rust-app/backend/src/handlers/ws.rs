@@ -823,7 +823,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         "Project Sync - 1:00 PM".to_string(),
                                         "1:1 with Manager - 3:30 PM".to_string()
                                     ];
-                                    let _ = tx.send(ServerMessage::CalendarEvents(mock_events));
+                                    let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
                                 }
                                 ClientMessage::AnalyticsEvent { name, properties } => {
                                     println!("Received Analytics Event: {} - {}", name, properties);
