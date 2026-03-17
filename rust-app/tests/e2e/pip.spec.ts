@@ -21,6 +21,7 @@ test.describe('Picture-in-Picture feature', () => {
         await page.waitForSelector('.local-video video', { timeout: 15000 });
 
         // Ensure the PiP button exists on the local video
+        // The local user video name tag uses "Me", so checking "PiP Tester" will fail as there's no remote user named PiP Tester.
         const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
         await expect(pipButton).toBeVisible({ timeout: 15000 });
 

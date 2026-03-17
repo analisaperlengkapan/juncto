@@ -1,6 +1,8 @@
 pub mod always_on_top;
 pub mod audio_level_indicator;
 pub mod breakout;
+pub mod authentication;
+pub mod calendar;
 pub mod embed_meeting;
 pub mod feedback;
 pub mod invite;

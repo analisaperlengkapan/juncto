@@ -140,6 +140,40 @@ fn test_poll_serialization() {
 }
 
 #[test]
+fn test_authenticate_message() {
+    let msg = ClientMessage::Authenticate { username: "test_user".to_string(), password: Some("secret".to_string()) };
+    let serialized = serde_json::to_string(&msg).unwrap();
+    assert!(serialized.contains(r#""type":"Authenticate""#));
+    assert!(serialized.contains(r#""username":"test_user""#));
+    assert!(serialized.contains(r#""password":"secret""#));
+
+    let server_msg = ServerMessage::AuthenticationResult(true);
+    let server_serialized = serde_json::to_string(&server_msg).unwrap();
+    assert!(server_serialized.contains(r#""type":"AuthenticationResult""#));
+    assert!(server_serialized.contains(r#""payload":true"#));
+}
+
+#[test]
+fn test_calendar_events_message() {
+    let msg = ClientMessage::FetchCalendar;
+    let serialized = serde_json::to_string(&msg).unwrap();
+    assert!(serialized.contains(r#""type":"FetchCalendar""#));
+
+    let server_msg = ServerMessage::CalendarEvents(vec!["Event 1".to_string()]);
+    let server_serialized = serde_json::to_string(&server_msg).unwrap();
+    assert!(server_serialized.contains(r#""type":"CalendarEvents""#));
+    assert!(server_serialized.contains(r#""Event 1""#));
+}
+
+#[test]
+fn test_analytics_event_message() {
+    let msg = ClientMessage::AnalyticsEvent { name: "TestEvent".to_string(), properties: "{}".to_string() };
+    let serialized = serde_json::to_string(&msg).unwrap();
+    assert!(serialized.contains(r#""type":"AnalyticsEvent""#));
+    assert!(serialized.contains(r#""name":"TestEvent""#));
+}
+
+#[test]
 fn test_shared_video_messages() {
     let msg = ClientMessage::StartShareVideo("https://youtu.be/test".to_string());
     let json = serde_json::to_string(&msg).unwrap();

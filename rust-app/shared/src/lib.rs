@@ -175,6 +175,15 @@ pub enum ClientMessage {
         sdp_mid: Option<String>,
         sdp_m_line_index: Option<u16>,
     },
+    Authenticate {
+        username: String,
+        password: Option<String>,
+    },
+    FetchCalendar,
+    AnalyticsEvent {
+        name: String,
+        properties: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -254,6 +263,8 @@ pub enum ServerMessage {
         sdp_mid: Option<String>,
         sdp_m_line_index: Option<u16>,
     },
+    AuthenticationResult(bool),
+    CalendarEvents(Vec<String>),
     Error(String),
 }
 

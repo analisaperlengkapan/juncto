@@ -32,6 +32,8 @@ pub fn Toolbox(
     on_toggle_camera: Callback<()>,
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
+    on_auth_dialog: Callback<()>,
+    on_calendar: Callback<()>,
     #[prop(optional)] on_leave: Option<Callback<()>>,
     #[prop(optional)] on_end_meeting: Option<Callback<()>>,
     #[prop(optional)] class: &'static str,
@@ -178,6 +180,18 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Polls"
+            </button>
+            <button
+                on:click=move |_| on_auth_dialog.call(())
+                style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Login"
+            </button>
+            <button
+                on:click=move |_| on_calendar.call(())
+                style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Calendar"
             </button>
             <button
                 on:click=move |_| on_shortcuts.call(())
