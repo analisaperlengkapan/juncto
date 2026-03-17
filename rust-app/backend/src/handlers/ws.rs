@@ -73,6 +73,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Track my current room locally for quick access
     let mut my_room_id: Option<String> = None;
     let mut broadcast_task: Option<tokio::task::JoinHandle<()>> = None;
+    // Rate limiting for analytics events: max 10 events per second per connection
+    let mut analytics_count: u32 = 0;
+    let mut analytics_window_start = std::time::Instant::now();
 
     // Send initial breakout rooms list
     let rooms: Vec<shared::BreakoutRoom> = {
@@ -832,6 +835,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::AnalyticsEvent { name, properties } => {
                                     if let Some(uid) = &my_id {
+                                        // Rate limit: max 10 analytics events per second per connection
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
                                         // TODO: use proper tracing/logging framework
                                         let safe_name: String = name.chars().take(200).filter(|c| !c.is_control()).collect();
                                         let safe_props: String = properties.chars().take(1000).filter(|c| !c.is_control()).collect();
