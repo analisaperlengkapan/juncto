@@ -677,7 +677,7 @@ pub fn use_room_state() -> RoomState {
                                     set_is_authenticated.set(true);
                                     set_show_login_dialog.set(false);
                                     set_auth_error.set(None);
-                                    add_toast("Authenticated successfully".to_string(), ToastType::Info);
+                                    add_toast("Authenticated successfully (mock)".to_string(), ToastType::Info);
                                 } else {
                                     set_auth_error.set(Some("Invalid username or password".to_string()));
                                 }

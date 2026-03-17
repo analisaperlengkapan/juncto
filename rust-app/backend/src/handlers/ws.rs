@@ -815,7 +815,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Authenticate { username, password } => {
                                     if let Some(_uid) = &my_id {
-                                        // TODO: implement real authentication
+                                        // FIXME: mock auth — accepts any non-empty credentials. Replace with real authentication before using is_authenticated to gate features.
                                         if !username.is_empty() && password.as_ref().map_or(false, |p| !p.is_empty()) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
