@@ -812,10 +812,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Authenticate { username, password } => {
                                     if !username.is_empty() && password.is_some() {
-                                        let _ = tx.send(ServerMessage::AuthenticationResult(true));
+                                        let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                     } else {
-                                        let _ = tx.send(ServerMessage::AuthenticationResult(false));
+                                        let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
                                     }
+                                }
                                 }
                                 ClientMessage::FetchCalendar => {
                                     let mock_events = vec![
