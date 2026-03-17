@@ -814,12 +814,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if let Some(_uid) = &my_id {
                                         // TODO: implement real authentication
                                         if !username.is_empty() && password.is_some() {
-                                            let _ = tx.send(ServerMessage::AuthenticationResult(true));
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
-                                            let _ = tx.send(ServerMessage::AuthenticationResult(false));
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
                                         }
                                     }
-                                }
+                                },
                                 ClientMessage::FetchCalendar => {
                                     if let Some(_uid) = &my_id {
                                         let mock_events = vec![
@@ -827,9 +827,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             "Project Sync - 1:00 PM".to_string(),
                                             "1:1 with Manager - 3:30 PM".to_string()
                                         ];
-                                        let _ = tx.send(ServerMessage::CalendarEvents(mock_events));
+                                        let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
                                     }
-                                }
+                                },
                                 ClientMessage::AnalyticsEvent { name, properties } => {
                                     if let Some(uid) = &my_id {
                                         // TODO: use proper tracing/logging framework
