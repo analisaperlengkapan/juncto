@@ -679,7 +679,6 @@ pub fn use_room_state() -> RoomState {
                                     set_auth_error.set(None);
                                     add_toast("Authenticated successfully".to_string(), ToastType::Info);
                                 } else {
-                                    set_is_authenticated.set(false);
                                     set_auth_error.set(Some("Invalid username or password".to_string()));
                                 }
                             }
