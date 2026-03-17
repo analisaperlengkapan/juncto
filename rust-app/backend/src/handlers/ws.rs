@@ -811,23 +811,30 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::Authenticate { username, password } => {
-                                    if !username.is_empty() && password.is_some() {
-                                        let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
-                                    } else {
-                                        let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
+                                    if let Some(_uid) = &my_id {
+                                        // TODO: implement real authentication
+                                        if !username.is_empty() && password.is_some() {
+                                            let _ = tx.send(ServerMessage::AuthenticationResult(true));
+                                        } else {
+                                            let _ = tx.send(ServerMessage::AuthenticationResult(false));
+                                        }
                                     }
                                 }
-                                }
                                 ClientMessage::FetchCalendar => {
-                                    let mock_events = vec![
-                                        "Team Standup - 10:00 AM".to_string(),
-                                        "Project Sync - 1:00 PM".to_string(),
-                                        "1:1 with Manager - 3:30 PM".to_string()
-                                    ];
-                                    let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
+                                    if let Some(_uid) = &my_id {
+                                        let mock_events = vec![
+                                            "Team Standup - 10:00 AM".to_string(),
+                                            "Project Sync - 1:00 PM".to_string(),
+                                            "1:1 with Manager - 3:30 PM".to_string()
+                                        ];
+                                        let _ = tx.send(ServerMessage::CalendarEvents(mock_events));
+                                    }
                                 }
                                 ClientMessage::AnalyticsEvent { name, properties } => {
-                                    println!("Received Analytics Event: {} - {}", name, properties);
+                                    if let Some(uid) = &my_id {
+                                        // TODO: use proper tracing/logging framework
+                                        println!("INFO: Received Analytics Event from {}: {} - {}", uid, name, properties);
+                                    }
                                 }
                                 ClientMessage::MuteParticipant(target_id) => {
                                     if let Some(uid) = &my_id {

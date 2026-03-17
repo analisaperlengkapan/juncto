@@ -12,8 +12,8 @@ pub fn LoginDialog(
     let handle_submit = move |_| {
         let u = username.get();
         let p = password.get();
-        if !u.is_empty() {
-            let pass = if p.is_empty() { None } else { Some(p) };
+        if !u.is_empty() && !p.is_empty() {
+            let pass = Some(p);
             on_login.call((u, pass));
         }
     };
@@ -56,8 +56,8 @@ pub fn LoginDialog(
                     </button>
                     <button
                         on:click=handle_submit
-                        disabled=move || username.get().is_empty()
-                        style=move || format!("padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: {}; opacity: {};", if username.get().is_empty() { "not-allowed" } else { "pointer" }, if username.get().is_empty() { "0.5" } else { "1" })
+                        disabled=move || username.get().is_empty() || password.get().is_empty()
+                        style=move || format!("padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: {}; opacity: {};", if username.get().is_empty() || password.get().is_empty() { "not-allowed" } else { "pointer" }, if username.get().is_empty() || password.get().is_empty() { "0.5" } else { "1" })
                     >
                         "Login"
                     </button>

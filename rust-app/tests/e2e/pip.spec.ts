@@ -18,11 +18,11 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be active
-        await page.waitForSelector('.local-video video', { timeout: 15000 });
+        await page.waitForSelector('.video-card.local-video video', { timeout: 15000 });
 
         // Ensure the PiP button exists on the local video
         // The local user video name tag uses "Me", so checking "PiP Tester" will fail as there's no remote user named PiP Tester.
-        const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
+        const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
         await expect(pipButton).toBeVisible({ timeout: 15000 });
 
         // Note: Playwright doesn't easily allow checking actual native PiP state
@@ -49,10 +49,10 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be inactive
-        await page.waitForSelector('.local-video', { timeout: 15000 });
+        await page.waitForSelector('.video-card.local-video', { timeout: 15000 });
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
-        const pipButton = page.locator('.local-video button[title="Picture-in-Picture"]');
+        const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
         await expect(pipButton).not.toBeVisible({ timeout: 15000 });
     });
 });

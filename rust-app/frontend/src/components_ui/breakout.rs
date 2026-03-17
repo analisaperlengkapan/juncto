@@ -96,10 +96,10 @@ mod tests {
     #[test]
     fn test_breakout_compiles() {
         let _ = create_runtime();
-        let show = create_rw_signal(true);
+        let _show = create_rw_signal(true);
         let breakout_rooms = create_rw_signal(Vec::new());
         let current_room_id = create_rw_signal(None);
-        let on_close = Callback::new(|_: ()| {});
+        let _on_close = Callback::new(|_: ()| {});
         let on_create = Callback::new(|_: String| {});
         let on_join = Callback::new(|_: Option<String>| {});
 

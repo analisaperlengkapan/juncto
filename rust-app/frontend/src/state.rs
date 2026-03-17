@@ -51,6 +51,7 @@ pub struct RoomState {
     pub host_id: Signal<Option<String>>,
     pub current_room_id: ReadSignal<Option<String>>,
     pub breakout_rooms: ReadSignal<Vec<shared::BreakoutRoom>>,
+    #[allow(dead_code)]
     pub is_authenticated: ReadSignal<bool>,
     pub show_login_dialog: ReadSignal<bool>,
     pub auth_error: ReadSignal<Option<String>>,
