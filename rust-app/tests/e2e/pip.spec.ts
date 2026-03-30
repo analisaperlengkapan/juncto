@@ -18,13 +18,11 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be active
-        // Sometimes the name might be the one we entered, let's just look for any video element that isn't hidden
-        await page.waitForSelector('video:not([style*="display: none"])', { timeout: 15000 });
+        await page.waitForSelector('.video-card.local-video video', { timeout: 15000 });
 
-        // Wait for pip button to exist rather than relying on exact element array index
-        await page.waitForSelector('button[title="Picture-in-Picture"]', { timeout: 15000 });
-        const pipButton = page.locator('button[title="Picture-in-Picture"]').last();
-        await expect(pipButton).toBeVisible();
+        // Ensure the PiP button exists on the local video
+        const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
+        await expect(pipButton).toBeVisible({ timeout: 15000 });
 
         // Note: Playwright doesn't easily allow checking actual native PiP state
         // without injecting complex scripts, but verifying the button exists
@@ -50,12 +48,10 @@ test.describe('Picture-in-Picture feature', () => {
         await page.click('button.join-btn');
 
         // Wait for the room to load and camera to be inactive
-        await page.waitForSelector('.video-card', { timeout: 15000 });
+        await page.waitForSelector('.video-card.local-video', { timeout: 15000 });
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
-        // With only one video block (Me without camera), we should not see the button
-        // Rather than expect not visible (which might timeout if it thinks it should appear), expect count to be 0
-        const pipButtons = page.locator('button[title="Picture-in-Picture"]');
-        await expect(pipButtons).toHaveCount(0, { timeout: 10000 });
+        const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
+        await expect(pipButton).toHaveCount(0, { timeout: 10000 });
     });
 });
