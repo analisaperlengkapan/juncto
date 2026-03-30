@@ -21,7 +21,6 @@ test.describe('Picture-in-Picture feature', () => {
         await page.waitForSelector('.video-card.local-video video', { timeout: 15000 });
 
         // Ensure the PiP button exists on the local video
-        // The local user video name tag uses "Me", so checking "PiP Tester" will fail as there's no remote user named PiP Tester.
         const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
         await expect(pipButton).toBeVisible({ timeout: 15000 });
 
@@ -53,6 +52,6 @@ test.describe('Picture-in-Picture feature', () => {
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
         const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
-        await expect(pipButton).not.toBeVisible({ timeout: 15000 });
+        await expect(pipButton).toHaveCount(0, { timeout: 10000 });
     });
 });
