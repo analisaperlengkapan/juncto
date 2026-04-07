@@ -140,6 +140,10 @@ pub struct VideoProcessor {
 }
 
 impl VideoProcessor {
+    pub fn set_mode(&self, new_mode: String) {
+        *self.mode.borrow_mut() = new_mode;
+    }
+
     pub fn new(stream: &MediaStream, initial_mode: String) -> Result<(Self, MediaStream), JsValue> {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();

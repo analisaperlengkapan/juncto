@@ -184,16 +184,20 @@ pub fn use_room_state() -> RoomState {
         let mode = background_mode.get();
         let stream = raw_local_stream.get();
 
-        // Cleanup previous processor implicitly by dropping it
-        if let Some(Some(prev)) = prev_processor {
-            drop(prev);
-        }
-
         if let Some(s) = stream {
             let has_video = s.get_video_tracks().length() > 0;
             if mode == "none" || !has_video {
+                // No processing needed — drop any existing processor and pass through
+                if let Some(Some(prev)) = prev_processor {
+                    drop(prev);
+                }
                 set_local_stream.set(Some(s));
                 None
+            } else if let Some(Some(prev)) = prev_processor {
+                // Processor already exists — update mode in-place instead of
+                // recreating the canvas, video element, interval, and captureStream.
+                prev.set_mode(mode);
+                Some(prev)
             } else {
                 match crate::media::VideoProcessor::new(&s, mode) {
                     Ok((processor, processed)) => {
@@ -208,6 +212,10 @@ pub fn use_room_state() -> RoomState {
                 }
             }
         } else {
+            // No stream — drop any existing processor
+            if let Some(Some(prev)) = prev_processor {
+                drop(prev);
+            }
             set_local_stream.set(None);
             None
         }
@@ -433,7 +441,7 @@ pub fn use_room_state() -> RoomState {
     // Reactive Noise Suppression Update
     create_effect(move |_| {
         let enabled = is_noise_suppression_enabled.get();
-        let needs_restart = audio_monitor.with(|monitor| {
+        let needs_restart = audio_monitor.with_untracked(|monitor| {
             if let Some(m) = monitor {
                 // Returns Err if the monitor needs to be recreated (e.g. enabling
                 // suppression when no compressor node exists in the audio graph).
@@ -518,6 +526,10 @@ pub fn use_room_state() -> RoomState {
                                 set_is_recording.set(config.is_recording);
 
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
+                                // Clear stale transcriptions when subtitles are toggled off
+                                if !config.is_subtitles_enabled && is_subtitles_enabled.get_untracked() {
+                                    set_subtitles.set(Vec::new());
+                                }
                                 set_is_subtitles_enabled.set(config.is_subtitles_enabled);
                                 set_room_config.set(config);
                             }
@@ -641,13 +653,11 @@ pub fn use_room_state() -> RoomState {
                                                 }
                                             });
                                         }
-                                        // Confirm state to server
-                                        if let Some(socket) = ws.get_untracked() {
-                                            let msg = ClientMessage::SetMuteStatus(true);
-                                            if let Ok(json) = serde_json::to_string(&msg) {
-                                                let _ = socket.send_with_str(&json);
-                                            }
-                                        }
+                                        // Note: No need to send SetMuteStatus back to the server.
+                                        // The backend already set is_muted=true and broadcast
+                                        // ParticipantUpdated in the MuteAll/MuteParticipant handler.
+                                        // Sending it again would cause a redundant ParticipantUpdated
+                                        // broadcast for every muted participant.
                                     }
                                 }
                             }
@@ -1180,7 +1190,7 @@ pub fn use_room_state() -> RoomState {
                 // Calling it here as well would result in two concurrent
                 // getUserMedia requests. Skip the explicit restart in that case
                 // and let the effect handle it.
-                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.get_untracked().is_some();
+                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m| m.is_some());
                 if !ns_will_trigger_restart {
                     start_media_stream.call(has_video);
                 }
