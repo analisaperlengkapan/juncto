@@ -186,6 +186,7 @@ impl VideoProcessor {
                 }
                 "image" => {
                     // Draw a placeholder background color (representing an image)
+                    context_clone.set_filter("none");
                     let style = wasm_bindgen::JsValue::from_str("#004400");
                     #[allow(deprecated)]
                     context_clone.set_fill_style(&style);
