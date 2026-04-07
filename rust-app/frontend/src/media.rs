@@ -443,6 +443,10 @@ impl AudioMonitor {
         *self.is_muted.borrow_mut() = muted;
     }
 
+    pub fn has_compressor(&self) -> bool {
+        self.compressor.is_some()
+    }
+
     pub fn set_noise_suppression(&self, enabled: bool) -> Result<(), JsValue> {
         let mut current = self.is_noise_suppression_enabled.borrow_mut();
         if *current == enabled {

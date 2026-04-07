@@ -1219,7 +1219,14 @@ pub fn use_room_state() -> RoomState {
                 // Calling it here as well would result in two concurrent
                 // getUserMedia requests. Skip the explicit restart in that case
                 // and let the effect handle it.
-                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m| m.is_some());
+                //
+                // However, if the monitor already has a compressor (from a
+                // previous enable→disable cycle), set_noise_suppression(true)
+                // will succeed and the effect will NOT restart. In that case we
+                // must call start_media_stream here so device changes are applied.
+                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m| {
+                    m.as_ref().is_some_and(|monitor| !monitor.has_compressor())
+                });
                 if !ns_will_trigger_restart {
                     start_media_stream.call(has_video);
                 }
