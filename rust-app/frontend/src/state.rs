@@ -1152,28 +1152,30 @@ pub fn use_room_state() -> RoomState {
 
     let set_input_devices = Callback::new(
         move |(vid, aid, res, ns): (Option<String>, Option<String>, String, bool)| {
+            let old_ns = is_noise_suppression_enabled.get_untracked();
             set_selected_camera_id.set(vid.clone());
             set_selected_mic_id.set(aid.clone());
             set_video_resolution.set(res.clone());
             set_is_noise_suppression_enabled.set(ns);
 
-            // Use same logic as toggle_camera: preserve video state?
-            // Or if user selected a camera, enable video?
-            // Usually settings dialog allows selecting device. If "None" is passed for video, maybe disable?
-            // But settings dialog passes "current selection".
-            // Let's assume if stream is running, we restart it with same video state (unless video was disabled? No, if stream running, restart with current capabilities).
-            // Actually, simpler: check if video is currently running.
             let has_video = if let Some(stream) = local_stream.get_untracked() {
                 stream.get_video_tracks().length() > 0
             } else {
-                false // If no stream, maybe don't start one? Or start if devices selected?
-                      // If user explicitly changes devices in settings, they probably want to see them.
-                      // But if they were Audio Only, and changed Mic...
-                      // Let's stick to: if stream exists, restart with current video state.
+                false
             };
 
             if local_stream.get_untracked().is_some() {
-                start_media_stream.call(has_video);
+                // When noise suppression is being enabled (and was previously off),
+                // the reactive noise suppression effect will detect that the
+                // AudioMonitor has no compressor node, receive an Err from
+                // set_noise_suppression(), and call start_media_stream itself.
+                // Calling it here as well would result in two concurrent
+                // getUserMedia requests. Skip the explicit restart in that case
+                // and let the effect handle it.
+                let ns_will_trigger_restart = ns && !old_ns;
+                if !ns_will_trigger_restart {
+                    start_media_stream.call(has_video);
+                }
             }
         },
     );
