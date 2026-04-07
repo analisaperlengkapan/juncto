@@ -95,7 +95,10 @@ pub fn Room() -> impl IntoView {
         <div style="height: 100vh;">
             {move || match state.connection_state.get() {
                 RoomConnectionState::Prejoin => view! {
-                    <PrejoinScreen on_join=state.join_meeting />
+                    <PrejoinScreen
+                        on_join=state.join_meeting
+                        is_connected=state.is_connected
+                    />
                 }.into_view(),
                 RoomConnectionState::Lobby => view! {
                     <LobbyScreen />

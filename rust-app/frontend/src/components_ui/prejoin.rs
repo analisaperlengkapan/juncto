@@ -7,7 +7,10 @@ use wasm_bindgen::JsCast;
 use web_sys::MediaStream;
 
 #[component]
-pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
+pub fn PrejoinScreen(
+    on_join: Callback<JoinOptions>,
+    is_connected: ReadSignal<bool>,
+) -> impl IntoView {
     let (display_name, set_display_name) = create_signal("Guest".to_string());
 
     // Device Lists
@@ -262,9 +265,10 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
                 <button
                     class="join-btn"
                     on:click=handle_join
-                    style="padding: 12px 24px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;"
+                    disabled=move || !is_connected.get()
+                    style=move || format!("padding: 12px 24px; background-color: {}; color: white; border: none; border-radius: 4px; cursor: {}; font-size: 16px; font-weight: bold; width: 100%;", if is_connected.get() { "#28a745" } else { "#6c757d" }, if is_connected.get() { "pointer" } else { "not-allowed" })
                 >
-                    "Join Meeting"
+                    {move || if is_connected.get() { "Join Meeting" } else { "Connecting..." }}
                 </button>
             </div>
         </div>

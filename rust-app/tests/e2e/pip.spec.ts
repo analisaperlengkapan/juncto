@@ -8,14 +8,20 @@ test.describe('Picture-in-Picture feature', () => {
         await page.waitForSelector('.prejoin-container', { timeout: 10000 });
 
         // Ensure camera is on in prejoin
-        const camBtn = page.getByRole('button', { name: '🚫' });
-        if (await camBtn.isVisible()) {
-            await camBtn.click(); // Turn it on (changes from 🚫 to 📷)
+        const camBtn = page.locator('button[title="Toggle Camera"]');
+        await expect(camBtn).toBeVisible();
+        const camBtnText = await camBtn.innerText();
+        if (camBtnText === '🚫') {
+            await camBtn.click(); // Turn it on
         }
 
-        // Enter a name and join
+        // Enter a name
         await page.locator('.prejoin-container input[type="text"]').fill('PiP Tester');
-        await page.click('button.join-btn');
+
+        // Wait for Join button to be enabled (meaning WebSocket is connected)
+        const joinBtn = page.locator('button.join-btn');
+        await expect(joinBtn).toHaveText('Join Meeting', { timeout: 15000 });
+        await joinBtn.click();
 
         // Wait for the room to load and camera to be active
         await page.waitForSelector('.video-card.local-video video', { timeout: 15000 });
@@ -39,13 +45,17 @@ test.describe('Picture-in-Picture feature', () => {
         await page.locator('.prejoin-container input[type="text"]').fill('PiP Tester');
 
         // Toggle camera off
-        const camBtn = page.getByRole('button', { name: '📷' });
-        if (await camBtn.isVisible()) {
-            await camBtn.click(); // Turn it off (changes from 📷 to 🚫)
+        const camBtn = page.locator('button[title="Toggle Camera"]');
+        await expect(camBtn).toBeVisible();
+        const camBtnText = await camBtn.innerText();
+        if (camBtnText === '📷') {
+            await camBtn.click(); // Turn it off
         }
 
-        // Join
-        await page.click('button.join-btn');
+        // Wait for Join button to be enabled (meaning WebSocket is connected)
+        const joinBtn = page.locator('button.join-btn');
+        await expect(joinBtn).toHaveText('Join Meeting', { timeout: 15000 });
+        await joinBtn.click();
 
         // Wait for the room to load and camera to be inactive
         await page.waitForSelector('.video-card.local-video', { timeout: 15000 });
