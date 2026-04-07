@@ -1172,7 +1172,7 @@ pub fn use_room_state() -> RoomState {
                 // Calling it here as well would result in two concurrent
                 // getUserMedia requests. Skip the explicit restart in that case
                 // and let the effect handle it.
-                let ns_will_trigger_restart = ns && !old_ns;
+                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.get_untracked().is_some();
                 if !ns_will_trigger_restart {
                     start_media_stream.call(has_video);
                 }
