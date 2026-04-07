@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use shared::{
     ChatMessage, ClientMessage, DrawAction, FileAttachment, Participant, Poll, ServerMessage,
 };
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MediaStream, MessageEvent, WebSocket};
@@ -180,44 +182,69 @@ pub fn use_room_state() -> RoomState {
 
     // Note: Reactive Noise Suppression effect is created after start_media_stream below.
 
-    create_effect(move |prev_processor: Option<Option<crate::media::VideoProcessor>>| -> Option<crate::media::VideoProcessor> {
-        let mode = background_mode.get();
-        let stream = raw_local_stream.get();
+    // Track the stream ID so we can detect when only the mode changed (same
+    // stream) vs when the underlying raw stream was replaced (camera toggle,
+    // device switch, noise-suppression restart).
+    let prev_stream_id: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
 
-        if let Some(s) = stream {
-            let has_video = s.get_video_tracks().length() > 0;
-            if mode == "none" || !has_video {
-                // No processing needed — drop any existing processor and pass through
+    create_effect({
+        let prev_stream_id = prev_stream_id.clone();
+        move |prev_processor: Option<Option<crate::media::VideoProcessor>>| -> Option<crate::media::VideoProcessor> {
+            let mode = background_mode.get();
+            let stream = raw_local_stream.get();
+
+            if let Some(s) = stream {
+                let has_video = s.get_video_tracks().length() > 0;
+                if mode == "none" || !has_video {
+                    // No processing needed — drop any existing processor and pass through
+                    if let Some(Some(prev)) = prev_processor {
+                        drop(prev);
+                    }
+                    *prev_stream_id.borrow_mut() = Some(s.id());
+                    set_local_stream.set(Some(s));
+                    None
+                } else {
+                    // Check whether the raw stream changed since the last run.
+                    let stream_changed = {
+                        let old_id = prev_stream_id.borrow();
+                        old_id.as_deref() != Some(&s.id())
+                    };
+                    *prev_stream_id.borrow_mut() = Some(s.id());
+
+                    if !stream_changed {
+                        if let Some(Some(prev)) = prev_processor {
+                            // Same stream, only mode changed — update in-place instead of
+                            // recreating the canvas, video element, interval, and captureStream.
+                            prev.set_mode(mode);
+                            return Some(prev);
+                        }
+                    }
+
+                    // Either the stream changed or no processor exists yet — (re)create.
+                    if let Some(Some(prev)) = prev_processor {
+                        drop(prev);
+                    }
+                    match crate::media::VideoProcessor::new(&s, mode) {
+                        Ok((processor, processed)) => {
+                            set_local_stream.set(Some(processed));
+                            Some(processor)
+                        }
+                        Err(e) => {
+                            web_sys::console::error_1(&e);
+                            set_local_stream.set(Some(s));
+                            None
+                        }
+                    }
+                }
+            } else {
+                // No stream — drop any existing processor
                 if let Some(Some(prev)) = prev_processor {
                     drop(prev);
                 }
-                set_local_stream.set(Some(s));
+                *prev_stream_id.borrow_mut() = None;
+                set_local_stream.set(None);
                 None
-            } else if let Some(Some(prev)) = prev_processor {
-                // Processor already exists — update mode in-place instead of
-                // recreating the canvas, video element, interval, and captureStream.
-                prev.set_mode(mode);
-                Some(prev)
-            } else {
-                match crate::media::VideoProcessor::new(&s, mode) {
-                    Ok((processor, processed)) => {
-                        set_local_stream.set(Some(processed));
-                        Some(processor)
-                    }
-                    Err(e) => {
-                        web_sys::console::error_1(&e);
-                        set_local_stream.set(Some(s));
-                        None
-                    }
-                }
             }
-        } else {
-            // No stream — drop any existing processor
-            if let Some(Some(prev)) = prev_processor {
-                drop(prev);
-            }
-            set_local_stream.set(None);
-            None
         }
     });
 
@@ -454,7 +481,7 @@ pub fn use_room_state() -> RoomState {
             // Restart media to recreate the AudioMonitor with the correct setting.
             // Preserve current video state.
             let has_video = local_stream.with_untracked(|s| {
-                s.as_ref().map_or(false, |stream| stream.get_video_tracks().length() > 0)
+                s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
             });
             if local_stream.get_untracked().is_some() {
                 start_media_stream.call(has_video);
