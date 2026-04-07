@@ -118,6 +118,8 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "lock_room") => "Kunci Ruangan".to_string(),
         (Locale::En, "enable_lobby") => "Enable Lobby".to_string(),
         (Locale::Id, "enable_lobby") => "Aktifkan Lobi".to_string(),
+        (Locale::En, "noise_suppression") => "Noise Suppression".to_string(),
+        (Locale::Id, "noise_suppression") => "Peredam Kebisingan".to_string(),
         // Add more keys as needed
         (_, k) => k.to_string(),
     }

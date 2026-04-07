@@ -4,7 +4,7 @@ use leptos::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MediaDeviceInfo, MediaDeviceKind};
 
-pub type DeviceSettings = (Option<String>, Option<String>, String);
+pub type DeviceSettings = (Option<String>, Option<String>, String, bool);
 
 #[component]
 pub fn SettingsDialog(
@@ -15,6 +15,7 @@ pub fn SettingsDialog(
     #[prop(optional)] current_video_id: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] current_audio_id: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] current_resolution: Option<ReadSignal<String>>,
+    #[prop(optional)] current_noise_suppression: Option<ReadSignal<bool>>,
     #[prop(optional)] is_host: Option<Signal<bool>>,
     #[prop(optional)] is_locked: Option<ReadSignal<bool>>,
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
@@ -44,6 +45,11 @@ pub fn SettingsDialog(
     let (selected_video, set_selected_video) = create_signal(init_video);
     let (selected_audio, set_selected_audio) = create_signal(init_audio);
     let (video_quality, set_video_quality) = create_signal(init_res);
+    let (noise_suppression, set_noise_suppression) = create_signal(
+        current_noise_suppression
+            .map(|s| s.get_untracked())
+            .unwrap_or(false),
+    );
     let (error_msg, set_error_msg) = create_signal(None::<String>);
     let (preview_stream, set_preview_stream) = create_signal(None::<web_sys::MediaStream>);
 
@@ -60,6 +66,9 @@ pub fn SettingsDialog(
             }
             if let Some(sig) = current_resolution {
                 set_video_quality.set(sig.get_untracked());
+            }
+            if let Some(sig) = current_noise_suppression {
+                set_noise_suppression.set(sig.get_untracked());
             }
         }
     });
@@ -256,6 +265,17 @@ pub fn SettingsDialog(
                                 </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=noise_suppression
+                                        on:change=move |ev| set_noise_suppression.set(event_target_checked(&ev))
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || t("noise_suppression")}
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 5px;">{move || t("microphone")}</label>
                                 <select
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
@@ -303,7 +323,7 @@ pub fn SettingsDialog(
                                 <button
                                     on:click=move |_| {
                                         if let Some(cb) = on_save_devices {
-                                            cb.call((selected_video.get(), selected_audio.get(), video_quality.get()));
+                                            cb.call((selected_video.get(), selected_audio.get(), video_quality.get(), noise_suppression.get()));
                                         }
                                         on_close.call(());
                                     }
@@ -364,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_device_settings_tuple() {
-        let settings: DeviceSettings = (Some("cam1".to_string()), Some("mic1".to_string()), "hd".to_string());
+        let settings: DeviceSettings = (Some("cam1".to_string()), Some("mic1".to_string()), "hd".to_string(), false);
         assert_eq!(settings.0.unwrap(), "cam1");
         assert_eq!(settings.1.unwrap(), "mic1");
         assert_eq!(settings.2, "hd");
@@ -372,9 +392,16 @@ mod tests {
 
     #[test]
     fn test_empty_device_settings() {
-        let settings: DeviceSettings = (None, None, "sd".to_string());
+        let settings: DeviceSettings = (None, None, "sd".to_string(), false);
         assert_eq!(settings.0, None);
         assert_eq!(settings.1, None);
         assert_eq!(settings.2, "sd");
+        assert_eq!(settings.3, false);
+    }
+
+    #[test]
+    fn test_device_settings_with_noise_suppression() {
+        let settings: DeviceSettings = (None, None, "hd".to_string(), true);
+        assert!(settings.3);
     }
 }

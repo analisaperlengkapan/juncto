@@ -1,5 +1,6 @@
 pub mod breakout;
 pub mod chat;
+pub mod moderation;
 pub mod feedback;
 pub mod polls;
 pub mod room;

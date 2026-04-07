@@ -127,7 +127,7 @@ pub fn PrejoinScreen(on_join: Callback<JoinOptions>) -> impl IntoView {
                         let on_speaking = Box::new(move |speaking: bool| {
                             set_is_speaking.set(speaking);
                         });
-                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None) {
+                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None, false) {
                             set_audio_monitor.set(Some(monitor));
                         }
                     }

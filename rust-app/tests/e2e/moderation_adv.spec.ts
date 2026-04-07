@@ -1,0 +1,30 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Advanced Moderation', () => {
+  test('host should be able to mute all participants', async ({ context }) => {
+    // 1. Host joins
+    const hostPage = await context.newPage();
+    await hostPage.goto('/room/mute-all-test');
+    await hostPage.fill('input[placeholder="Enter your name"]', 'Host');
+    await hostPage.click('button:has-text("Join Meeting")');
+
+    // 2. Guest joins
+    const guestPage = await context.newPage();
+    await guestPage.goto('/room/mute-all-test');
+    await guestPage.fill('input[placeholder="Enter your name"]', 'Guest');
+    await guestPage.click('button:has-text("Join Meeting")');
+
+    // 3. Host opens participants list and clicks Mute All
+    await hostPage.waitForSelector('.participants-list');
+    await hostPage.click('button:has-text("Mute All")');
+
+    // 4. Verify guest is muted
+    // Guest should see a toast or their own mute indicator
+    // In participants list, guest should show 🔇
+    const guestEntry = guestPage.locator('.participants-list li').filter({ hasText: 'Guest' });
+    await expect(guestEntry.locator('text=🔇')).toBeVisible();
+
+    // Guest should also see a toast if implemented to notify them
+    // await expect(guestPage.locator('.toast')).toContainText('muted by the host');
+  });
+});

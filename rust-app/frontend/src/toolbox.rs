@@ -65,6 +65,7 @@ pub fn Toolbox(
                 <button
                     on:click=move |_| on_toggle_subtitles.call(())
                     style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_subtitles_enabled.get() { "#28a745" } else { "#6c757d" })
+                    title="Subtitles"
                 >
                     {move || if is_subtitles_enabled.get() { "Hide Subtitles" } else { "Show Subtitles" }}
                 </button>

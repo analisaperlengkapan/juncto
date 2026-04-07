@@ -1353,7 +1353,7 @@ test('Microphone Toggle E2E', async ({ page, request }) => {
     await page.click('button.join-btn');
 
     // Check Mute Button (initially Mute, green)
-    const muteBtn = page.getByRole('button', { name: 'Mute' });
+    const muteBtn = page.getByRole('button', { name: 'Mute', exact: true });
     await expect(muteBtn).toBeVisible();
     await expect(muteBtn).toHaveCSS('background-color', 'rgb(40, 167, 69)'); // #28a745
 
@@ -1367,7 +1367,7 @@ test('Microphone Toggle E2E', async ({ page, request }) => {
 
     // Click Unmute
     await unmuteBtn.click();
-    await expect(page.getByRole('button', { name: 'Mute' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
 });
 
 test('Meeting Timer E2E', async ({ page, request }) => {

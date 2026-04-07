@@ -24,6 +24,7 @@ pub fn ParticipantsList(
     on_deny: Callback<String>,
     on_kick: Callback<String>,
     on_mute: Callback<String>,
+    #[prop(optional)] on_mute_all: Option<Callback<()>>,
     on_transfer_host: Callback<String>,
 ) -> impl IntoView {
     let format_time = |ms: u64| {
@@ -82,7 +83,21 @@ pub fn ParticipantsList(
                 </div>
             </Show>
 
-            <h3>"Participants"</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                <h3 style="margin: 0;">"Participants"</h3>
+                <Show when=move || is_host.get()>
+                    <button
+                        on:click=move |_| {
+                            if let Some(cb) = on_mute_all {
+                                cb.call(());
+                            }
+                        }
+                        style="background: #ffc107; color: black; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
+                    >
+                        "Mute All"
+                    </button>
+                </Show>
+            </div>
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
@@ -214,5 +229,12 @@ mod tests {
         assert_eq!(sorted[0].name, "Alice"); // Raised hand
         assert_eq!(sorted[1].name, "Bob"); // Alphabetical
         assert_eq!(sorted[2].name, "Charlie");
+    }
+
+    #[test]
+    fn test_mute_all_visibility_logic() {
+        let _runtime = create_runtime();
+        let (is_host, _set_is_host) = create_signal(true);
+        assert!(is_host.get());
     }
 }

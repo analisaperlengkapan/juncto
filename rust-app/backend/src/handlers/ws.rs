@@ -1,5 +1,6 @@
 use super::breakout;
 use super::chat;
+use super::moderation;
 use super::polls;
 use super::whiteboard;
 use crate::AppState;
@@ -763,6 +764,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if is_speaking {
                                             let mut starts = speaking_start_times_mutex.lock().unwrap();
                                             starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+
+                                            // Transcription logic (Mocked)
+                                            let is_subtitles_enabled = {
+                                                room_config_mutex.lock().unwrap().is_subtitles_enabled
+                                            };
+                                            if is_subtitles_enabled {
+                                                let text = format!("{} is speaking...", {
+                                                    let p_map = participants_mutex.lock().unwrap();
+                                                    p_map.get(uid).map(|p| p.name.clone()).unwrap_or_else(|| "Unknown".to_string())
+                                                });
+                                                let _ = tx.send(ServerMessage::Transcription {
+                                                    user_id: uid.clone(),
+                                                    text,
+                                                    timestamp: chrono::Utc::now().timestamp_millis() as u64,
+                                                });
+                                            }
                                         } else {
                                             let start_opt = {
                                                 let mut starts = speaking_start_times_mutex.lock().unwrap();
@@ -896,6 +913,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Ping => {
                                     let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
+                                },
+                                ClientMessage::MuteAll => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::mute_all(uid, &state);
+                                        for msg in msgs {
+                                            let _ = tx.send(msg);
+                                        }
+                                    }
                                 },
                                 ClientMessage::Offer { target_id, sdp } => {
                                     if let Some(uid) = &my_id {
@@ -1223,8 +1248,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_ws_handler() {
         assert!(true);

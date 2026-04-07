@@ -61,9 +61,9 @@ test.describe('Talk While Muted Feature', () => {
         await expect(page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
 
         // Once in the meeting, ensure we are muted
-        const toolboxMuteBtn = page.locator('button:has-text("Unmute")');
+        const toolboxMuteBtn = page.locator('.room-toolbox button').filter({ hasText: /^Unmute$/ });
         if (!(await toolboxMuteBtn.isVisible())) {
-             const muteBtn = page.locator('button:has-text("Mute")');
+             const muteBtn = page.locator('button').filter({ hasText: /^Mute$/ });
              if (await muteBtn.isVisible()) await muteBtn.click();
         }
 

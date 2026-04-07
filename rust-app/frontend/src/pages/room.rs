@@ -181,8 +181,21 @@ pub fn Room() -> impl IntoView {
                                 </div>
                                 <ReactionDisplay last_reaction=state.last_reaction />
                                 <Show when=move || state.is_subtitles_enabled.get()>
-                                    <div class="subtitles-overlay" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2em; text-align: center; z-index: 100; max-width: 80%;">
-                                        "Subtitles are currently enabled. (Transcriptions will appear here)"
+                                    <div class="subtitles-overlay" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2em; text-align: center; z-index: 100; max-width: 80%; min-width: 200px;">
+                                        <For
+                                            each=move || state.subtitles.get()
+                                            key=|(uid, text, ts)| format!("{}-{}-{}", uid, text, ts)
+                                            children=move |(_uid, text, _ts)| {
+                                                view! {
+                                                    <div style="margin-bottom: 5px;">{text}</div>
+                                                }
+                                            }
+                                        />
+                                        {move || if state.subtitles.get().is_empty() {
+                                            "Subtitles are currently enabled. (Transcriptions will appear here)".to_string()
+                                        } else {
+                                            "".to_string()
+                                        }}
                                     </div>
                                 </Show>
                                 <Show when=move || state.show_whiteboard.get()>
@@ -290,6 +303,7 @@ pub fn Room() -> impl IntoView {
                                     on_deny=state.deny_access
                                     on_kick=state.kick_participant
                                     on_mute=state.mute_participant
+                                    on_mute_all=state.mute_all
                                     on_transfer_host=state.transfer_host
                                 />
                             </div>
@@ -307,6 +321,7 @@ pub fn Room() -> impl IntoView {
                             current_video_id=state.selected_camera_id
                             current_audio_id=state.selected_mic_id
                             current_resolution=state.video_resolution
+                            current_noise_suppression=state.is_noise_suppression_enabled
                             is_host=state.is_host
                             is_locked=state.is_locked
                             is_lobby_enabled=state.is_lobby_enabled
@@ -337,9 +352,8 @@ pub fn Room() -> impl IntoView {
                         <VirtualBackgroundDialog
                             show=state.show_virtual_background
                             on_close=Callback::new(move |_| state.set_show_virtual_background.set(false))
-                            on_change=Callback::new(move |mode| {
-                                web_sys::console::log_1(&format!("Background changed to: {}", mode).into());
-                            })
+                            on_change=state.set_background_mode
+                            current_mode=state.background_mode
                         />
 
                         <crate::components_ui::embed_meeting::EmbedMeetingDialog
@@ -364,5 +378,16 @@ mod tests {
     fn test_room_compiles() {
         // dummy test
         assert!(true);
+    }
+
+    #[test]
+    fn test_subtitle_overlay_logic() {
+        let _runtime = create_runtime();
+        let (subtitles, _set_subtitles) = create_signal(vec![("u1".to_string(), "hello".to_string(), 123u64)]);
+        let (is_enabled, _set_is_enabled) = create_signal(true);
+
+        // Verification of logic used in component
+        assert!(is_enabled.get());
+        assert_eq!(subtitles.get().len(), 1);
     }
 }

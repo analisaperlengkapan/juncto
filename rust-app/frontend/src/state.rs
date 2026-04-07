@@ -38,6 +38,7 @@ pub struct RoomState {
     pub is_lobby_enabled: ReadSignal<bool>,
     pub is_recording: ReadSignal<bool>,
     pub is_subtitles_enabled: ReadSignal<bool>,
+    pub subtitles: ReadSignal<Vec<(String, String, u64)>>,
     pub show_settings: ReadSignal<bool>,
     pub show_polls: ReadSignal<bool>,
     pub show_shortcuts: ReadSignal<bool>,
@@ -62,6 +63,7 @@ pub struct RoomState {
     pub is_muted: ReadSignal<bool>,
     pub shared_video_url: ReadSignal<Option<String>>,
     pub speaking_peers: ReadSignal<HashSet<String>>,
+    pub audio_monitor: ReadSignal<Option<AudioMonitor>>,
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
@@ -73,8 +75,11 @@ pub struct RoomState {
     pub selected_mic_id: ReadSignal<Option<String>>,
     #[allow(dead_code)]
     pub video_resolution: ReadSignal<String>,
+    pub is_noise_suppression_enabled: ReadSignal<bool>,
+    pub background_mode: ReadSignal<String>,
     // Setters or Actions
-    pub set_input_devices: Callback<(Option<String>, Option<String>, String)>,
+    pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
+    pub set_background_mode: Callback<String>,
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
@@ -113,6 +118,7 @@ pub struct RoomState {
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
     pub mute_participant: Callback<String>,
+    pub mute_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
 }
@@ -133,6 +139,7 @@ pub fn use_room_state() -> RoomState {
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
+    let (subtitles, set_subtitles) = create_signal(Vec::<(String, String, u64)>::new());
     let (show_settings, set_show_settings) = create_signal(false);
     let (is_authenticated, set_is_authenticated) = create_signal(false);
     let (show_login_dialog, set_show_login_dialog) = create_signal(false);
@@ -152,7 +159,7 @@ pub fn use_room_state() -> RoomState {
     let (is_muted, set_is_muted) = create_signal(false);
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
-    let (_audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
+    let (audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
     let (show_speaker_stats, set_show_speaker_stats) = create_signal(false);
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (show_feedback, set_show_feedback) = create_signal(false);
@@ -161,9 +168,56 @@ pub fn use_room_state() -> RoomState {
     let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
+    let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
+    let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
+
+    // Video Processing for Virtual Background
+    let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
+
+    // Reactive Noise Suppression Update
+    create_effect(move |_| {
+        let enabled = is_noise_suppression_enabled.get();
+        audio_monitor.with(|monitor| {
+            if let Some(m) = monitor {
+                let _ = m.set_noise_suppression(enabled);
+            }
+        });
+    });
+
+    create_effect(move |prev_processor: Option<Option<crate::media::VideoProcessor>>| -> Option<crate::media::VideoProcessor> {
+        let mode = background_mode.get();
+        let stream = raw_local_stream.get();
+
+        // Cleanup previous processor implicitly by dropping it
+        if let Some(Some(prev)) = prev_processor {
+            drop(prev);
+        }
+
+        if let Some(s) = stream {
+            if mode == "none" {
+                set_local_stream.set(Some(s));
+                None
+            } else {
+                match crate::media::VideoProcessor::new(&s, mode) {
+                    Ok((processor, processed)) => {
+                        set_local_stream.set(Some(processed));
+                        Some(processor)
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                        set_local_stream.set(Some(s));
+                        None
+                    }
+                }
+            }
+        } else {
+            set_local_stream.set(None);
+            None
+        }
+    });
 
     // WebRTC Manager Setup
     let ws_clone_for_webrtc = ws;
@@ -341,7 +395,7 @@ pub fn use_room_state() -> RoomState {
                     }
                 }
 
-                set_local_stream.set(Some(stream.clone()));
+                set_raw_local_stream.set(Some(stream.clone()));
 
                 let on_speaking = Box::new(move |is_speaking: bool| {
                     if let Some(socket) = ws.get_untracked() {
@@ -358,10 +412,14 @@ pub fn use_room_state() -> RoomState {
                     add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
-                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
-
-                    set_audio_monitor.set(Some(monitor));
-                }
+            if let Ok(monitor) = AudioMonitor::new(
+                &stream,
+                on_speaking,
+                Some(on_no_audio as Box<dyn FnMut()>),
+                is_noise_suppression_enabled.get_untracked(),
+            ) {
+                set_audio_monitor.set(Some(monitor));
+            }
             }
         });
     });
@@ -664,6 +722,15 @@ pub fn use_room_state() -> RoomState {
                                     }
                                 });
                             }
+                            ServerMessage::Transcription { user_id, text, timestamp } => {
+                                set_subtitles.update(|subs| {
+                                    subs.push((user_id, text, timestamp));
+                                    // Keep only the last 5 transcriptions to avoid UI clutter
+                                    if subs.len() > 5 {
+                                        subs.remove(0);
+                                    }
+                                });
+                            }
                             ServerMessage::Pong { .. } => {
                                 let now = js_sys::Date::now();
                                 let start = last_ping_time.get_untracked();
@@ -806,6 +873,10 @@ pub fn use_room_state() -> RoomState {
                 let _ = socket.send_with_str(&json);
             }
         }
+    });
+
+    let set_background_mode = Callback::new(move |mode: String| {
+        set_background_mode_sig.set(mode);
     });
 
     let grant_access = Callback::new(move |id: String| {
@@ -1013,6 +1084,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let mute_all = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteAll;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let transfer_host = Callback::new(move |id: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::TransferHost(id);
@@ -1042,10 +1122,11 @@ pub fn use_room_state() -> RoomState {
     });
 
     let set_input_devices = Callback::new(
-        move |(vid, aid, res): (Option<String>, Option<String>, String)| {
+        move |(vid, aid, res, ns): (Option<String>, Option<String>, String, bool)| {
             set_selected_camera_id.set(vid.clone());
             set_selected_mic_id.set(aid.clone());
             set_video_resolution.set(res.clone());
+            set_is_noise_suppression_enabled.set(ns);
 
             // Use same logic as toggle_camera: preserve video state?
             // Or if user selected a camera, enable video?
@@ -1154,6 +1235,7 @@ pub fn use_room_state() -> RoomState {
         is_lobby_enabled,
         is_recording,
         is_subtitles_enabled,
+        subtitles,
         show_settings,
         show_polls,
         show_shortcuts,
@@ -1177,6 +1259,7 @@ pub fn use_room_state() -> RoomState {
         is_muted,
         shared_video_url,
         speaking_peers,
+        audio_monitor,
         show_speaker_stats,
         show_virtual_background,
         show_feedback,
@@ -1185,7 +1268,10 @@ pub fn use_room_state() -> RoomState {
         selected_camera_id,
         selected_mic_id,
         video_resolution,
+        is_noise_suppression_enabled,
+        background_mode,
         set_input_devices,
+        set_background_mode,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
@@ -1222,6 +1308,7 @@ pub fn use_room_state() -> RoomState {
         toggle_mic,
         end_meeting,
         mute_participant,
+        mute_all,
         transfer_host,
         start_share_video,
         stop_share_video,
@@ -1237,6 +1324,24 @@ mod tests {
     fn test_room_connection_state_equality() {
         assert_eq!(RoomConnectionState::Prejoin, RoomConnectionState::Prejoin);
         assert_ne!(RoomConnectionState::Prejoin, RoomConnectionState::Joined);
+    }
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn test_subtitles_initially_empty() {
+        let _runtime = create_runtime();
+        crate::components_ui::toast::provide_toast_context();
+        let state = use_room_state();
+        assert!(state.subtitles.get_untracked().is_empty());
+    }
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn test_background_mode_initial() {
+        let _runtime = create_runtime();
+        crate::components_ui::toast::provide_toast_context();
+        let state = use_room_state();
+        assert_eq!(state.background_mode.get_untracked(), "none");
     }
 }
 

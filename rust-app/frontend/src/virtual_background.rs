@@ -6,11 +6,9 @@ pub fn VirtualBackgroundDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_change: Callback<String>,
+    current_mode: ReadSignal<String>,
 ) -> impl IntoView {
-    let (selected, set_selected) = create_signal("none".to_string());
-
     let apply = move |mode: String| {
-        set_selected.set(mode.clone());
         on_change.call(mode);
     };
 
@@ -32,7 +30,7 @@ pub fn VirtualBackgroundDialog(
                                 border-radius: 4px;
                                 padding: 10px;
                                 text-align: center;
-                            ", if selected.get() == "none" { "#007bff" } else { "#ccc" })
+                            ", if current_mode.get() == "none" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: #eee; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
                                 {move || t("none")}
@@ -48,7 +46,7 @@ pub fn VirtualBackgroundDialog(
                                 border-radius: 4px;
                                 padding: 10px;
                                 text-align: center;
-                            ", if selected.get() == "blur" { "#007bff" } else { "#ccc" })
+                            ", if current_mode.get() == "blur" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: #eee; margin-bottom: 5px; filter: blur(2px); display: flex; align-items: center; justify-content: center;">
                                 {move || t("blur")}
@@ -64,7 +62,7 @@ pub fn VirtualBackgroundDialog(
                                 border-radius: 4px;
                                 padding: 10px;
                                 text-align: center;
-                            ", if selected.get() == "image" { "#007bff" } else { "#ccc" })
+                            ", if current_mode.get() == "image" { "#007bff" } else { "#ccc" })
                         >
                             <div style="height: 60px; background: url('https://via.placeholder.com/150'); background-size: cover; margin-bottom: 5px;"></div>
                             <span>{move || t("image")}</span>
@@ -87,9 +85,11 @@ pub fn VirtualBackgroundDialog(
 
 #[cfg(test)]
 mod tests {
+    use leptos::*;
     #[test]
     fn test_virtual_background_selection() {
-        // Logic test for default state could be here, but visual mostly.
-        assert_eq!(1, 1);
+        let _runtime = create_runtime();
+        let (current_mode, _set_current_mode) = create_signal::<String>("blur".to_string());
+        assert_eq!(current_mode.get(), "blur");
     }
 }
