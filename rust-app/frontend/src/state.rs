@@ -198,7 +198,20 @@ pub fn use_room_state() -> RoomState {
             if let Some(s) = stream {
                 let has_video = s.get_video_tracks().length() > 0;
                 if mode == "none" || !has_video {
-                    // No processing needed — drop any existing processor and pass through
+                    // No processing needed — drop any existing processor and pass through.
+                    // Stop old canvas stream video tracks to avoid leaking captureStream
+                    // resources. Only stop video tracks since audio tracks are shared
+                    // references to the raw stream's tracks and must remain active.
+                    if prev_processor.as_ref().is_some_and(|p| p.is_some()) {
+                        if let Some(old_processed) = local_stream.get_untracked() {
+                            let video_tracks = old_processed.get_video_tracks();
+                            for i in 0..video_tracks.length() {
+                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                    track.stop();
+                                }
+                            }
+                        }
+                    }
                     if let Some(Some(prev)) = prev_processor {
                         drop(prev);
                     }
@@ -223,6 +236,17 @@ pub fn use_room_state() -> RoomState {
                     }
 
                     // Either the stream changed or no processor exists yet — (re)create.
+                    // Stop old canvas video tracks before dropping the processor.
+                    if prev_processor.as_ref().is_some_and(|p| p.is_some()) {
+                        if let Some(old_processed) = local_stream.get_untracked() {
+                            let video_tracks = old_processed.get_video_tracks();
+                            for i in 0..video_tracks.length() {
+                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                    track.stop();
+                                }
+                            }
+                        }
+                    }
                     if let Some(Some(prev)) = prev_processor {
                         drop(prev);
                     }
@@ -461,6 +485,10 @@ pub fn use_room_state() -> RoomState {
                 Some(on_no_audio as Box<dyn FnMut()>),
                 is_noise_suppression_enabled.get_untracked(),
             ) {
+                // Inherit the current mute state so the monitor doesn't fire
+                // false-positive speaking callbacks while the user is muted
+                // (e.g. after a noise-suppression restart or device change).
+                monitor.set_muted(is_muted.get_untracked());
                 set_audio_monitor.set(Some(monitor));
             }
             }
