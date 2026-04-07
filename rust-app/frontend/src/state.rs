@@ -178,15 +178,7 @@ pub fn use_room_state() -> RoomState {
     // Video Processing for Virtual Background
     let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
 
-    // Reactive Noise Suppression Update
-    create_effect(move |_| {
-        let enabled = is_noise_suppression_enabled.get();
-        audio_monitor.with(|monitor| {
-            if let Some(m) = monitor {
-                let _ = m.set_noise_suppression(enabled);
-            }
-        });
-    });
+    // Note: Reactive Noise Suppression effect is created after start_media_stream below.
 
     create_effect(move |prev_processor: Option<Option<crate::media::VideoProcessor>>| -> Option<crate::media::VideoProcessor> {
         let mode = background_mode.get();
@@ -373,7 +365,19 @@ pub fn use_room_state() -> RoomState {
             // Assuming typical WebRTC flow: request audio=true.
 
             if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
-                // Stop existing stream tracks just before replacing
+                // Stop existing raw stream tracks to release camera/mic hardware.
+                // When a virtual background is active, local_stream contains canvas
+                // video tracks (not the real getUserMedia tracks), so stopping only
+                // local_stream would leak the camera. Always stop raw_local_stream.
+                if let Some(old_raw) = raw_local_stream.get_untracked() {
+                    let tracks = old_raw.get_tracks();
+                    for i in 0..tracks.length() {
+                        if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.stop();
+                        }
+                    }
+                }
+                // Also stop processed stream tracks (canvas video tracks) for cleanup
                 if let Some(old_stream) = local_stream.get_untracked() {
                     let tracks = old_stream.get_tracks();
                     for i in 0..tracks.length() {
@@ -423,6 +427,30 @@ pub fn use_room_state() -> RoomState {
             }
             }
         });
+    });
+
+    // Reactive Noise Suppression Update
+    create_effect(move |_| {
+        let enabled = is_noise_suppression_enabled.get();
+        let needs_restart = audio_monitor.with(|monitor| {
+            if let Some(m) = monitor {
+                // Returns Err if the monitor needs to be recreated (e.g. enabling
+                // suppression when no compressor node exists in the audio graph).
+                m.set_noise_suppression(enabled).is_err()
+            } else {
+                false
+            }
+        });
+        if needs_restart {
+            // Restart media to recreate the AudioMonitor with the correct setting.
+            // Preserve current video state.
+            let has_video = local_stream.with_untracked(|s| {
+                s.as_ref().map_or(false, |stream| stream.get_video_tracks().length() > 0)
+            });
+            if local_stream.get_untracked().is_some() {
+                start_media_stream.call(has_video);
+            }
+        }
     });
 
     // Initialize WebSocket

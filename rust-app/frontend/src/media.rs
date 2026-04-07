@@ -444,19 +444,28 @@ impl AudioMonitor {
             return Ok(());
         }
 
-        // To properly toggle, we'd need to re-route nodes.
-        // For simplicity in this migration, we'll suggest recreating the monitor
-        // or implementing dynamic routing if state allows.
-        // But let's try a simple bypass logic if we have the compressor.
         if let Some(comp) = &self.compressor {
+            // Compressor exists — adjust threshold to toggle bypass
             if enabled {
                 comp.threshold().set_value(-50.0);
             } else {
                 comp.threshold().set_value(0.0); // Effectively bypass
             }
+            *current = enabled;
+            Ok(())
+        } else if enabled {
+            // No compressor was created (monitor was built without noise suppression).
+            // We cannot dynamically insert a DynamicsCompressorNode into the existing
+            // audio graph without re-routing, so signal the caller to recreate the
+            // AudioMonitor with the correct setting.
+            Err(JsValue::from_str(
+                "Cannot enable noise suppression: AudioMonitor was created without a compressor. Recreate the monitor.",
+            ))
+        } else {
+            // Disabling when already disabled / no compressor — no-op is fine
+            *current = enabled;
+            Ok(())
         }
-        *current = enabled;
-        Ok(())
     }
 }
 
