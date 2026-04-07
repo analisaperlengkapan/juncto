@@ -63,6 +63,7 @@ pub struct RoomState {
     pub is_muted: ReadSignal<bool>,
     pub shared_video_url: ReadSignal<Option<String>>,
     pub speaking_peers: ReadSignal<HashSet<String>>,
+    #[allow(dead_code)]
     pub audio_monitor: ReadSignal<Option<AudioMonitor>>,
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,

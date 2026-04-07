@@ -182,6 +182,7 @@ impl VideoProcessor {
                 }
                 "image" => {
                     // Draw a placeholder background color (representing an image)
+                    #[allow(deprecated)]
                     context_clone.set_fill_style(&"#004400".into());
                     context_clone.fill_rect(0.0, 0.0, width, height);
                     let _ = context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
@@ -219,9 +220,6 @@ impl VideoProcessor {
         ))
     }
 
-    pub fn set_mode(&self, mode: String) {
-        *self.mode.borrow_mut() = mode;
-    }
 }
 
 impl Drop for VideoProcessor {
