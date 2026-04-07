@@ -561,6 +561,10 @@ pub fn use_room_state() -> RoomState {
                                 set_typing_users.update(|users| {
                                     users.remove(&id);
                                 });
+                                // Remove from speaking peers to avoid stale indicators
+                                set_speaking_peers.update(|s| {
+                                    s.remove(&id);
+                                });
                                 // Cleanup WebRTC
                                 webrtc_manager.handle_participant_left(&id);
                                 set_remote_streams.update(|map| {
