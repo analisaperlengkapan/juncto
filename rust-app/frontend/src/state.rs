@@ -1087,6 +1087,9 @@ pub fn use_room_state() -> RoomState {
         set_current_room_id.set(room_id.clone());
         // Clear messages when switching rooms
         set_messages.set(Vec::new());
+        // Clear stale speaking/typing indicators from the old room
+        set_speaking_peers.update(|s| s.clear());
+        set_typing_users.update(|u| u.clear());
 
         // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
         webrtc_manager_for_breakout.close_all_peers();
