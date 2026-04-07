@@ -208,6 +208,17 @@ impl VideoProcessor {
             return Err(JsValue::from_str("Canvas captureStream not supported"));
         };
 
+        // Canvas captureStream only contains video tracks. Copy audio tracks from the
+        // original stream so that WebRTC peers still receive audio and mute/unmute
+        // operations continue to work when a virtual background is active.
+        let audio_tracks = stream.get_audio_tracks();
+        for i in 0..audio_tracks.length() {
+            let track = audio_tracks.get(i);
+            if let Ok(track) = track.dyn_into::<web_sys::MediaStreamTrack>() {
+                processed_stream.add_track(&track);
+            }
+        }
+
         Ok((
             Self {
                 canvas,

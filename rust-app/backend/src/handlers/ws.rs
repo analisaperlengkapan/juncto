@@ -762,8 +762,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if let Some(uid) = &my_id {
                                         let mut update_stats = false;
                                         if is_speaking {
-                                            let mut starts = speaking_start_times_mutex.lock().unwrap();
-                                            starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+                                            {
+                                                let mut starts = speaking_start_times_mutex.lock().unwrap();
+                                                starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+                                            }
 
                                             // Transcription logic (Mocked)
                                             let is_subtitles_enabled = {
