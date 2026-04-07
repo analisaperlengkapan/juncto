@@ -283,10 +283,11 @@ mod tests {
     #[ignore]
     fn test_prejoin_compiles() {
         let _ = create_runtime();
-                let on_join = Callback::new(|_: JoinOptions| {});
+        let on_join = Callback::new(|_: JoinOptions| {});
+        let (is_connected, _) = create_signal(true);
 
         let _view = view! {
-            <PrejoinScreen on_join=on_join />
+            <PrejoinScreen on_join=on_join is_connected=is_connected />
         };
         assert!(true);
     }
