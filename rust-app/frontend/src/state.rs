@@ -190,7 +190,8 @@ pub fn use_room_state() -> RoomState {
         }
 
         if let Some(s) = stream {
-            if mode == "none" {
+            let has_video = s.get_video_tracks().length() > 0;
+            if mode == "none" || !has_video {
                 set_local_stream.set(Some(s));
                 None
             } else {
