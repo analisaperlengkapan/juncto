@@ -67,6 +67,8 @@ pub struct RoomState {
     pub speaking_peers: ReadSignal<HashSet<String>>,
     #[allow(dead_code)]
     pub audio_monitor: ReadSignal<Option<AudioMonitor>>,
+    #[allow(dead_code)]
+    pub raw_local_stream: ReadSignal<Option<MediaStream>>,
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
@@ -1336,6 +1338,7 @@ pub fn use_room_state() -> RoomState {
         shared_video_url,
         speaking_peers,
         audio_monitor,
+        raw_local_stream,
         show_speaker_stats,
         show_virtual_background,
         show_feedback,

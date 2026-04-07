@@ -47,7 +47,19 @@ pub fn Room() -> impl IntoView {
 
     let state_clone = state.clone();
     let leave_room = Callback::new(move |_| {
-        // perform explicit cleanups before leaving
+        // Stop raw camera/mic tracks first to release hardware immediately.
+        // When a virtual background is active, local_stream holds canvas video
+        // tracks (not the real getUserMedia tracks), so stopping only
+        // local_stream would leak the camera.
+        if let Some(raw) = state_clone.raw_local_stream.get_untracked() {
+            let tracks = raw.get_tracks();
+            for i in 0..tracks.length() {
+                if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                    track.stop();
+                }
+            }
+        }
+        // Also stop processed stream tracks (canvas video tracks) for cleanup
         if let Some(stream) = state_clone.local_stream.get_untracked() {
             let tracks = stream.get_tracks();
             for i in 0..tracks.length() {
