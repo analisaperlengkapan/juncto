@@ -11,6 +11,7 @@ pub fn Toolbox(
     is_e2ee_enabled: ReadSignal<bool>,
     on_toggle_etherpad: Callback<()>,
     is_etherpad_active: Signal<bool>,
+    is_etherpad_open: Signal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
     #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] _on_toggle_lobby: Option<Callback<()>>,
@@ -90,10 +91,10 @@ pub fn Toolbox(
             <Show when=move || is_etherpad_active.get() || is_host.get()>
                 <button
                     on:click=move |_| on_toggle_etherpad.call(())
-                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_etherpad_active.get() { "#28a745" } else { "#6c757d" })
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_etherpad_open.get() { "#28a745" } else { "#6c757d" })
                     title="Shared Document (Etherpad)"
                 >
-                    {move || if is_etherpad_active.get() { "Close Pad" } else { "Open Pad" }}
+                    {move || if is_etherpad_open.get() { "Close Pad" } else { "Open Pad" }}
                 </button>
             </Show>
             <button

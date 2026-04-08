@@ -272,6 +272,7 @@ pub fn Room() -> impl IntoView {
                                     }
                                 })
                                 is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
+                                is_etherpad_open=Signal::derive(move || state.show_etherpad.get())
                                 current_presence=Signal::derive(move || {
                                     if let Some(my_id) = state.my_id.get() {
                                         if let Some(me) = state.participants.get().iter().find(|p| p.id == my_id) {

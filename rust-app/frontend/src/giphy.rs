@@ -2,13 +2,22 @@ use serde::{Deserialize, Serialize};
 
 /// Giphy API key used for search/trending requests.
 ///
-/// The default value (`dc6zaTOxFJmzC`) is Giphy's well-known **public beta
-/// key** intended for development and testing.  It has undocumented rate
-/// limits and may be deprecated by Giphy at any time.
+/// Set the `GIPHY_API_KEY` environment variable **at compile time** to
+/// override the default.  The default value (`dc6zaTOxFJmzC`) is Giphy's
+/// well-known **public beta key** intended for development and testing.
+/// It has undocumented rate limits and may be deprecated by Giphy at any
+/// time.
 ///
 /// For production deployments, register for a production API key at
-/// <https://developers.giphy.com/> and replace this constant.
-pub const GIPHY_API_KEY: &str = "dc6zaTOxFJmzC";
+/// <https://developers.giphy.com/> and build with:
+///
+/// ```sh
+/// GIPHY_API_KEY=your_key trunk build
+/// ```
+pub const GIPHY_API_KEY: &str = match option_env!("GIPHY_API_KEY") {
+    Some(key) => key,
+    None => "dc6zaTOxFJmzC",
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GiphyImage {

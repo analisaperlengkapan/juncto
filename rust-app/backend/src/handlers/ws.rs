@@ -188,19 +188,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::GiphyShare(url) => {
-                                    if let Some(uid) = &my_id {
-                                        // Validate Giphy CDN URL (same allowlist as chat GIF validation)
-                                        if !shared::is_giphy_cdn_url(&url) {
-                                            let _ = internal_tx.send(ServerMessage::Error("Invalid GIF URL: only Giphy CDN URLs are allowed".to_string())).await;
-                                            continue;
-                                        }
-                                        let _ = tx.send(ServerMessage::GiphyShared {
-                                            url,
-                                            sender_id: uid.clone(),
-                                            room_id: my_room_id.clone()
-                                        });
-                                    }
+                                ClientMessage::GiphyShare(_) => {
+                                    // GIFs are sent via ClientMessage::Chat with a "GIF:" prefix;
+                                    // this dedicated variant is unused by the frontend.
                                 },
                                 ClientMessage::ToggleSubtitles => {
                                     if let Some(uid) = &my_id {
@@ -525,6 +515,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == *room_id || *id == my_id_clone
                                                         },
+                                                        // Note: EtherpadUrlUpdated and GiphyShared are
+                                                        // currently never broadcast by the server (etherpad
+                                                        // changes go via RoomUpdated, GIFs via Chat). These
+                                                        // arms are kept for protocol completeness.
                                                         ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
@@ -1208,6 +1202,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let source_loc = locs.get(user_id).cloned().flatten();
                                                     my_loc == source_loc
                                                 },
+                                                // Note: EtherpadUrlUpdated and GiphyShared are
+                                                // currently never broadcast by the server (etherpad
+                                                // changes go via RoomUpdated, GIFs via Chat). These
+                                                // arms are kept for protocol completeness.
                                                 ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
