@@ -7,12 +7,17 @@ test.describe('Picture-in-Picture feature', () => {
         // Wait for prejoin screen
         await page.waitForSelector('.prejoin-container', { timeout: 10000 });
 
-        // Ensure camera is on in prejoin
+        // Ensure camera is on in prejoin.
+        // The camera button shows 🚫 when off and 📷 when on.
+        // Use title selector for reliability; check text content with trim
+        // to handle any invisible characters from emoji rendering.
         const camBtn = page.locator('button[title="Toggle Camera"]');
         await expect(camBtn).toBeVisible();
-        const camBtnText = await camBtn.innerText();
-        if (camBtnText === '🚫') {
+        const camBtnText = (await camBtn.innerText()).trim();
+        if (camBtnText !== '📷') {
             await camBtn.click(); // Turn it on
+            // Wait for the button text to change, confirming the camera is now on
+            await expect(camBtn).toContainText('📷', { timeout: 5000 });
         }
 
         // Enter a name
@@ -23,8 +28,11 @@ test.describe('Picture-in-Picture feature', () => {
         await expect(joinBtn).toHaveText('Join Meeting', { timeout: 15000 });
         await joinBtn.click();
 
+        // First confirm we've entered the room
+        await expect(page.locator('h2')).toContainText('Meeting Room:', { timeout: 30000 });
+
         // Wait for the room to load and camera to be active
-        await page.waitForSelector('.video-card.local-video video', { timeout: 15000 });
+        await page.waitForSelector('.video-card.local-video video', { timeout: 30000 });
 
         // Ensure the PiP button exists on the local video
         const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
@@ -44,12 +52,14 @@ test.describe('Picture-in-Picture feature', () => {
         // Enter a name
         await page.locator('.prejoin-container input[type="text"]').fill('PiP Tester');
 
-        // Toggle camera off
+        // Ensure camera is off in prejoin.
+        // The camera button shows 🚫 when off and 📷 when on.
         const camBtn = page.locator('button[title="Toggle Camera"]');
         await expect(camBtn).toBeVisible();
-        const camBtnText = await camBtn.innerText();
-        if (camBtnText === '📷') {
+        const camBtnText = (await camBtn.innerText()).trim();
+        if (camBtnText !== '🚫') {
             await camBtn.click(); // Turn it off
+            await expect(camBtn).toContainText('🚫', { timeout: 5000 });
         }
 
         // Wait for Join button to be enabled (meaning WebSocket is connected)
@@ -57,8 +67,12 @@ test.describe('Picture-in-Picture feature', () => {
         await expect(joinBtn).toHaveText('Join Meeting', { timeout: 15000 });
         await joinBtn.click();
 
-        // Wait for the room to load and camera to be inactive
-        await page.waitForSelector('.video-card.local-video', { timeout: 15000 });
+        // First confirm we've entered the room
+        await expect(page.locator('h2')).toContainText('Meeting Room:', { timeout: 30000 });
+
+        // Wait for the room to load — the local-video card always renders,
+        // but when camera is off the "Camera Off" fallback text appears instead of <video>.
+        await page.waitForSelector('.video-card.local-video', { timeout: 30000 });
 
         // Ensure the PiP button does not exist on the local video (since camera is off and it's inside the Show block)
         const pipButton = page.locator('.video-card.local-video button[title="Picture-in-Picture"]');
