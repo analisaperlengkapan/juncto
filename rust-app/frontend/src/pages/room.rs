@@ -255,7 +255,7 @@ pub fn Room() -> impl IntoView {
                                 is_e2ee_enabled=state.is_e2ee_enabled
                                 on_toggle_etherpad=Callback::new({
                                     let state = state.clone();
-                                    let room_id_fn = room_id.clone();
+                                    let room_id_fn = room_id;
                                     move |_| {
                                         let current = state.show_etherpad.get_untracked();
                                         if state.is_host.get_untracked() {
