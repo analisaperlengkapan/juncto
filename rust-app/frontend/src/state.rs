@@ -330,7 +330,7 @@ pub fn use_room_state() -> RoomState {
 
         set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
             // Append the new stream to the list for this peer, checking for duplicates
-            let streams = map.entry(peer_id).or_insert_with(Vec::new);
+            let streams = map.entry(peer_id).or_default();
             let stream_id = stream.id();
             if !streams.iter().any(|s| s.id() == stream_id) {
                 streams.push(stream);
