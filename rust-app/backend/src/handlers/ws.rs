@@ -421,13 +421,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
                                     }
 
+                                    let current_config = {
+                                        room_config_mutex.lock().unwrap().clone()
+                                    };
                                     if new_host_assigned {
-                                        let new_config = {
-                                            room_config_mutex.lock().unwrap().clone()
-                                        };
-                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
-                                        let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
+                                        let _ = tx.send(ServerMessage::RoomUpdated(current_config.clone()));
                                     }
+                                    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config)).await;
 
                                     // Register initial location (Main Room)
                                     {
@@ -1088,13 +1088,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
                             }
 
+                            let current_config = {
+                                room_config_mutex.lock().unwrap().clone()
+                            };
                             if new_host_assigned {
-                                let new_config = {
-                                    room_config_mutex.lock().unwrap().clone()
-                                };
-                                let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
-                                let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
+                                let _ = tx.send(ServerMessage::RoomUpdated(current_config.clone()));
                             }
+                            let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config)).await;
 
                              // Register initial location (Main Room)
                             {

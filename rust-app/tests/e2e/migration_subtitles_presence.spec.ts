@@ -2,13 +2,25 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Subtitles and Presence Status Features', () => {
 
-  test('Subtitles toggle and Presence Display', async ({ browser }) => {
+  test('Subtitles toggle and Presence Display', async ({ browser, request }) => {
+    const roomName = `SubRoom_${Date.now()}`;
+
+    // Reset room config via API
+    await request.post('/api/rooms', {
+        data: {
+            room_name: roomName,
+            is_locked: false,
+            is_recording: false,
+            is_lobby_enabled: false,
+            max_participants: 100
+        }
+    });
+
     const context = await browser.newContext();
     const page = await context.newPage();
 
     // 1. Join room
-    const roomName = `SubRoom_${Date.now()}`;
-    await page.goto(`http://localhost:3000/room/${roomName}`);
+    await page.goto(`/room/${roomName}`);
 
     // Prejoin screen
     await page.fill('input[type="text"]', 'SubtitleTestUser');

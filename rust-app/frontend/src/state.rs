@@ -585,9 +585,7 @@ pub fn use_room_state() -> RoomState {
                                 set_room_config.set(config.clone());
                                 set_is_locked.set(config.is_locked);
                                 set_is_e2ee_enabled.set(config.e2ee_enabled);
-                                if has_url {
-                                    set_show_etherpad.set(true);
-                                }
+                                set_show_etherpad.set(has_url);
 
                                 // Check for recording status change
                                 let was_recording = is_recording.get_untracked();
