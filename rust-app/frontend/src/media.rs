@@ -167,6 +167,8 @@ impl VideoProcessor {
         let canvas_clone = canvas.clone();
         let context_clone = context.clone();
         let video_clone = video.clone();
+        let last_width: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let last_height: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
 
         let closure = Closure::wrap(Box::new(move || {
             let width = video_clone.video_width() as f64;
@@ -175,8 +177,17 @@ impl VideoProcessor {
                 return;
             }
 
-            canvas_clone.set_width(width as u32);
-            canvas_clone.set_height(height as u32);
+            // Only update canvas dimensions when the video resolution changes.
+            // Calling set_width/set_height clears the canvas buffer, so doing it
+            // every frame (~30fps) wastes CPU on an unnecessary buffer reset.
+            let w = width as u32;
+            let h = height as u32;
+            if *last_width.borrow() != w || *last_height.borrow() != h {
+                canvas_clone.set_width(w);
+                canvas_clone.set_height(h);
+                *last_width.borrow_mut() = w;
+                *last_height.borrow_mut() = h;
+            }
 
             let current_mode = mode_clone.borrow();
             match current_mode.as_str() {
