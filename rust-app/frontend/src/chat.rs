@@ -237,11 +237,22 @@ pub fn Chat(
                                     {move || {
                                         if msg.content.starts_with("GIF:") {
                                             let url = msg.content[4..].to_string();
-                                            view! {
-                                                <div>
-                                                    <img src=url style="max-width: 200px; border-radius: 4px; display: block; margin-top: 5px;" />
-                                                </div>
-                                            }.into_view()
+                                            let is_safe = url.starts_with("https://media.giphy.com/")
+                                                || url.starts_with("https://media0.giphy.com/")
+                                                || url.starts_with("https://media1.giphy.com/")
+                                                || url.starts_with("https://media2.giphy.com/")
+                                                || url.starts_with("https://media3.giphy.com/")
+                                                || url.starts_with("https://media4.giphy.com/")
+                                                || url.starts_with("https://i.giphy.com/");
+                                            if is_safe {
+                                                view! {
+                                                    <div>
+                                                        <img src=url style="max-width: 200px; border-radius: 4px; display: block; margin-top: 5px;" />
+                                                    </div>
+                                                }.into_view()
+                                            } else {
+                                                view! { <span>{msg.content.clone()}</span> }.into_view()
+                                            }
                                         } else {
                                             view! { <span>{msg.content.clone()}</span> }.into_view()
                                         }

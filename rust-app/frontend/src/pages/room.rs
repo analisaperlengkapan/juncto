@@ -255,11 +255,14 @@ pub fn Room() -> impl IntoView {
                                 is_e2ee_enabled=state.is_e2ee_enabled
                                 on_toggle_etherpad=Callback::new({
                                     let state = state.clone();
+                                    let room_id_fn = room_id.clone();
                                     move |_| {
                                         let current = state.show_etherpad.get_untracked();
                                         if state.is_host.get_untracked() {
                                             if !current {
-                                                state.toggle_etherpad.call(Some("https://etherpad.org/p/juncto-demo".to_string()));
+                                                let rid = room_id_fn();
+                                                let pad_url = format!("https://etherpad.org/p/juncto-{}", rid);
+                                                state.toggle_etherpad.call(Some(pad_url));
                                             } else {
                                                 state.toggle_etherpad.call(None);
                                             }

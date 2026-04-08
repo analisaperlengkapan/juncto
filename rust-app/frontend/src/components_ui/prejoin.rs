@@ -22,20 +22,6 @@ pub fn PrejoinScreen(
     let (selected_video_device, set_selected_video_device) = create_signal(initial_settings.camera_id);
     let (selected_audio_device, set_selected_audio_device) = create_signal(initial_settings.mic_id);
 
-    // Sync from storage after mount (to handle async load cases if any)
-    create_effect(move |_| {
-        let settings = crate::storage::load_settings();
-        if let Some(name) = settings.display_name {
-            set_display_name.set(name);
-        }
-        if let Some(vid) = settings.camera_id {
-            set_selected_video_device.set(Some(vid));
-        }
-        if let Some(aid) = settings.mic_id {
-            set_selected_audio_device.set(Some(aid));
-        }
-    });
-
     // Toggles
     let (is_camera_on, set_is_camera_on) = create_signal(false);
     let (is_mic_on, set_is_mic_on) = create_signal(true);

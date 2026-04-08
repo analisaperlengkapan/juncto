@@ -890,28 +890,13 @@ pub fn use_room_state() -> RoomState {
                                     sdp_m_line_index,
                                 );
                             }
-                            ServerMessage::EtherpadUrlUpdated { url, .. } => {
-                                let has_url = url.is_some();
-                                web_sys::console::log_1(&format!("EtherpadUrlUpdated: {:?}", url).into());
-                                set_room_config.update(|config: &mut shared::RoomConfig| {
-                                    config.etherpad_url = url;
-                                });
-                                set_show_etherpad.set(has_url);
+                            ServerMessage::EtherpadUrlUpdated { .. } => {
+                                // Handled via RoomUpdated; this variant is not
+                                // currently sent by the server.
                             }
-                            ServerMessage::GiphyShared { url, sender_id, .. } => {
-                                // Add to chat messages as a special content
-                                set_messages.update(|msgs: &mut Vec<ChatMessage>| {
-                                    if !msgs.iter().any(|m| m.content == format!("GIF:{}", url) && m.user_id == sender_id) {
-                                        msgs.push(ChatMessage {
-                                            user_id: sender_id,
-                                            content: format!("GIF:{}", url),
-                                            recipient_id: None,
-                                            timestamp: js_sys::Date::now() as u64,
-                                            attachment: None,
-                                            room_id: current_room_id.get_untracked(),
-                                        });
-                                    }
-                                });
+                            ServerMessage::GiphyShared { .. } => {
+                                // GIFs are sent/received as regular Chat messages
+                                // with a "GIF:" prefix; this variant is unused.
                             }
                         }
                     }

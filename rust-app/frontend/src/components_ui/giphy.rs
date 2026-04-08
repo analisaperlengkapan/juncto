@@ -1,13 +1,32 @@
 use leptos::*;
 use crate::giphy::{GiphyData, GiphyService};
+use gloo_timers::callback::Timeout;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[component]
 pub fn GiphySearch(
     on_select: Callback<String>, // returns the URL
 ) -> impl IntoView {
     let (query, set_query) = create_signal("".to_string());
+    let (debounced_query, set_debounced_query) = create_signal("".to_string());
     let (gifs, set_gifs) = create_signal(Vec::<GiphyData>::new());
     let (is_loading, set_is_loading) = create_signal(false);
+
+    // Debounce: only update debounced_query 300ms after the last keystroke
+    let debounce_handle: Rc<RefCell<Option<Timeout>>> = Rc::new(RefCell::new(None));
+    create_effect({
+        let debounce_handle = debounce_handle.clone();
+        move |_| {
+            let q = query.get();
+            // Cancel previous timer
+            debounce_handle.borrow_mut().take();
+            let handle = Timeout::new(300, move || {
+                set_debounced_query.set(q);
+            });
+            *debounce_handle.borrow_mut() = Some(handle);
+        }
+    });
 
     let search_action = create_action(move |q: &String| {
         let q = q.clone();
@@ -18,7 +37,7 @@ pub fn GiphySearch(
     });
 
     create_effect(move |_| {
-        let q = query.get();
+        let q = debounced_query.get();
         search_action.dispatch(q);
     });
 

@@ -52,8 +52,6 @@ impl GiphyService {
             "https://api.giphy.com/v1/gifs/trending?api_key={}&limit=20&rating=g",
             self.api_key
         );
-        web_sys::console::log_1(&format!("Fetching Trending Giphy: {}", url).into());
-
         self.fetch_from_url(&url).await
     }
 
