@@ -590,9 +590,13 @@ pub fn use_room_state() -> RoomState {
                                 set_is_locked.set(config.is_locked);
                                 set_is_e2ee_enabled.set(config.e2ee_enabled);
 
-                                // Check for recording status change
+                                // Check for recording status change — only show
+                                // toasts after the user has actually joined to
+                                // avoid spurious notifications from the initial
+                                // RoomUpdated sent on WS connect or from room
+                                // resets via the REST API.
                                 let was_recording = is_recording.get_untracked();
-                                if config.is_recording != was_recording {
+                                if config.is_recording != was_recording && my_id.get_untracked().is_some() {
                                     if config.is_recording {
                                         add_toast("Recording Started".to_string(), ToastType::Info);
                                     } else {

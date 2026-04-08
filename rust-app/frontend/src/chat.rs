@@ -235,8 +235,8 @@ pub fn Chat(
                                     <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>
                                     {move || {
-                                        if msg.content.starts_with("GIF:") {
-                                            let url = msg.content[4..].to_string();
+                                        if let Some(url) = msg.content.strip_prefix("GIF:") {
+                                            let url = url.to_string();
                                             let is_safe = url.starts_with("https://media.giphy.com/")
                                                 || url.starts_with("https://media0.giphy.com/")
                                                 || url.starts_with("https://media1.giphy.com/")

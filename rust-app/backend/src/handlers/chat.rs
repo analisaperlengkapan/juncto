@@ -18,8 +18,7 @@ pub fn process_chat_message(
     }
 
     // Server-side validation for GIF messages: only allow known Giphy CDN domains
-    if content.starts_with("GIF:") {
-        let url = &content[4..];
+    if let Some(url) = content.strip_prefix("GIF:") {
         let is_safe = url.starts_with("https://media.giphy.com/")
             || url.starts_with("https://media0.giphy.com/")
             || url.starts_with("https://media1.giphy.com/")

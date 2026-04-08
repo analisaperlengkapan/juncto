@@ -190,6 +190,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::GiphyShare(url) => {
                                     if let Some(uid) = &my_id {
+                                        // Validate Giphy CDN URL (same allowlist as chat GIF validation)
+                                        let is_safe = url.starts_with("https://media.giphy.com/")
+                                            || url.starts_with("https://media0.giphy.com/")
+                                            || url.starts_with("https://media1.giphy.com/")
+                                            || url.starts_with("https://media2.giphy.com/")
+                                            || url.starts_with("https://media3.giphy.com/")
+                                            || url.starts_with("https://media4.giphy.com/")
+                                            || url.starts_with("https://i.giphy.com/");
+                                        if !is_safe {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid GIF URL: only Giphy CDN URLs are allowed".to_string())).await;
+                                            continue;
+                                        }
                                         let _ = tx.send(ServerMessage::GiphyShared {
                                             url,
                                             sender_id: uid.clone(),
