@@ -28,6 +28,8 @@ pub struct RoomConfig {
     pub e2ee_enabled: bool,
     #[serde(default)]
     pub is_subtitles_enabled: bool,
+    #[serde(default)]
+    pub etherpad_url: Option<String>,
 }
 
 impl Default for RoomConfig {
@@ -41,6 +43,7 @@ impl Default for RoomConfig {
             host_id: None,
             e2ee_enabled: false,
             is_subtitles_enabled: false,
+            etherpad_url: None,
         }
     }
 }
@@ -143,6 +146,9 @@ pub enum ClientMessage {
     ToggleRaiseHand,
     ToggleScreenShare,
     ToggleLobby,
+    ToggleE2EE,
+    SetEtherpadUrl(Option<String>),
+    GiphyShare(String),
     GrantAccess(String),
     DenyAccess(String),
     KickParticipant(String), // Target ID
@@ -236,6 +242,8 @@ pub enum ServerMessage {
     },
     Knocking,
     AccessDenied,
+    EtherpadUrlUpdated { url: Option<String>, room_id: Option<String> },
+    GiphyShared { url: String, sender_id: String, room_id: Option<String> },
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,

@@ -7,6 +7,10 @@ pub fn Toolbox(
     #[prop(optional)] _is_lobby_enabled: Option<ReadSignal<bool>>,
     is_recording: ReadSignal<bool>,
     is_subtitles_enabled: ReadSignal<bool>,
+    on_toggle_e2ee: Callback<()>,
+    is_e2ee_enabled: ReadSignal<bool>,
+    on_toggle_etherpad: Callback<()>,
+    is_etherpad_active: ReadSignal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
     #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] _on_toggle_lobby: Option<Callback<()>>,
@@ -69,6 +73,26 @@ pub fn Toolbox(
                 >
                     {move || if is_subtitles_enabled.get() { "Hide Subtitles" } else { "Show Subtitles" }}
                 </button>
+                <button
+                    on:click=move |_| on_toggle_recording.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })
+                >
+                    {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
+                </button>
+                <button
+                    on:click=move |_| on_toggle_e2ee.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_e2ee_enabled.get() { "#28a745" } else { "#6c757d" })
+                    title="End-to-End Encryption"
+                >
+                    {move || if is_e2ee_enabled.get() { "Disable E2EE" } else { "Enable E2EE" }}
+                </button>
+                <button
+                    on:click=move |_| on_toggle_etherpad.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_etherpad_active.get() { "#28a745" } else { "#6c757d" })
+                    title="Shared Document (Etherpad)"
+                >
+                    {move || if is_etherpad_active.get() { "Close Pad" } else { "Open Pad" }}
+                </button>
             </Show>
             <button
                 on:click=move |_| on_invite.call(())
@@ -124,14 +148,6 @@ pub fn Toolbox(
                 <div style="padding: 8px 16px; background-color: #ccc; color: white; border-radius: 4px;">
                     {move || if is_locked.get() { "Locked" } else { "Unlocked" }}
                 </div>
-            </Show>
-            <Show when=move || is_host.get()>
-                <button
-                    on:click=move |_| on_toggle_recording.call(())
-                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_recording.get() { "#dc3545" } else { "#6c757d" })
-                >
-                    {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
-                </button>
             </Show>
             <button
                 on:click=move |_| on_toggle_chat.call(())
@@ -241,7 +257,6 @@ pub fn Toolbox(
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_toolbox_compiles() {

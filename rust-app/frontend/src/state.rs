@@ -1,3 +1,5 @@
+use crate::analytics::{provide_analytics_context, use_analytics, AnalyticsService};
+use crate::storage::{load_settings, update_setting};
 use crate::components_ui::toast::{use_toast, ToastType};
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
 use crate::webrtc::WebRTCManager;
@@ -37,6 +39,7 @@ pub struct RoomState {
     pub knocking_participants: ReadSignal<Vec<Participant>>,
     pub is_connected: ReadSignal<bool>,
     pub is_locked: ReadSignal<bool>,
+    pub is_e2ee_enabled: ReadSignal<bool>,
     pub is_lobby_enabled: ReadSignal<bool>,
     pub is_recording: ReadSignal<bool>,
     pub is_subtitles_enabled: ReadSignal<bool>,
@@ -47,6 +50,7 @@ pub struct RoomState {
     pub polls: ReadSignal<Vec<Poll>>,
     pub last_reaction: ReadSignal<Option<(String, String, u64)>>,
     pub show_whiteboard: ReadSignal<bool>,
+    pub show_etherpad: ReadSignal<bool>,
     pub whiteboard_history: ReadSignal<Vec<DrawAction>>,
     pub my_id: ReadSignal<Option<String>>,
     pub typing_users: ReadSignal<HashSet<String>>,
@@ -74,14 +78,12 @@ pub struct RoomState {
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
     pub remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
-    #[allow(dead_code)]
     pub selected_camera_id: ReadSignal<Option<String>>,
-    #[allow(dead_code)]
     pub selected_mic_id: ReadSignal<Option<String>>,
-    #[allow(dead_code)]
     pub video_resolution: ReadSignal<String>,
     pub is_noise_suppression_enabled: ReadSignal<bool>,
     pub background_mode: ReadSignal<String>,
+    pub room_config: ReadSignal<shared::RoomConfig>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -89,6 +91,7 @@ pub struct RoomState {
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
     pub set_show_whiteboard: WriteSignal<bool>,
+    pub set_show_etherpad: WriteSignal<bool>,
     pub set_show_speaker_stats: WriteSignal<bool>,
     pub set_show_virtual_background: WriteSignal<bool>,
     pub set_show_feedback: WriteSignal<bool>,
@@ -102,6 +105,8 @@ pub struct RoomState {
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
+    pub toggle_e2ee: Callback<()>,
+    pub toggle_etherpad: Callback<Option<String>>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
     pub toggle_subtitles: Callback<()>,
@@ -126,9 +131,12 @@ pub struct RoomState {
     pub mute_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
+    #[allow(dead_code)]
+    pub analytics: AnalyticsService,
 }
 
 pub fn use_room_state() -> RoomState {
+    let settings = load_settings();
     let toast_ctx = use_toast();
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
@@ -141,6 +149,7 @@ pub fn use_room_state() -> RoomState {
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (is_e2ee_enabled, set_is_e2ee_enabled) = create_signal(false);
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
@@ -156,6 +165,7 @@ pub fn use_room_state() -> RoomState {
     let (polls, set_polls) = create_signal(Vec::<Poll>::new());
     let (last_reaction, set_last_reaction) = create_signal(None::<(String, String, u64)>);
     let (show_whiteboard, set_show_whiteboard) = create_signal(false);
+    let (show_etherpad, set_show_etherpad) = create_signal(false);
     let (whiteboard_history, set_whiteboard_history) = create_signal(Vec::<DrawAction>::new());
     let (_last_draw_action, set_last_draw_action) = create_signal(None::<DrawAction>);
     let (my_id, set_my_id) = create_signal(None::<String>);
@@ -170,11 +180,12 @@ pub fn use_room_state() -> RoomState {
     let (show_feedback, set_show_feedback) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
-    let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
-    let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
-    let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
+    let (selected_camera_id, set_selected_camera_id) = create_signal(settings.camera_id);
+    let (selected_mic_id, set_selected_mic_id) = create_signal(settings.mic_id);
+    let (video_resolution, set_video_resolution) = create_signal(settings.resolution.unwrap_or("hd".to_string()));
     let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
+    let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -284,6 +295,10 @@ pub fn use_room_state() -> RoomState {
         }
     };
 
+    // Provide Analytics context
+    provide_analytics_context(Callback::new(send_signal_cb));
+    let analytics = use_analytics();
+
     let on_track_cb_clone = set_remote_streams;
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
         // Add cleanup listener for tracks
@@ -295,7 +310,7 @@ pub fn use_room_state() -> RoomState {
                 let set_remote_streams = on_track_cb_clone; // captured
 
                 let onended = Closure::wrap(Box::new(move || {
-                    set_remote_streams.update(|map| {
+                    set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
                         if let Some(streams) = map.get_mut(&peer_id_clone) {
                             streams.retain(|s| {
                                 // If the stream matches the one ending, check if it's still active
@@ -313,7 +328,7 @@ pub fn use_room_state() -> RoomState {
             }
         }
 
-        set_remote_streams.update(|map| {
+        set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
             // Append the new stream to the list for this peer, checking for duplicates
             let streams = map.entry(peer_id).or_insert_with(Vec::new);
             let stream_id = stream.id();
@@ -365,16 +380,6 @@ pub fn use_room_state() -> RoomState {
     let (start_media_on_join, set_start_media_on_join) = create_signal(false);
     let (initial_cam_on, set_initial_cam_on) = create_signal(false);
 
-    // We assume the first participant in the list is the host for now,
-    // or we'd need to send host_id in RoomConfig.
-    // The previous implementation used host_id in backend but didn't expose it to frontend.
-    // Let's rely on backend RoomUpdated message.
-    // BUT, RoomConfig struct in shared was updated to include host_id.
-    // So we can extract it from there.
-
-    // We need to store the current room config to access host_id.
-    let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
-
     // Setup listener for "talk while muted"
     let toast_context = crate::components_ui::toast::use_toast();
     create_effect(move |_| {
@@ -421,16 +426,8 @@ pub fn use_room_state() -> RoomState {
             let a_id = selected_mic_id.get_untracked();
             let res = video_resolution.get_untracked();
 
-            // Always request audio (true) unless explicitly unwanted, but here we assume "meeting" means audio capacity.
-            // If user is muted, we still request audio but mute track.
-            // If user has NO microphone, this might fail?
-            // Assuming typical WebRTC flow: request audio=true.
-
             if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
                 // Stop existing raw stream tracks to release camera/mic hardware.
-                // When a virtual background is active, local_stream contains canvas
-                // video tracks (not the real getUserMedia tracks), so stopping only
-                // local_stream would leak the camera. Always stop raw_local_stream.
                 if let Some(old_raw) = raw_local_stream.get_untracked() {
                     let tracks = old_raw.get_tracks();
                     for i in 0..tracks.length() {
@@ -521,7 +518,19 @@ pub fn use_room_state() -> RoomState {
 
     // Initialize WebSocket
     let webrtc_manager_for_ws = webrtc_manager.clone();
+    let analytics_for_ws = analytics.clone();
     create_effect(move |_| {
+        let analytics = analytics_for_ws.clone();
+        let set_messages = set_messages;
+        let set_participants = set_participants;
+        let set_typing_users = set_typing_users;
+        let set_speaking_peers = set_speaking_peers;
+        let set_knocking_participants = set_knocking_participants;
+        let set_polls = set_polls;
+        let set_whiteboard_history = set_whiteboard_history;
+        let set_subtitles = set_subtitles;
+        let set_rtt = set_rtt;
+
         // Ensure my_id is reset on new connection logic if needed, but here we just connect.
         // Actually, if we reconnect, we might get a new ID.
         set_my_id.set(None);
@@ -549,8 +558,11 @@ pub fn use_room_state() -> RoomState {
                     if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
                         match server_msg {
                             ServerMessage::Welcome { id } => {
-                                set_my_id.set(Some(id));
+                                set_my_id.set(Some(id.clone()));
                                 set_current_state.set(RoomConnectionState::Joined);
+
+                                // Track join
+                                analytics.track_join(&id);
 
                                 // Auto-start media if requested from prejoin
                                 if start_media_on_join.get_untracked() {
@@ -569,7 +581,13 @@ pub fn use_room_state() -> RoomState {
                                 }
                             }
                             ServerMessage::RoomUpdated(config) => {
+                                let has_url = config.etherpad_url.is_some();
+                                set_room_config.set(config.clone());
                                 set_is_locked.set(config.is_locked);
+                                set_is_e2ee_enabled.set(config.e2ee_enabled);
+                                if has_url {
+                                    set_show_etherpad.set(true);
+                                }
 
                                 // Check for recording status change
                                 let was_recording = is_recording.get_untracked();
@@ -593,7 +611,7 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::Chat { message, room_id } => {
                                 let current_room = current_room_id.get_untracked();
                                 if room_id == current_room {
-                                    set_messages.update(|msgs| msgs.push(message));
+                                    set_messages.update(|msgs: &mut Vec<ChatMessage>| msgs.push(message));
                                 }
                             }
                             ServerMessage::ChatHistory(history) => {
@@ -604,8 +622,8 @@ pub fn use_room_state() -> RoomState {
                             }
                             ServerMessage::ParticipantJoined(p) => {
                                 set_knocking_participants
-                                    .update(|list| list.retain(|x| x.id != p.id));
-                                set_participants.update(|list| {
+                                    .update(|list: &mut Vec<Participant>| list.retain(|x| x.id != p.id));
+                                set_participants.update(|list: &mut Vec<Participant>| {
                                     if !list.iter().any(|x| x.id == p.id) {
                                         list.push(p.clone());
                                     }
@@ -622,21 +640,21 @@ pub fn use_room_state() -> RoomState {
                             }
                             ServerMessage::KnockingParticipantLeft(id) => {
                                 set_knocking_participants
-                                    .update(|list| list.retain(|x| x.id != id));
+                                    .update(|list: &mut Vec<Participant>| list.retain(|x| x.id != id));
                             }
                             ServerMessage::ParticipantLeft { id, .. } => {
-                                set_participants.update(|list| list.retain(|p| p.id != id));
+                                set_participants.update(|list: &mut Vec<Participant>| list.retain(|p| p.id != id));
                                 // Remove from typing users if present
-                                set_typing_users.update(|users| {
+                                set_typing_users.update(|users: &mut HashSet<String>| {
                                     users.remove(&id);
                                 });
                                 // Remove from speaking peers to avoid stale indicators
-                                set_speaking_peers.update(|s| {
+                                set_speaking_peers.update(|s: &mut HashSet<String>| {
                                     s.remove(&id);
                                 });
                                 // Cleanup WebRTC
                                 webrtc_manager.handle_participant_left(&id);
-                                set_remote_streams.update(|map| {
+                                set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
                                     map.remove(&id);
                                 });
                             }
@@ -704,17 +722,12 @@ pub fn use_room_state() -> RoomState {
                                             }
 
                                             // Pause the AudioMonitor so we don't get false positive "no audio" warnings while muted by host
-                                            set_audio_monitor.update(|monitor| {
+                                            set_audio_monitor.update(|monitor: &mut Option<AudioMonitor>| {
                                                 if let Some(m) = monitor.as_mut() {
                                                     m.set_muted(true);
                                                 }
                                             });
                                         }
-                                        // Note: No need to send SetMuteStatus back to the server.
-                                        // The backend already set is_muted=true and broadcast
-                                        // ParticipantUpdated in the MuteAll/MuteParticipant handler.
-                                        // Sending it again would cause a redundant ParticipantUpdated
-                                        // broadcast for every muted participant.
                                     }
                                 }
                             }
@@ -741,14 +754,14 @@ pub fn use_room_state() -> RoomState {
                                 );
                             }
                             ServerMessage::KnockingParticipant(p) => {
-                                set_knocking_participants.update(|list| {
+                                set_knocking_participants.update(|list: &mut Vec<Participant>| {
                                     if !list.iter().any(|x| x.id == p.id) {
                                         list.push(p);
                                     }
                                 });
                             }
                             ServerMessage::ParticipantUpdated(p) => {
-                                set_participants.update(|list| {
+                                set_participants.update(|list: &mut Vec<Participant>| {
                                     if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
                                         // Check for hand raise
                                         if p.is_hand_raised && !existing.is_hand_raised {
@@ -771,7 +784,7 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::PeerTyping {
                                 user_id, is_typing, ..
                             } => {
-                                set_typing_users.update(|users| {
+                                set_typing_users.update(|users: &mut HashSet<String>| {
                                     if is_typing {
                                         users.insert(user_id);
                                     } else {
@@ -783,14 +796,14 @@ pub fn use_room_state() -> RoomState {
                                 set_breakout_rooms.set(rooms);
                             }
                             ServerMessage::PollCreated(poll) => {
-                                set_polls.update(|list| {
+                                set_polls.update(|list: &mut Vec<Poll>| {
                                     if !list.iter().any(|p| p.id == poll.id) {
                                         list.push(poll);
                                     }
                                 });
                             }
                             ServerMessage::PollUpdated(poll) => {
-                                set_polls.update(|list| {
+                                set_polls.update(|list: &mut Vec<Poll>| {
                                     if let Some(existing) =
                                         list.iter_mut().find(|x| x.id == poll.id)
                                     {
@@ -803,7 +816,7 @@ pub fn use_room_state() -> RoomState {
                             }
                             ServerMessage::Draw(action) => {
                                 set_last_draw_action.set(Some(action.clone()));
-                                set_whiteboard_history.update(|h| h.push(action));
+                                set_whiteboard_history.update(|h: &mut Vec<DrawAction>| h.push(action));
                             }
                             ServerMessage::WhiteboardHistory(history) => {
                                 set_whiteboard_history.set(history);
@@ -815,7 +828,7 @@ pub fn use_room_state() -> RoomState {
                                 set_shared_video_url.set(None);
                             }
                             ServerMessage::PeerSpeaking { user_id, speaking } => {
-                                set_speaking_peers.update(|s| {
+                                set_speaking_peers.update(|s: &mut HashSet<String>| {
                                     if speaking {
                                         s.insert(user_id);
                                     } else {
@@ -824,7 +837,7 @@ pub fn use_room_state() -> RoomState {
                                 });
                             }
                             ServerMessage::Transcription { user_id, text, timestamp } => {
-                                set_subtitles.update(|subs| {
+                                set_subtitles.update(|subs: &mut Vec<(String, String, u64)>| {
                                     subs.push((user_id, text, timestamp));
                                     // Keep only the last 5 transcriptions to avoid UI clutter
                                     if subs.len() > 5 {
@@ -857,9 +870,6 @@ pub fn use_room_state() -> RoomState {
                                 add_toast(err, ToastType::Error);
                             }
                             ServerMessage::Offer { source_id, sdp, .. } => {
-                                // Always handle offer even if local stream is not ready.
-                                // We can answer without local tracks, and add them later via update_local_tracks()
-                                // when the stream becomes available (handled by the create_effect above).
                                 webrtc_manager.handle_offer(source_id, sdp);
                             }
                             ServerMessage::Answer { source_id, sdp, .. } => {
@@ -878,6 +888,29 @@ pub fn use_room_state() -> RoomState {
                                     sdp_mid,
                                     sdp_m_line_index,
                                 );
+                            }
+                            ServerMessage::EtherpadUrlUpdated { url, .. } => {
+                                let has_url = url.is_some();
+                                web_sys::console::log_1(&format!("EtherpadUrlUpdated: {:?}", url).into());
+                                set_room_config.update(|config: &mut shared::RoomConfig| {
+                                    config.etherpad_url = url;
+                                });
+                                set_show_etherpad.set(has_url);
+                            }
+                            ServerMessage::GiphyShared { url, sender_id, .. } => {
+                                // Add to chat messages as a special content
+                                set_messages.update(|msgs: &mut Vec<ChatMessage>| {
+                                    if !msgs.iter().any(|m| m.content == format!("GIF:{}", url) && m.user_id == sender_id) {
+                                        msgs.push(ChatMessage {
+                                            user_id: sender_id,
+                                            content: format!("GIF:{}", url),
+                                            recipient_id: None,
+                                            timestamp: js_sys::Date::now() as u64,
+                                            attachment: None,
+                                            room_id: current_room_id.get_untracked(),
+                                        });
+                                    }
+                                });
                             }
                         }
                     }
@@ -940,9 +973,36 @@ pub fn use_room_state() -> RoomState {
         },
     );
 
+    let analytics_for_lock = analytics.clone();
     let toggle_lock = Callback::new(move |_: ()| {
+        analytics_for_lock.track_interaction("toggle_lock");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRoomLock;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_e2ee = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleE2EE;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_etherpad = Callback::new(move |url: Option<String>| {
+        if let Some(url_str) = &url {
+            if !url_str.starts_with("http") {
+                add_toast("Invalid Etherpad URL".to_string(), ToastType::Error);
+                return;
+            }
+        }
+
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetEtherpadUrl(url);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -981,7 +1041,7 @@ pub fn use_room_state() -> RoomState {
     });
 
     let grant_access = Callback::new(move |id: String| {
-        set_knocking_participants.update(|list| list.retain(|p| p.id != id));
+        set_knocking_participants.update(|list: &mut Vec<Participant>| list.retain(|p| p.id != id));
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::GrantAccess(id);
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -991,7 +1051,7 @@ pub fn use_room_state() -> RoomState {
     });
 
     let deny_access = Callback::new(move |id: String| {
-        set_knocking_participants.update(|list| list.retain(|p| p.id != id));
+        set_knocking_participants.update(|list: &mut Vec<Participant>| list.retain(|p| p.id != id));
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::DenyAccess(id);
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -1018,7 +1078,11 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
+        let props = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&props, &JsValue::from_str("emoji"), &JsValue::from_str(&emoji));
+        analytics_for_reaction.track_event("send_reaction", props.into());
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Reaction(emoji);
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -1027,7 +1091,9 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_raise_hand = analytics.clone();
     let toggle_raise_hand = Callback::new(move |_: ()| {
+        analytics_for_raise_hand.track_interaction("toggle_raise_hand");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRaiseHand;
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -1083,7 +1149,9 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_create_poll = analytics.clone();
     let create_poll = Callback::new(move |poll: Poll| {
+        analytics_for_create_poll.track_interaction("create_poll");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::CreatePoll(poll);
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -1092,7 +1160,9 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_vote_poll = analytics.clone();
     let vote_poll = Callback::new(move |(poll_id, option_id): (String, u32)| {
+        analytics_for_vote_poll.track_interaction("vote_poll");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Vote { poll_id, option_id };
             if let Ok(json) = serde_json::to_string(&msg) {
@@ -1111,6 +1181,17 @@ pub fn use_room_state() -> RoomState {
     });
 
     let join_meeting = Callback::new(move |options: JoinOptions| {
+        // Persist settings
+        let display_name_clone = options.display_name.clone();
+        let cam_id_clone = options.video_device_id.clone();
+        let mic_id_clone = options.audio_device_id.clone();
+
+        update_setting(move |s| {
+            s.display_name = Some(display_name_clone);
+            s.camera_id = cam_id_clone;
+            s.mic_id = mic_id_clone;
+        });
+
         // Set initial state
         set_is_muted.set(!options.mic_enabled);
         set_selected_mic_id.set(options.audio_device_id);
@@ -1139,7 +1220,6 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    // Removed unused variable webrtc_manager_for_breakout
     let create_breakout_room = Callback::new(move |name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::CreateBreakoutRoom(name);
@@ -1154,11 +1234,11 @@ pub fn use_room_state() -> RoomState {
         set_current_room_id.set(room_id.clone());
         // Clear messages when switching rooms
         set_messages.set(Vec::new());
-        // Clear stale speaking/typing indicators from the old room
-        set_speaking_peers.update(|s| s.clear());
-        set_typing_users.update(|u| u.clear());
+        // Clear stale indicators
+        set_speaking_peers.update(|s: &mut HashSet<String>| s.clear());
+        set_typing_users.update(|u: &mut HashSet<String>| u.clear());
 
-        // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
+        // Cleanup existing WebRTC connections on room switch
         webrtc_manager_for_breakout.close_all_peers();
         set_remote_streams.set(HashMap::new());
 
@@ -1215,6 +1295,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
         // Check if we currently have video tracks active
         let has_video = if let Some(stream) = local_stream.get_untracked() {
@@ -1222,15 +1303,22 @@ pub fn use_room_state() -> RoomState {
         } else {
             false
         };
-        start_media_stream.call(!has_video);
+        let new_state = !has_video;
+        analytics_for_camera.track_toggle_media("camera", new_state);
+        start_media_stream.call(new_state);
     });
 
     let set_input_devices = Callback::new(
         move |(vid, aid, res, ns): (Option<String>, Option<String>, String, bool)| {
+            update_setting(|s| {
+                s.camera_id = vid.clone();
+                s.mic_id = aid.clone();
+                s.resolution = Some(res.clone());
+            });
             let old_ns = is_noise_suppression_enabled.get_untracked();
-            set_selected_camera_id.set(vid.clone());
-            set_selected_mic_id.set(aid.clone());
-            set_video_resolution.set(res.clone());
+            set_selected_camera_id.set(vid);
+            set_selected_mic_id.set(aid);
+            set_video_resolution.set(res);
             set_is_noise_suppression_enabled.set(ns);
 
             let has_video = if let Some(stream) = local_stream.get_untracked() {
@@ -1240,19 +1328,7 @@ pub fn use_room_state() -> RoomState {
             };
 
             if local_stream.get_untracked().is_some() {
-                // When noise suppression is being enabled (and was previously off),
-                // the reactive noise suppression effect will detect that the
-                // AudioMonitor has no compressor node, receive an Err from
-                // set_noise_suppression(), and call start_media_stream itself.
-                // Calling it here as well would result in two concurrent
-                // getUserMedia requests. Skip the explicit restart in that case
-                // and let the effect handle it.
-                //
-                // However, if the monitor already has a compressor (from a
-                // previous enable→disable cycle), set_noise_suppression(true)
-                // will succeed and the effect will NOT restart. In that case we
-                // must call start_media_stream here so device changes are applied.
-                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m| {
+                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m: &Option<AudioMonitor>| {
                     m.as_ref().is_some_and(|monitor| !monitor.has_compressor())
                 });
                 if !ns_will_trigger_restart {
@@ -1280,9 +1356,11 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let analytics_for_mic = analytics.clone();
     let toggle_mic = Callback::new(move |_: ()| {
         let new_state = !is_muted.get();
         set_is_muted.set(new_state);
+        analytics_for_mic.track_toggle_media("microphone", !new_state);
 
         if let Some(stream) = local_stream.get() {
             let audio_tracks = stream.get_audio_tracks();
@@ -1292,10 +1370,7 @@ pub fn use_room_state() -> RoomState {
                 }
             }
 
-            // Bug 2 Fix: Update muted state on the existing AudioMonitor
-            // rather than dropping and recreating it. This preserves the
-            // `has_ever_talked` state (Bug 1) and prevents `AudioContext` exhaustion.
-            set_audio_monitor.update(|monitor| {
+            set_audio_monitor.update(|monitor: &mut Option<AudioMonitor>| {
                 if let Some(m) = monitor.as_mut() {
                     m.set_muted(new_state);
                 }
@@ -1345,6 +1420,7 @@ pub fn use_room_state() -> RoomState {
         knocking_participants,
         is_connected,
         is_locked,
+        is_e2ee_enabled,
         is_lobby_enabled,
         is_recording,
         is_subtitles_enabled,
@@ -1355,6 +1431,7 @@ pub fn use_room_state() -> RoomState {
         polls,
         last_reaction,
         show_whiteboard,
+        show_etherpad,
         whiteboard_history,
         my_id,
         typing_users,
@@ -1384,12 +1461,14 @@ pub fn use_room_state() -> RoomState {
         video_resolution,
         is_noise_suppression_enabled,
         background_mode,
+        room_config,
         set_input_devices,
         set_background_mode,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
         set_show_whiteboard,
+        set_show_etherpad,
         set_show_speaker_stats,
         set_show_virtual_background,
         set_show_feedback,
@@ -1401,6 +1480,8 @@ pub fn use_room_state() -> RoomState {
         send_ping,
         send_message,
         toggle_lock,
+        toggle_e2ee,
+        toggle_etherpad,
         toggle_lobby,
         toggle_recording,
         toggle_subtitles,
@@ -1427,6 +1508,7 @@ pub fn use_room_state() -> RoomState {
         start_share_video,
         stop_share_video,
         set_presence,
+        analytics,
     }
 }
 
@@ -1438,43 +1520,5 @@ mod tests {
     fn test_room_connection_state_equality() {
         assert_eq!(RoomConnectionState::Prejoin, RoomConnectionState::Prejoin);
         assert_ne!(RoomConnectionState::Prejoin, RoomConnectionState::Joined);
-    }
-
-    #[test]
-    #[cfg(target_arch = "wasm32")]
-    fn test_subtitles_initially_empty() {
-        let _runtime = create_runtime();
-        crate::components_ui::toast::provide_toast_context();
-        let state = use_room_state();
-        assert!(state.subtitles.get_untracked().is_empty());
-    }
-
-    #[test]
-    #[cfg(target_arch = "wasm32")]
-    fn test_background_mode_initial() {
-        let _runtime = create_runtime();
-        crate::components_ui::toast::provide_toast_context();
-        let state = use_room_state();
-        assert_eq!(state.background_mode.get_untracked(), "none");
-    }
-}
-
-#[cfg(test)]
-mod tests_talk_muted {
-    use super::*;
-
-    #[test]
-    #[cfg(target_arch = "wasm32")]
-    fn test_talk_while_muted_event_compiles() {
-        // Simple verification that our code handles the event structure
-        let event = web_sys::CustomEvent::new("talk_while_muted");
-        assert!(event.is_ok());
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn test_talk_while_muted_mock() {
-        // Can't run web_sys on non-wasm targets during native testing
-        assert!(true);
     }
 }

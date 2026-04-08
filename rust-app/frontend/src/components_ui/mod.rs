@@ -5,6 +5,8 @@ pub mod authentication;
 pub mod calendar;
 pub mod embed_meeting;
 pub mod feedback;
+pub mod etherpad;
+pub mod giphy;
 pub mod invite;
 pub mod lobby;
 pub mod prejoin;

@@ -140,6 +140,39 @@ fn test_poll_serialization() {
 }
 
 #[test]
+fn test_etherpad_messages_serialization() {
+    let msg = ClientMessage::SetEtherpadUrl(Some("https://pad.org/test".to_string()));
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg_server = ServerMessage::EtherpadUrlUpdated {
+        url: Some("https://pad.org/test".to_string()),
+        room_id: Some("room1".to_string())
+    };
+    let json_server = serde_json::to_string(&msg_server).unwrap();
+    let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
+    assert_eq!(msg_server, deserialized_server);
+}
+
+#[test]
+fn test_giphy_messages_serialization() {
+    let msg = ClientMessage::GiphyShare("https://giphy.com/gif1".to_string());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg_server = ServerMessage::GiphyShared {
+        url: "https://giphy.com/gif1".to_string(),
+        sender_id: "u1".to_string(),
+        room_id: None
+    };
+    let json_server = serde_json::to_string(&msg_server).unwrap();
+    let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
+    assert_eq!(msg_server, deserialized_server);
+}
+
+#[test]
 fn test_mute_all_serialization() {
     let msg = ClientMessage::MuteAll;
     let json = serde_json::to_string(&msg).unwrap();

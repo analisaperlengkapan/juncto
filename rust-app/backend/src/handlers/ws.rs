@@ -147,6 +147,45 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::ToggleE2EE => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.e2ee_enabled = !config.e2ee_enabled;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetEtherpadUrl(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.etherpad_url = url.clone();
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::GiphyShare(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::GiphyShared {
+                                            url,
+                                            sender_id: uid.clone(),
+                                            room_id: my_room_id.clone()
+                                        });
+                                    }
+                                },
                                 ClientMessage::ToggleSubtitles => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
@@ -346,6 +385,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             (false, false)
                                         } else {
                                             let mut config = room_config_mutex.lock().unwrap();
+                                            // Robust Host Check: Clear host_id if participant no longer exists
+                                            if let Some(hid) = &config.host_id {
+                                                if !participants.contains_key(hid) {
+                                                    config.host_id = None;
+                                                }
+                                            }
                                             let assigned = if config.host_id.is_none() {
                                                 config.host_id = Some(id.clone());
                                                 true
@@ -463,6 +508,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == *room_id || *id == my_id_clone
+                                                        },
+                                                        ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            my_loc == *room_id
+                                                        },
+                                                        ServerMessage::GiphyShared { room_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            my_loc == *room_id
                                                         },
                                                         ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();

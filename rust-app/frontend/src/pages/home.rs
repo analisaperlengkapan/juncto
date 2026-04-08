@@ -35,7 +35,6 @@ pub fn Home() -> impl IntoView {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_home_compiles() {

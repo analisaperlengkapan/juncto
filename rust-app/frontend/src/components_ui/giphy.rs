@@ -1,0 +1,77 @@
+use leptos::*;
+use crate::giphy::{GiphyData, GiphyService};
+
+#[component]
+pub fn GiphySearch(
+    on_select: Callback<String>, // returns the URL
+) -> impl IntoView {
+    let (query, set_query) = create_signal("".to_string());
+    let (gifs, set_gifs) = create_signal(Vec::<GiphyData>::new());
+    let (is_loading, set_is_loading) = create_signal(false);
+
+    let search_action = create_action(move |q: &String| {
+        let q = q.clone();
+        let service = GiphyService::new("dc6zaTOxFJmzC".to_string());
+        async move {
+            service.search(&q).await
+        }
+    });
+
+    create_effect(move |_| {
+        let q = query.get();
+        search_action.dispatch(q);
+    });
+
+    create_effect(move |_| {
+        if let Some(res) = search_action.value().get() {
+            match res {
+                Ok(data) => set_gifs.set(data),
+                Err(e) => web_sys::console::error_1(&e.into()),
+            }
+            set_is_loading.set(false);
+        }
+    });
+
+    view! {
+        <div class="giphy-search" style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: #222; border-radius: 8px;">
+            <input
+                type="text"
+                placeholder="Search GIPHY..."
+                on:input=move |ev| {
+                    set_query.set(event_target_value(&ev));
+                    set_is_loading.set(true);
+                }
+                prop:value=query
+                style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white;"
+            />
+
+            <div class="giphy-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; max-height: 200px; overflow-y: auto;">
+                <Show when=move || is_loading.get()>
+                    <div style="grid-column: span 2; text-align: center; color: #888;">"Loading..."</div>
+                </Show>
+
+                <For
+                    each=move || gifs.get()
+                    key=|gif| gif.id.clone()
+                    children=move |gif| {
+                        let url = gif.images.fixed_height.url.clone();
+                        let title = gif.title.clone();
+                        let url_clone = url.clone();
+                        view! {
+                            <img
+                                src=url
+                                alt=title
+                                on:click=move |_| on_select.call(url_clone.clone())
+                                style="width: 100%; cursor: pointer; border-radius: 4px;"
+                            />
+                        }
+                    }
+                />
+            </div>
+
+            <div style="text-align: right;">
+                <img src="https://giphy.com/static/img/powered_by_giphy_light.png" alt="Powered by GIPHY" style="height: 20px;" />
+            </div>
+        </div>
+    }
+}
