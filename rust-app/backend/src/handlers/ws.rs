@@ -1060,6 +1060,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 if participants.len() >= config.max_participants as usize {
                                     (false, false)
                                 } else {
+                                    // Robust Host Check: Clear host_id if participant no longer exists
+                                    if let Some(hid) = &config.host_id {
+                                        if !participants.contains_key(hid) {
+                                            config.host_id = None;
+                                        }
+                                    }
                                     let assigned = if config.host_id.is_none() {
                                         config.host_id = Some(id.clone());
                                         true
