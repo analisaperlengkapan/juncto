@@ -164,21 +164,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::SetEtherpadUrl(url) => {
                                     if let Some(uid) = &my_id {
-                                        // Server-side URL validation
-                                        if let Some(ref url_str) = url {
-                                            if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
-                                                let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: must start with http:// or https://".to_string())).await;
-                                                continue;
-                                            }
-                                            if url_str.len() > 2048 {
-                                                let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: too long".to_string())).await;
-                                                continue;
-                                            }
-                                        }
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
+                                            // Server-side URL validation
+                                            if let Some(ref url_str) = url {
+                                                if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
+                                                    let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: must start with http:// or https://".to_string())).await;
+                                                    continue;
+                                                }
+                                                if url_str.len() > 2048 {
+                                                    let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: too long".to_string())).await;
+                                                    continue;
+                                                }
+                                            }
                                             let config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.etherpad_url = url.clone();
