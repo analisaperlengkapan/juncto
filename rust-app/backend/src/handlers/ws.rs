@@ -1186,6 +1186,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let source_loc = locs.get(user_id).cloned().flatten();
                                                     my_loc == source_loc
                                                 },
+                                                ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id
+                                                },
+                                                ServerMessage::GiphyShared { room_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id
+                                                },
                                                 ServerMessage::PeerSpeaking { user_id, speaking } => {
                                                     // Always deliver speaking=false so peers
                                                     // clear stale indicators even if the

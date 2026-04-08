@@ -581,11 +581,14 @@ pub fn use_room_state() -> RoomState {
                                 }
                             }
                             ServerMessage::RoomUpdated(config) => {
-                                let has_url = config.etherpad_url.is_some();
-                                set_room_config.set(config.clone());
+                                // Only force-open/close etherpad when the URL actually changed
+                                let old_etherpad_url = room_config.get_untracked().etherpad_url;
+                                if config.etherpad_url != old_etherpad_url {
+                                    set_show_etherpad.set(config.etherpad_url.is_some());
+                                }
+
                                 set_is_locked.set(config.is_locked);
                                 set_is_e2ee_enabled.set(config.e2ee_enabled);
-                                set_show_etherpad.set(has_url);
 
                                 // Check for recording status change
                                 let was_recording = is_recording.get_untracked();
