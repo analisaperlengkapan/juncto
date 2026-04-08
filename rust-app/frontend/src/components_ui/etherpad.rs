@@ -13,6 +13,7 @@ pub fn Etherpad(
             }>
                 <iframe
                     src=move || url.get().unwrap_or_default()
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                     style="width: 100%; height: 100%; border: none;"
                     title="Etherpad"
                 ></iframe>

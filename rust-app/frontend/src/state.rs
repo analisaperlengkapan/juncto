@@ -985,7 +985,7 @@ pub fn use_room_state() -> RoomState {
 
     let toggle_etherpad = Callback::new(move |url: Option<String>| {
         if let Some(url_str) = &url {
-            if !url_str.starts_with("http") {
+            if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
                 add_toast("Invalid Etherpad URL".to_string(), ToastType::Error);
                 return;
             }
