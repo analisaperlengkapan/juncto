@@ -10,7 +10,7 @@ pub fn Toolbox(
     on_toggle_e2ee: Callback<()>,
     is_e2ee_enabled: ReadSignal<bool>,
     on_toggle_etherpad: Callback<()>,
-    is_etherpad_active: ReadSignal<bool>,
+    is_etherpad_active: Signal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
     #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] _on_toggle_lobby: Option<Callback<()>>,

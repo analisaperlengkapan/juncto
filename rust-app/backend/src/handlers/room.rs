@@ -57,9 +57,6 @@ pub async fn create_room(
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
-    // Broadcast RoomUpdated to active connections if any
-    let _ = state.tx.send(shared::ServerMessage::RoomUpdated(payload.clone()));
-
     let response = json!({
         "room_id": room_id,
         "config": payload,

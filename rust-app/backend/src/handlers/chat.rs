@@ -17,6 +17,21 @@ pub fn process_chat_message(
         }
     }
 
+    // Server-side validation for GIF messages: only allow known Giphy CDN domains
+    if content.starts_with("GIF:") {
+        let url = &content[4..];
+        let is_safe = url.starts_with("https://media.giphy.com/")
+            || url.starts_with("https://media0.giphy.com/")
+            || url.starts_with("https://media1.giphy.com/")
+            || url.starts_with("https://media2.giphy.com/")
+            || url.starts_with("https://media3.giphy.com/")
+            || url.starts_with("https://media4.giphy.com/")
+            || url.starts_with("https://i.giphy.com/");
+        if !is_safe {
+            return Err("Invalid GIF URL: only Giphy CDN URLs are allowed".to_string());
+        }
+    }
+
     let chat_msg = ChatMessage {
         user_id: user_id.to_string(),
         content,
@@ -80,6 +95,39 @@ mod tests {
         // Check history
         let history = state.chat_history.lock().unwrap();
         assert_eq!(history.len(), 1);
+    }
+
+    #[test]
+    fn test_process_chat_gif_url_validation() {
+        let state = create_mock_state();
+
+        // Valid Giphy URL should succeed
+        let res = process_chat_message(
+            "user1", &None,
+            "GIF:https://media.giphy.com/media/abc/giphy.gif".to_string(),
+            None, None, &state,
+        );
+        assert!(res.is_ok());
+
+        // Invalid GIF URL should be rejected
+        let res = process_chat_message(
+            "user1", &None,
+            "GIF:https://evil.com/tracker.png".to_string(),
+            None, None, &state,
+        );
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            "Invalid GIF URL: only Giphy CDN URLs are allowed"
+        );
+
+        // Non-GIF messages should pass through unchanged
+        let res = process_chat_message(
+            "user1", &None,
+            "GIF:not-a-url".to_string(),
+            None, None, &state,
+        );
+        assert!(res.is_err());
     }
 
     #[test]
