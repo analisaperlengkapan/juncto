@@ -30,15 +30,24 @@ pub fn GiphySearch(
 
     let search_action = create_action(move |q: &String| {
         let q = q.clone();
-        let service = GiphyService::new("dc6zaTOxFJmzC".to_string());
+        let service = GiphyService::new(crate::giphy::GIPHY_API_KEY.to_string());
         async move {
             service.search(&q).await
         }
     });
 
-    create_effect(move |_| {
-        let q = debounced_query.get();
-        search_action.dispatch(q);
+    // Track whether this is the first run to avoid an unnecessary trending API
+    // request the instant the GIF panel opens.  Only dispatch after the user has
+    // actually typed something (or explicitly cleared the field).
+    let has_interacted = Rc::new(RefCell::new(false));
+    create_effect({
+        let has_interacted = has_interacted.clone();
+        move |_| {
+            let q = debounced_query.get();
+            if *has_interacted.borrow() {
+                search_action.dispatch(q);
+            }
+        }
     });
 
     create_effect(move |_| {
@@ -51,12 +60,14 @@ pub fn GiphySearch(
         }
     });
 
+    let has_interacted_for_input = has_interacted.clone();
     view! {
         <div class="giphy-search" style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: #222; border-radius: 8px;">
             <input
                 type="text"
                 placeholder="Search GIPHY..."
                 on:input=move |ev| {
+                    *has_interacted_for_input.borrow_mut() = true;
                     set_query.set(event_target_value(&ev));
                     set_is_loading.set(true);
                 }

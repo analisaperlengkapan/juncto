@@ -40,14 +40,24 @@ pub fn PrejoinScreen(
             // Batch updates to avoid multiple stream restarts
             batch(move || {
                 set_video_devices.set(v_devices.clone());
-                if selected_video_device.get_untracked().is_none() {
+                // Fall back to first device if no saved ID or if the saved ID
+                // is stale (device was unplugged since settings were persisted).
+                let saved_vid = selected_video_device.get_untracked();
+                let vid_valid = saved_vid.as_ref().is_some_and(|id| {
+                    v_devices.iter().any(|d| &d.device_id == id)
+                });
+                if !vid_valid {
                     if let Some(first) = v_devices.first() {
                         set_selected_video_device.set(Some(first.device_id.clone()));
                     }
                 }
 
                 set_audio_devices.set(a_devices.clone());
-                if selected_audio_device.get_untracked().is_none() {
+                let saved_aid = selected_audio_device.get_untracked();
+                let aid_valid = saved_aid.as_ref().is_some_and(|id| {
+                    a_devices.iter().any(|d| &d.device_id == id)
+                });
+                if !aid_valid {
                     if let Some(first) = a_devices.first() {
                         set_selected_audio_device.set(Some(first.device_id.clone()));
                     }

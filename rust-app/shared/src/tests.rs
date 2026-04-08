@@ -273,6 +273,17 @@ fn test_room_config_subtitles_default() {
 }
 
 #[test]
+fn test_is_giphy_cdn_url() {
+    assert!(is_giphy_cdn_url("https://media.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url("https://media0.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url("https://media4.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url("https://i.giphy.com/abc.gif"));
+    assert!(!is_giphy_cdn_url("https://evil.com/tracker.png"));
+    assert!(!is_giphy_cdn_url("https://media.giphy.com@evil.com/"));
+    assert!(!is_giphy_cdn_url("not-a-url"));
+}
+
+#[test]
 fn test_draw_serialization() {
     let draw = DrawAction {
         color: "#000000".to_string(),

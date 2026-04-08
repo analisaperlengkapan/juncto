@@ -81,11 +81,9 @@ test.describe('Migration Full Integration', () => {
             expect(await chatPanel.isVisible()).toBe(true);
         }).toPass({ timeout: 10000 });
         await expect(chatPanel).toBeVisible();
-        await page.screenshot({ path: 'chat_open.png' });
 
         await page.getByRole('button', { name: 'GIF' }).dispatchEvent('click');
         await expect(page.locator('.giphy-search')).toBeVisible({ timeout: 10000 });
-        await page.screenshot({ path: 'giphy_search.png' });
 
         await page.fill('.giphy-search input', 'hello');
         await expect(page.locator('.giphy-grid img').first()).toBeVisible({ timeout: 20000 });
@@ -101,10 +99,6 @@ test.describe('Migration Full Integration', () => {
         await page.click('.tabs button:has-text("Moderator")');
 
         const e2eeLabel = page.locator('.modal-content label').filter({ has: page.locator('.e2ee-toggle-marker') });
-
-        // Use checkbox state to determine action
-        const checkbox = page.locator('.modal-content input[type="checkbox"]').filter({ has: page.locator('~ .e2ee-toggle-marker') });
-        // Actually simpler:
         const e2eeCheckbox = page.locator('.modal-content input[type="checkbox"]').nth(2); // Based on SettingsDialog source
 
         if (!(await e2eeCheckbox.isChecked())) {
@@ -112,7 +106,6 @@ test.describe('Migration Full Integration', () => {
         }
 
         await expect(page.locator('div[title="End-to-End Encrypted"]')).toBeVisible({ timeout: 10000 });
-        await page.screenshot({ path: 'after_e2ee.png' });
         await page.click('.modal-header button:has-text("×")');
 
         // 4. Etherpad Test (Host)
@@ -122,7 +115,6 @@ test.describe('Migration Full Integration', () => {
         }
         await expect(etherpadContainer).toBeVisible({ timeout: 15000 });
         await expect(page.locator('.etherpad-container iframe')).toBeAttached({ timeout: 15000 });
-        await page.screenshot({ path: 'etherpad_open.png' });
 
         // 5. Verification for other participants
         const guestContext = await browser.newContext();
@@ -135,7 +127,6 @@ test.describe('Migration Full Integration', () => {
         await guestPage.click('button:has-text("Join Meeting")');
 
         await expect(guestPage.locator('div[title="End-to-End Encrypted"]')).toBeVisible({ timeout: 15000 });
-        await guestPage.screenshot({ path: 'guest_view.png' });
 
         const guestChatPanel = guestPage.locator('.side-panel.chat-container');
         if (await guestChatPanel.isHidden()) {

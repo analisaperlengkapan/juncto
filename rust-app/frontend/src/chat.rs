@@ -237,14 +237,7 @@ pub fn Chat(
                                     {move || {
                                         if let Some(url) = msg.content.strip_prefix("GIF:") {
                                             let url = url.to_string();
-                                            let is_safe = url.starts_with("https://media.giphy.com/")
-                                                || url.starts_with("https://media0.giphy.com/")
-                                                || url.starts_with("https://media1.giphy.com/")
-                                                || url.starts_with("https://media2.giphy.com/")
-                                                || url.starts_with("https://media3.giphy.com/")
-                                                || url.starts_with("https://media4.giphy.com/")
-                                                || url.starts_with("https://i.giphy.com/");
-                                            if is_safe {
+                                            if shared::is_giphy_cdn_url(&url) {
                                                 view! {
                                                     <div>
                                                         <img src=url style="max-width: 200px; border-radius: 4px; display: block; margin-top: 5px;" />

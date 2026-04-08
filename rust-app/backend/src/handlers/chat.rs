@@ -19,14 +19,7 @@ pub fn process_chat_message(
 
     // Server-side validation for GIF messages: only allow known Giphy CDN domains
     if let Some(url) = content.strip_prefix("GIF:") {
-        let is_safe = url.starts_with("https://media.giphy.com/")
-            || url.starts_with("https://media0.giphy.com/")
-            || url.starts_with("https://media1.giphy.com/")
-            || url.starts_with("https://media2.giphy.com/")
-            || url.starts_with("https://media3.giphy.com/")
-            || url.starts_with("https://media4.giphy.com/")
-            || url.starts_with("https://i.giphy.com/");
-        if !is_safe {
+        if !shared::is_giphy_cdn_url(url) {
             return Err("Invalid GIF URL: only Giphy CDN URLs are allowed".to_string());
         }
     }

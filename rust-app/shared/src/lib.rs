@@ -282,5 +282,18 @@ pub enum ServerMessage {
     Error(String),
 }
 
+/// Returns `true` if the given URL belongs to a known Giphy CDN domain.
+/// Used on both the backend (chat validation, WS handler) and the frontend
+/// (chat rendering) to enforce a consistent allowlist.
+pub fn is_giphy_cdn_url(url: &str) -> bool {
+    url.starts_with("https://media.giphy.com/")
+        || url.starts_with("https://media0.giphy.com/")
+        || url.starts_with("https://media1.giphy.com/")
+        || url.starts_with("https://media2.giphy.com/")
+        || url.starts_with("https://media3.giphy.com/")
+        || url.starts_with("https://media4.giphy.com/")
+        || url.starts_with("https://i.giphy.com/")
+}
+
 #[cfg(test)]
 mod tests;

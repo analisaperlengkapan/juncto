@@ -1,5 +1,15 @@
 use serde::{Deserialize, Serialize};
 
+/// Giphy API key used for search/trending requests.
+///
+/// The default value (`dc6zaTOxFJmzC`) is Giphy's well-known **public beta
+/// key** intended for development and testing.  It has undocumented rate
+/// limits and may be deprecated by Giphy at any time.
+///
+/// For production deployments, register for a production API key at
+/// <https://developers.giphy.com/> and replace this constant.
+pub const GIPHY_API_KEY: &str = "dc6zaTOxFJmzC";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GiphyImage {
     pub url: String,
