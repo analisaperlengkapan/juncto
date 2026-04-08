@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Picture-in-Picture feature', () => {
-    test('local video has PiP button', async ({ page }) => {
+    test('local video has PiP button', async ({ page, request }) => {
+        // Reset room state to ensure clean config (no stale lock/lobby/max from prior tests)
+        await request.post('http://localhost:3000/api/rooms', {
+            data: {
+                room_name: 'e2e-pip-test-room',
+                is_locked: false,
+                is_recording: false,
+                is_lobby_enabled: false,
+                max_participants: 100
+            }
+        });
+
         await page.goto('/room/e2e-pip-test-room');
 
         // Wait for prejoin screen
@@ -43,7 +54,18 @@ test.describe('Picture-in-Picture feature', () => {
         // and has the correct click handler logic (via UI structure) is a good start.
     });
 
-    test('PiP button is hidden when camera is off', async ({ page }) => {
+    test('PiP button is hidden when camera is off', async ({ page, request }) => {
+        // Reset room state to ensure clean config (no stale lock/lobby/max from prior tests)
+        await request.post('http://localhost:3000/api/rooms', {
+            data: {
+                room_name: 'e2e-pip-test-room',
+                is_locked: false,
+                is_recording: false,
+                is_lobby_enabled: false,
+                max_participants: 100
+            }
+        });
+
         await page.goto('/room/e2e-pip-test-room');
 
         // Wait for prejoin screen

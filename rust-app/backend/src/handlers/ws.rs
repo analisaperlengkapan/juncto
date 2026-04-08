@@ -477,11 +477,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(user_id).cloned().flatten();
                                                             my_loc == source_loc
                                                         },
-                                                        ServerMessage::PeerSpeaking { user_id, .. } => {
-                                                            let locs = locations_clone.lock().unwrap();
-                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
-                                                            let source_loc = locs.get(user_id).cloned().flatten();
-                                                            my_loc == source_loc
+                                                        ServerMessage::PeerSpeaking { user_id, speaking } => {
+                                                            // Always deliver speaking=false so peers
+                                                            // clear stale indicators even if the
+                                                            // speaker moved to a different room.
+                                                            if !speaking {
+                                                                true
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(user_id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            }
                                                         },
                                                         _ => true,
                                                     };
@@ -888,6 +895,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
+                                            // Only allow muting participants in the same breakout
+                                            // room as the host, consistent with MuteAll scoping.
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
                                             let updated_participant = {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 if let Some(p) = participants.get_mut(&target_id) {
@@ -1113,11 +1131,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let source_loc = locs.get(user_id).cloned().flatten();
                                                     my_loc == source_loc
                                                 },
-                                                ServerMessage::PeerSpeaking { user_id, .. } => {
-                                                    let locs = locations_clone.lock().unwrap();
-                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
-                                                    let source_loc = locs.get(user_id).cloned().flatten();
-                                                    my_loc == source_loc
+                                                ServerMessage::PeerSpeaking { user_id, speaking } => {
+                                                    // Always deliver speaking=false so peers
+                                                    // clear stale indicators even if the
+                                                    // speaker moved to a different room.
+                                                    if !speaking {
+                                                        true
+                                                    } else {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                        let source_loc = locs.get(user_id).cloned().flatten();
+                                                        my_loc == source_loc
+                                                    }
                                                 },
                                                 _ => true,
                                             };
