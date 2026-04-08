@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use shared::{
     ChatMessage, ClientMessage, DrawAction, FileAttachment, Participant, Poll, ServerMessage,
 };
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MediaStream, MessageEvent, WebSocket};
@@ -38,6 +40,7 @@ pub struct RoomState {
     pub is_lobby_enabled: ReadSignal<bool>,
     pub is_recording: ReadSignal<bool>,
     pub is_subtitles_enabled: ReadSignal<bool>,
+    pub subtitles: ReadSignal<Vec<(String, String, u64)>>,
     pub show_settings: ReadSignal<bool>,
     pub show_polls: ReadSignal<bool>,
     pub show_shortcuts: ReadSignal<bool>,
@@ -62,6 +65,10 @@ pub struct RoomState {
     pub is_muted: ReadSignal<bool>,
     pub shared_video_url: ReadSignal<Option<String>>,
     pub speaking_peers: ReadSignal<HashSet<String>>,
+    #[allow(dead_code)]
+    pub audio_monitor: ReadSignal<Option<AudioMonitor>>,
+    #[allow(dead_code)]
+    pub raw_local_stream: ReadSignal<Option<MediaStream>>,
     pub show_speaker_stats: ReadSignal<bool>,
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
@@ -73,8 +80,11 @@ pub struct RoomState {
     pub selected_mic_id: ReadSignal<Option<String>>,
     #[allow(dead_code)]
     pub video_resolution: ReadSignal<String>,
+    pub is_noise_suppression_enabled: ReadSignal<bool>,
+    pub background_mode: ReadSignal<String>,
     // Setters or Actions
-    pub set_input_devices: Callback<(Option<String>, Option<String>, String)>,
+    pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
+    pub set_background_mode: Callback<String>,
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
@@ -113,6 +123,7 @@ pub struct RoomState {
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
     pub mute_participant: Callback<String>,
+    pub mute_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
 }
@@ -133,6 +144,7 @@ pub fn use_room_state() -> RoomState {
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
+    let (subtitles, set_subtitles) = create_signal(Vec::<(String, String, u64)>::new());
     let (show_settings, set_show_settings) = create_signal(false);
     let (is_authenticated, set_is_authenticated) = create_signal(false);
     let (show_login_dialog, set_show_login_dialog) = create_signal(false);
@@ -152,7 +164,7 @@ pub fn use_room_state() -> RoomState {
     let (is_muted, set_is_muted) = create_signal(false);
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
-    let (_audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
+    let (audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
     let (show_speaker_stats, set_show_speaker_stats) = create_signal(false);
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (show_feedback, set_show_feedback) = create_signal(false);
@@ -161,9 +173,106 @@ pub fn use_room_state() -> RoomState {
     let (selected_camera_id, set_selected_camera_id) = create_signal(None::<String>);
     let (selected_mic_id, set_selected_mic_id) = create_signal(None::<String>);
     let (video_resolution, set_video_resolution) = create_signal("hd".to_string());
+    let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
+    let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
+
+    // Video Processing for Virtual Background
+    let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
+
+    // Note: Reactive Noise Suppression effect is created after start_media_stream below.
+
+    // Track the stream ID so we can detect when only the mode changed (same
+    // stream) vs when the underlying raw stream was replaced (camera toggle,
+    // device switch, noise-suppression restart).
+    let prev_stream_id: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+
+    create_effect({
+        let prev_stream_id = prev_stream_id.clone();
+        move |prev_processor: Option<Option<crate::media::VideoProcessor>>| -> Option<crate::media::VideoProcessor> {
+            let mode = background_mode.get();
+            let stream = raw_local_stream.get();
+
+            if let Some(s) = stream {
+                let has_video = s.get_video_tracks().length() > 0;
+                if mode == "none" || !has_video {
+                    // No processing needed — drop any existing processor and pass through.
+                    // Stop old canvas stream video tracks to avoid leaking captureStream
+                    // resources. Only stop video tracks since audio tracks are shared
+                    // references to the raw stream's tracks and must remain active.
+                    if prev_processor.as_ref().is_some_and(|p| p.is_some()) {
+                        if let Some(old_processed) = local_stream.get_untracked() {
+                            let video_tracks = old_processed.get_video_tracks();
+                            for i in 0..video_tracks.length() {
+                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                    track.stop();
+                                }
+                            }
+                        }
+                    }
+                    if let Some(Some(prev)) = prev_processor {
+                        drop(prev);
+                    }
+                    *prev_stream_id.borrow_mut() = Some(s.id());
+                    set_local_stream.set(Some(s));
+                    None
+                } else {
+                    // Check whether the raw stream changed since the last run.
+                    let stream_changed = {
+                        let old_id = prev_stream_id.borrow();
+                        old_id.as_deref() != Some(&s.id())
+                    };
+                    *prev_stream_id.borrow_mut() = Some(s.id());
+
+                    if !stream_changed {
+                        if let Some(Some(prev)) = prev_processor {
+                            // Same stream, only mode changed — update in-place instead of
+                            // recreating the canvas, video element, interval, and captureStream.
+                            prev.set_mode(mode);
+                            return Some(prev);
+                        }
+                    }
+
+                    // Either the stream changed or no processor exists yet — (re)create.
+                    // Stop old canvas video tracks before dropping the processor.
+                    if prev_processor.as_ref().is_some_and(|p| p.is_some()) {
+                        if let Some(old_processed) = local_stream.get_untracked() {
+                            let video_tracks = old_processed.get_video_tracks();
+                            for i in 0..video_tracks.length() {
+                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                    track.stop();
+                                }
+                            }
+                        }
+                    }
+                    if let Some(Some(prev)) = prev_processor {
+                        drop(prev);
+                    }
+                    match crate::media::VideoProcessor::new(&s, mode) {
+                        Ok((processor, processed)) => {
+                            set_local_stream.set(Some(processed));
+                            Some(processor)
+                        }
+                        Err(e) => {
+                            web_sys::console::error_1(&e);
+                            set_local_stream.set(Some(s));
+                            None
+                        }
+                    }
+                }
+            } else {
+                // No stream — drop any existing processor
+                if let Some(Some(prev)) = prev_processor {
+                    drop(prev);
+                }
+                *prev_stream_id.borrow_mut() = None;
+                set_local_stream.set(None);
+                None
+            }
+        }
+    });
 
     // WebRTC Manager Setup
     let ws_clone_for_webrtc = ws;
@@ -318,7 +427,19 @@ pub fn use_room_state() -> RoomState {
             // Assuming typical WebRTC flow: request audio=true.
 
             if let Ok(stream) = get_user_media(enable_video, true, v_id, a_id, Some(&res)).await {
-                // Stop existing stream tracks just before replacing
+                // Stop existing raw stream tracks to release camera/mic hardware.
+                // When a virtual background is active, local_stream contains canvas
+                // video tracks (not the real getUserMedia tracks), so stopping only
+                // local_stream would leak the camera. Always stop raw_local_stream.
+                if let Some(old_raw) = raw_local_stream.get_untracked() {
+                    let tracks = old_raw.get_tracks();
+                    for i in 0..tracks.length() {
+                        if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            track.stop();
+                        }
+                    }
+                }
+                // Also stop processed stream tracks (canvas video tracks) for cleanup
                 if let Some(old_stream) = local_stream.get_untracked() {
                     let tracks = old_stream.get_tracks();
                     for i in 0..tracks.length() {
@@ -341,7 +462,7 @@ pub fn use_room_state() -> RoomState {
                     }
                 }
 
-                set_local_stream.set(Some(stream.clone()));
+                set_raw_local_stream.set(Some(stream.clone()));
 
                 let on_speaking = Box::new(move |is_speaking: bool| {
                     if let Some(socket) = ws.get_untracked() {
@@ -358,12 +479,44 @@ pub fn use_room_state() -> RoomState {
                     add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
-                if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, Some(on_no_audio as Box<dyn FnMut()>)) {
-
-                    set_audio_monitor.set(Some(monitor));
-                }
+            if let Ok(monitor) = AudioMonitor::new(
+                &stream,
+                on_speaking,
+                Some(on_no_audio as Box<dyn FnMut()>),
+                is_noise_suppression_enabled.get_untracked(),
+            ) {
+                // Inherit the current mute state so the monitor doesn't fire
+                // false-positive speaking callbacks while the user is muted
+                // (e.g. after a noise-suppression restart or device change).
+                monitor.set_muted(is_muted.get_untracked());
+                set_audio_monitor.set(Some(monitor));
+            }
             }
         });
+    });
+
+    // Reactive Noise Suppression Update
+    create_effect(move |_| {
+        let enabled = is_noise_suppression_enabled.get();
+        let needs_restart = audio_monitor.with_untracked(|monitor| {
+            if let Some(m) = monitor {
+                // Returns Err if the monitor needs to be recreated (e.g. enabling
+                // suppression when no compressor node exists in the audio graph).
+                m.set_noise_suppression(enabled).is_err()
+            } else {
+                false
+            }
+        });
+        if needs_restart {
+            // Restart media to recreate the AudioMonitor with the correct setting.
+            // Preserve current video state.
+            let has_video = local_stream.with_untracked(|s| {
+                s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
+            });
+            if local_stream.get_untracked().is_some() {
+                start_media_stream.call(has_video);
+            }
+        }
     });
 
     // Initialize WebSocket
@@ -430,6 +583,10 @@ pub fn use_room_state() -> RoomState {
                                 set_is_recording.set(config.is_recording);
 
                                 set_is_lobby_enabled.set(config.is_lobby_enabled);
+                                // Clear stale transcriptions when subtitles are toggled off
+                                if !config.is_subtitles_enabled && is_subtitles_enabled.get_untracked() {
+                                    set_subtitles.set(Vec::new());
+                                }
                                 set_is_subtitles_enabled.set(config.is_subtitles_enabled);
                                 set_room_config.set(config);
                             }
@@ -472,6 +629,10 @@ pub fn use_room_state() -> RoomState {
                                 // Remove from typing users if present
                                 set_typing_users.update(|users| {
                                     users.remove(&id);
+                                });
+                                // Remove from speaking peers to avoid stale indicators
+                                set_speaking_peers.update(|s| {
+                                    s.remove(&id);
                                 });
                                 // Cleanup WebRTC
                                 webrtc_manager.handle_participant_left(&id);
@@ -549,13 +710,11 @@ pub fn use_room_state() -> RoomState {
                                                 }
                                             });
                                         }
-                                        // Confirm state to server
-                                        if let Some(socket) = ws.get_untracked() {
-                                            let msg = ClientMessage::SetMuteStatus(true);
-                                            if let Ok(json) = serde_json::to_string(&msg) {
-                                                let _ = socket.send_with_str(&json);
-                                            }
-                                        }
+                                        // Note: No need to send SetMuteStatus back to the server.
+                                        // The backend already set is_muted=true and broadcast
+                                        // ParticipantUpdated in the MuteAll/MuteParticipant handler.
+                                        // Sending it again would cause a redundant ParticipantUpdated
+                                        // broadcast for every muted participant.
                                     }
                                 }
                             }
@@ -661,6 +820,15 @@ pub fn use_room_state() -> RoomState {
                                         s.insert(user_id);
                                     } else {
                                         s.remove(&user_id);
+                                    }
+                                });
+                            }
+                            ServerMessage::Transcription { user_id, text, timestamp } => {
+                                set_subtitles.update(|subs| {
+                                    subs.push((user_id, text, timestamp));
+                                    // Keep only the last 5 transcriptions to avoid UI clutter
+                                    if subs.len() > 5 {
+                                        subs.remove(0);
                                     }
                                 });
                             }
@@ -806,6 +974,10 @@ pub fn use_room_state() -> RoomState {
                 let _ = socket.send_with_str(&json);
             }
         }
+    });
+
+    let set_background_mode = Callback::new(move |mode: String| {
+        set_background_mode_sig.set(mode);
     });
 
     let grant_access = Callback::new(move |id: String| {
@@ -982,6 +1154,9 @@ pub fn use_room_state() -> RoomState {
         set_current_room_id.set(room_id.clone());
         // Clear messages when switching rooms
         set_messages.set(Vec::new());
+        // Clear stale speaking/typing indicators from the old room
+        set_speaking_peers.update(|s| s.clear());
+        set_typing_users.update(|u| u.clear());
 
         // Cleanup existing WebRTC connections on room switch to ensure correct signaling context
         webrtc_manager_for_breakout.close_all_peers();
@@ -1007,6 +1182,15 @@ pub fn use_room_state() -> RoomState {
     let mute_participant = Callback::new(move |id: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::MuteParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let mute_all = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteAll;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1042,28 +1226,38 @@ pub fn use_room_state() -> RoomState {
     });
 
     let set_input_devices = Callback::new(
-        move |(vid, aid, res): (Option<String>, Option<String>, String)| {
+        move |(vid, aid, res, ns): (Option<String>, Option<String>, String, bool)| {
+            let old_ns = is_noise_suppression_enabled.get_untracked();
             set_selected_camera_id.set(vid.clone());
             set_selected_mic_id.set(aid.clone());
             set_video_resolution.set(res.clone());
+            set_is_noise_suppression_enabled.set(ns);
 
-            // Use same logic as toggle_camera: preserve video state?
-            // Or if user selected a camera, enable video?
-            // Usually settings dialog allows selecting device. If "None" is passed for video, maybe disable?
-            // But settings dialog passes "current selection".
-            // Let's assume if stream is running, we restart it with same video state (unless video was disabled? No, if stream running, restart with current capabilities).
-            // Actually, simpler: check if video is currently running.
             let has_video = if let Some(stream) = local_stream.get_untracked() {
                 stream.get_video_tracks().length() > 0
             } else {
-                false // If no stream, maybe don't start one? Or start if devices selected?
-                      // If user explicitly changes devices in settings, they probably want to see them.
-                      // But if they were Audio Only, and changed Mic...
-                      // Let's stick to: if stream exists, restart with current video state.
+                false
             };
 
             if local_stream.get_untracked().is_some() {
-                start_media_stream.call(has_video);
+                // When noise suppression is being enabled (and was previously off),
+                // the reactive noise suppression effect will detect that the
+                // AudioMonitor has no compressor node, receive an Err from
+                // set_noise_suppression(), and call start_media_stream itself.
+                // Calling it here as well would result in two concurrent
+                // getUserMedia requests. Skip the explicit restart in that case
+                // and let the effect handle it.
+                //
+                // However, if the monitor already has a compressor (from a
+                // previous enable→disable cycle), set_noise_suppression(true)
+                // will succeed and the effect will NOT restart. In that case we
+                // must call start_media_stream here so device changes are applied.
+                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m| {
+                    m.as_ref().is_some_and(|monitor| !monitor.has_compressor())
+                });
+                if !ns_will_trigger_restart {
+                    start_media_stream.call(has_video);
+                }
             }
         },
     );
@@ -1154,6 +1348,7 @@ pub fn use_room_state() -> RoomState {
         is_lobby_enabled,
         is_recording,
         is_subtitles_enabled,
+        subtitles,
         show_settings,
         show_polls,
         show_shortcuts,
@@ -1177,6 +1372,8 @@ pub fn use_room_state() -> RoomState {
         is_muted,
         shared_video_url,
         speaking_peers,
+        audio_monitor,
+        raw_local_stream,
         show_speaker_stats,
         show_virtual_background,
         show_feedback,
@@ -1185,7 +1382,10 @@ pub fn use_room_state() -> RoomState {
         selected_camera_id,
         selected_mic_id,
         video_resolution,
+        is_noise_suppression_enabled,
+        background_mode,
         set_input_devices,
+        set_background_mode,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
@@ -1222,6 +1422,7 @@ pub fn use_room_state() -> RoomState {
         toggle_mic,
         end_meeting,
         mute_participant,
+        mute_all,
         transfer_host,
         start_share_video,
         stop_share_video,
@@ -1237,6 +1438,24 @@ mod tests {
     fn test_room_connection_state_equality() {
         assert_eq!(RoomConnectionState::Prejoin, RoomConnectionState::Prejoin);
         assert_ne!(RoomConnectionState::Prejoin, RoomConnectionState::Joined);
+    }
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn test_subtitles_initially_empty() {
+        let _runtime = create_runtime();
+        crate::components_ui::toast::provide_toast_context();
+        let state = use_room_state();
+        assert!(state.subtitles.get_untracked().is_empty());
+    }
+
+    #[test]
+    #[cfg(target_arch = "wasm32")]
+    fn test_background_mode_initial() {
+        let _runtime = create_runtime();
+        crate::components_ui::toast::provide_toast_context();
+        let state = use_room_state();
+        assert_eq!(state.background_mode.get_untracked(), "none");
     }
 }
 

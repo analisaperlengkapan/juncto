@@ -28,25 +28,34 @@ pub fn CalendarList(
                 </div>
 
                 <div style="flex: 1; overflow-y: auto; margin-bottom: 15px;">
-                    <Show when=move || !events.get().is_empty() fallback=move || view! {
-                        <div style="text-align: center; color: #aaa; padding: 20px 0;">
-                            "No upcoming events found."
-                        </div>
-                    }>
-                        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;">
-                            <For
-                                each=move || events.get().into_iter().enumerate().collect::<Vec<_>>()
-                                key=|(i, _)| *i
-                                children=move |(_, evt)| {
+                    {move || if events.get().is_empty() {
+                        view! {
+                            <div style="text-align: center; color: #999; padding: 20px;">
+                                "No upcoming events"
+                            </div>
+                        }.into_view()
+                    } else {
+                        view! {
+                            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px;">
+                                {
+                                    let events_list = events.get().into_iter().enumerate().collect::<Vec<_>>();
                                     view! {
-                                        <li style="background: #111; padding: 10px; border-radius: 4px; border: 1px solid #444;">
-                                            {evt}
-                                        </li>
+                                        <For
+                                            each=move || events_list.clone()
+                                            key=|(i, _)| *i
+                                            children=move |(_i, evt)| {
+                                                view! {
+                                                    <li style="background: #333; padding: 10px; border-radius: 4px; border-left: 4px solid #007bff;">
+                                                        {evt}
+                                                    </li>
+                                                }
+                                            }
+                                        />
                                     }
                                 }
-                            />
-                        </ul>
-                    </Show>
+                            </ul>
+                        }.into_view()
+                    }}
                 </div>
 
                 <div style="display: flex; justify-content: flex-end;">

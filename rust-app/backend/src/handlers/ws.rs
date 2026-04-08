@@ -1,5 +1,6 @@
 use super::breakout;
 use super::chat;
+use super::moderation;
 use super::polls;
 use super::whiteboard;
 use crate::AppState;
@@ -470,6 +471,25 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
+                                                        ServerMessage::Transcription { user_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(user_id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::PeerSpeaking { user_id, speaking } => {
+                                                            // Always deliver speaking=false so peers
+                                                            // clear stale indicators even if the
+                                                            // speaker moved to a different room.
+                                                            if !speaking {
+                                                                true
+                                                            } else {
+                                                                let locs = locations_clone.lock().unwrap();
+                                                                let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                                let source_loc = locs.get(user_id).cloned().flatten();
+                                                                my_loc == source_loc
+                                                            }
+                                                        },
                                                         _ => true,
                                                     };
 
@@ -761,8 +781,26 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if let Some(uid) = &my_id {
                                         let mut update_stats = false;
                                         if is_speaking {
-                                            let mut starts = speaking_start_times_mutex.lock().unwrap();
-                                            starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+                                            {
+                                                let mut starts = speaking_start_times_mutex.lock().unwrap();
+                                                starts.insert(uid.clone(), chrono::Utc::now().timestamp_millis() as u64);
+                                            }
+
+                                            // Transcription logic (Mocked)
+                                            let is_subtitles_enabled = {
+                                                room_config_mutex.lock().unwrap().is_subtitles_enabled
+                                            };
+                                            if is_subtitles_enabled {
+                                                let text = format!("{} is speaking...", {
+                                                    let p_map = participants_mutex.lock().unwrap();
+                                                    p_map.get(uid).map(|p| p.name.clone()).unwrap_or_else(|| "Unknown".to_string())
+                                                });
+                                                let _ = tx.send(ServerMessage::Transcription {
+                                                    user_id: uid.clone(),
+                                                    text,
+                                                    timestamp: chrono::Utc::now().timestamp_millis() as u64,
+                                                });
+                                            }
                                         } else {
                                             let start_opt = {
                                                 let mut starts = speaking_start_times_mutex.lock().unwrap();
@@ -857,6 +895,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
+                                            // Only allow muting participants in the same breakout
+                                            // room as the host, consistent with MuteAll scoping.
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
                                             let updated_participant = {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 if let Some(p) = participants.get_mut(&target_id) {
@@ -896,6 +945,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Ping => {
                                     let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
+                                },
+                                ClientMessage::MuteAll => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::mute_all(uid, &state);
+                                        for msg in msgs {
+                                            let _ = tx.send(msg);
+                                        }
+                                    }
                                 },
                                 ClientMessage::Offer { target_id, sdp } => {
                                     if let Some(uid) = &my_id {
@@ -1068,6 +1125,25 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
+                                                ServerMessage::Transcription { user_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
+                                                },
+                                                ServerMessage::PeerSpeaking { user_id, speaking } => {
+                                                    // Always deliver speaking=false so peers
+                                                    // clear stale indicators even if the
+                                                    // speaker moved to a different room.
+                                                    if !speaking {
+                                                        true
+                                                    } else {
+                                                        let locs = locations_clone.lock().unwrap();
+                                                        let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                        let source_loc = locs.get(user_id).cloned().flatten();
+                                                        my_loc == source_loc
+                                                    }
+                                                },
                                                 _ => true,
                                             };
 
@@ -1223,8 +1299,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_ws_handler() {
         assert!(true);

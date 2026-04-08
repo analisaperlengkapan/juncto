@@ -1,0 +1,194 @@
+use crate::AppState;
+use shared::ServerMessage;
+use std::sync::Arc;
+
+pub fn mute_all(
+    sender_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let is_host = {
+        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
+    };
+
+    if is_host {
+        // Only mute participants in the same breakout room as the host.
+        // This prevents a host in the main room from silently muting
+        // participants in breakout rooms (or vice-versa).
+        let host_location = {
+            let locs = state.participant_locations.lock().unwrap();
+            locs.get(sender_id).cloned().flatten()
+        };
+
+        let participants = {
+            let p_map = state.participants.lock().unwrap();
+            let locs = state.participant_locations.lock().unwrap();
+            p_map.keys()
+                .filter(|id| locs.get(*id).cloned().flatten() == host_location)
+                .cloned()
+                .collect::<Vec<String>>()
+        };
+
+        for target_id in participants {
+            if target_id != sender_id {
+                let updated_participant = {
+                    let mut p_map = state.participants.lock().unwrap();
+                    if let Some(p) = p_map.get_mut(&target_id) {
+                        p.is_muted = true;
+                        Some(p.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(p) = updated_participant {
+                    messages.push(ServerMessage::ParticipantUpdated(p));
+                    messages.push(ServerMessage::MutedByHost(target_id));
+                }
+            }
+        }
+    }
+    messages
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::{RoomConfig, PresenceStatus, Participant};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::broadcast;
+
+    fn create_mock_state() -> Arc<AppState> {
+        let (tx, _) = broadcast::channel(10);
+        Arc::new(AppState {
+            tx,
+            participants: Arc::new(Mutex::new(HashMap::new())),
+            knocking_participants: Arc::new(Mutex::new(HashMap::new())),
+            room_config: Arc::new(Mutex::new(RoomConfig::default())),
+            polls: Arc::new(Mutex::new(HashMap::new())),
+            whiteboard: Arc::new(Mutex::new(Vec::new())),
+            chat_history: Arc::new(Mutex::new(Vec::new())),
+            breakout_rooms: Arc::new(Mutex::new(HashMap::new())),
+            participant_locations: Arc::new(Mutex::new(HashMap::new())),
+            shared_video_url: Arc::new(Mutex::new(None)),
+            speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
+            feedback: Arc::new(Mutex::new(Vec::new())),
+        })
+    }
+
+    #[test]
+    fn test_mute_all_host() {
+        let state = create_mock_state();
+        let host_id = "host".to_string();
+        let user_id = "user".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.clone());
+        }
+
+        {
+            let mut p_map = state.participants.lock().unwrap();
+            p_map.insert(host_id.clone(), Participant {
+                id: host_id.clone(),
+                name: "Host".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+                is_muted: false,
+                speaking_time: 0,
+                presence: PresenceStatus::Connected,
+            });
+            p_map.insert(user_id.clone(), Participant {
+                id: user_id.clone(),
+                name: "User".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+                is_muted: false,
+                speaking_time: 0,
+                presence: PresenceStatus::Connected,
+            });
+        }
+
+        // Both participants must be in the same room (main room = None)
+        {
+            let mut locs = state.participant_locations.lock().unwrap();
+            locs.insert(host_id.clone(), None);
+            locs.insert(user_id.clone(), None);
+        }
+
+        let msgs = mute_all(&host_id, &state);
+        assert!(!msgs.is_empty());
+        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_id)));
+
+        let p_map = state.participants.lock().unwrap();
+        assert!(p_map.get(&user_id).unwrap().is_muted);
+        assert!(!p_map.get(&host_id).unwrap().is_muted);
+    }
+
+    #[test]
+    fn test_mute_all_non_host() {
+        let state = create_mock_state();
+        let host_id = "host".to_string();
+        let user_id = "user".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.clone());
+        }
+
+        let msgs = mute_all(&user_id, &state);
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn test_mute_all_scoped_to_room() {
+        let state = create_mock_state();
+        let host_id = "host".to_string();
+        let user_in_main = "user_main".to_string();
+        let user_in_breakout = "user_breakout".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.clone());
+        }
+
+        {
+            let mut p_map = state.participants.lock().unwrap();
+            for (id, name) in [
+                (host_id.clone(), "Host"),
+                (user_in_main.clone(), "MainUser"),
+                (user_in_breakout.clone(), "BreakoutUser"),
+            ] {
+                p_map.insert(id.clone(), Participant {
+                    id,
+                    name: name.to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                });
+            }
+        }
+
+        // Host and user_in_main are in main room (None),
+        // user_in_breakout is in a breakout room.
+        {
+            let mut locs = state.participant_locations.lock().unwrap();
+            locs.insert(host_id.clone(), None);
+            locs.insert(user_in_main.clone(), None);
+            locs.insert(user_in_breakout.clone(), Some("room-1".to_string()));
+        }
+
+        let msgs = mute_all(&host_id, &state);
+
+        // Only user_in_main should be muted (same room as host)
+        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_main)));
+        assert!(!msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_breakout)));
+
+        let p_map = state.participants.lock().unwrap();
+        assert!(p_map.get(&user_in_main).unwrap().is_muted);
+        assert!(!p_map.get(&user_in_breakout).unwrap().is_muted);
+        assert!(!p_map.get(&host_id).unwrap().is_muted);
+    }
+}

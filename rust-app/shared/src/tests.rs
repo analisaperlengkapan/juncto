@@ -140,6 +140,26 @@ fn test_poll_serialization() {
 }
 
 #[test]
+fn test_mute_all_serialization() {
+    let msg = ClientMessage::MuteAll;
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}
+
+#[test]
+fn test_transcription_serialization() {
+    let msg = ServerMessage::Transcription {
+        user_id: "u1".to_string(),
+        text: "hello".to_string(),
+        timestamp: 12345,
+    };
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+}
+
+#[test]
 fn test_authenticate_message() {
     let msg = ClientMessage::Authenticate { username: "test_user".to_string(), password: Some("secret".to_string()) };
     let serialized = serde_json::to_string(&msg).unwrap();

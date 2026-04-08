@@ -160,6 +160,7 @@ pub enum ClientMessage {
     StopShareVideo,
     Speaking(bool),
     Ping,
+    MuteAll,
     // WebRTC Signaling
     Offer {
         target_id: String,
@@ -243,6 +244,11 @@ pub enum ServerMessage {
         speaking: bool,
     },
     Pong {
+        timestamp: u64,
+    },
+    Transcription {
+        user_id: String,
+        text: String,
         timestamp: u64,
     },
     // WebRTC Signaling

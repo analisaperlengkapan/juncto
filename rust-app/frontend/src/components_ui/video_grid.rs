@@ -119,7 +119,7 @@ pub fn VideoGrid(
                     "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
                 }>
                     <video
-                        _ref=screen_ref
+                        node_ref=screen_ref
                         autoplay
                         playsinline
                         muted
@@ -165,7 +165,7 @@ pub fn VideoGrid(
                     </div>
                 }>
                     <video
-                        _ref=video_ref
+                        node_ref=video_ref
                         autoplay
                         playsinline
                         muted // Mute local video to avoid feedback

@@ -16,13 +16,14 @@ test.describe('Keyboard Shortcuts', () => {
 
         // 1. Check Initial Mute State (Unmuted)
         // Mute button says "Mute" (green background)
-        await expect(page.locator('button:has-text("Mute")')).toBeVisible();
+        // Use exact match to avoid collision with "Mute All"
+        await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
 
         // Verify button click works first
-        await page.click('button:has-text("Mute")');
-        await expect(page.locator('button:has-text("Unmute")')).toBeVisible();
-        await page.click('button:has-text("Unmute")');
-        await expect(page.locator('button:has-text("Mute")')).toBeVisible();
+        await page.getByRole('button', { name: 'Mute', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Unmute', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Unmute', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
 
         // Ensure focus is on the body
         await page.click('body');
@@ -36,7 +37,7 @@ test.describe('Keyboard Shortcuts', () => {
 
         // 3. Press 'M' again to unmute
         await page.keyboard.press('m');
-        await expect(page.locator('button:has-text("Mute")')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
 
         // 4. Open Shortcuts Dialog with '?' button
         await page.click('button[title="Keyboard Shortcuts"]');
