@@ -158,7 +158,13 @@ pub fn Room() -> impl IntoView {
                                 on_join=state.join_breakout_room
                             />
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">
-                                <div class="video-container" style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                                <div class="video-container" style=move || {
+                                    if state.show_etherpad.get() {
+                                        "display: flex; justify-content: center; align-items: center; height: 30%; border-bottom: 2px solid #555;"
+                                    } else {
+                                        "display: flex; justify-content: center; align-items: center; height: 100%;"
+                                    }
+                                }>
                                     <div>
                                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
                                             <h2>"Meeting Room: " {room_id}</h2>
@@ -170,8 +176,13 @@ pub fn Room() -> impl IntoView {
                                             <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
                                         </Show>
                                         <Show when=move || state.is_recording.get()>
-                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;">
+                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
                                                 "REC"
+                                            </div>
+                                        </Show>
+                                        <Show when=move || state.is_e2ee_enabled.get()>
+                                            <div style="background: #6c757d; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" title="End-to-End Encryption indicator only — actual E2EE is not yet implemented">
+                                                "🔒 E2EE (indicator)"
                                             </div>
                                         </Show>
                                         <Show when=move || !state.is_connected.get()>
@@ -220,6 +231,13 @@ pub fn Room() -> impl IntoView {
                                         my_id=state.my_id
                                     />
                                 </Show>
+                                <Show when=move || state.show_etherpad.get()>
+                                    <div style="height: 70%; width: 100%;">
+                                        <crate::components_ui::etherpad::Etherpad
+                                            url=Signal::derive(move || state.room_config.get().etherpad_url)
+                                        />
+                                    </div>
+                                </Show>
                             </div>
                             <Toolbox
                                 is_locked=state.is_locked
@@ -233,6 +251,37 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 is_subtitles_enabled=state.is_subtitles_enabled
                                 on_toggle_subtitles=state.toggle_subtitles
+                                on_toggle_e2ee=state.toggle_e2ee
+                                is_e2ee_enabled=state.is_e2ee_enabled
+                                on_toggle_etherpad=Callback::new({
+                                    let state = state.clone();
+                                    let room_id_fn = room_id;
+                                    move |_| {
+                                        let current = state.show_etherpad.get_untracked();
+                                        if state.is_host.get_untracked() {
+                                            if !current {
+                                                // If no URL is set yet, configure one and send to server
+                                                let has_url = state.room_config.get_untracked().etherpad_url.is_some();
+                                                if !has_url {
+                                                    let rid = room_id_fn();
+                                                    let pad_url = format!("https://etherpad.org/p/juncto-{}", rid);
+                                                    state.toggle_etherpad.call(Some(pad_url));
+                                                }
+                                                // Optimistically show the panel immediately
+                                                state.set_show_etherpad.set(true);
+                                            } else {
+                                                // Just hide locally; the URL stays active for other participants.
+                                                // To remove the shared document for everyone, the host
+                                                // can use the settings or a dedicated "Remove Pad" action.
+                                                state.set_show_etherpad.set(false);
+                                            }
+                                        } else {
+                                            state.set_show_etherpad.set(!current);
+                                        }
+                                    }
+                                })
+                                is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
+                                is_etherpad_open=Signal::derive(move || state.show_etherpad.get())
                                 current_presence=Signal::derive(move || {
                                     if let Some(my_id) = state.my_id.get() {
                                         if let Some(me) = state.participants.get().iter().find(|p| p.id == my_id) {
@@ -339,8 +388,10 @@ pub fn Room() -> impl IntoView {
                             current_noise_suppression=state.is_noise_suppression_enabled
                             is_host=state.is_host
                             is_locked=state.is_locked
+                            is_e2ee_enabled=state.is_e2ee_enabled
                             is_lobby_enabled=state.is_lobby_enabled
                             on_toggle_lock=state.toggle_lock
+                            on_toggle_e2ee=state.toggle_e2ee
                             on_toggle_lobby=state.toggle_lobby
                         />
                         <SharedVideoDialog

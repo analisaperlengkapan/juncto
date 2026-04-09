@@ -1,4 +1,6 @@
+mod analytics;
 mod chat;
+mod giphy;
 mod components_ui;
 mod connection_stats;
 mod i18n;
@@ -11,6 +13,7 @@ mod settings;
 mod shortcuts;
 mod speaker_stats;
 mod state;
+mod storage;
 mod toolbox;
 mod utils;
 mod virtual_background;

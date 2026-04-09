@@ -473,8 +473,7 @@ pub fn VideoGrid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
-use shared::Participant;
+    use shared::Participant;
 
     #[test]
     fn test_grid_item_key() {

@@ -1,4 +1,5 @@
 pub type ChatSendCallback = Callback<(String, Option<String>, Option<shared::FileAttachment>, Option<String>)>;
+use crate::components_ui::giphy::GiphySearch;
 use gloo_timers::callback::Timeout;
 use leptos::*;
 use shared::{ChatMessage, FileAttachment, Participant};
@@ -65,6 +66,7 @@ pub fn Chat(
     let (input_value, set_input_value) = create_signal("".to_string());
     let (recipient, set_recipient) = create_signal(None::<String>); // None = Everyone
     let (selected_file, set_selected_file) = create_signal(None::<FileAttachment>);
+    let (show_giphy, set_show_giphy) = create_signal(false);
     let file_input_ref = create_node_ref::<html::Input>();
 
     // Store timer handle in a ref to clear it if needed, or just let it fire.
@@ -232,7 +234,22 @@ pub fn Chat(
                                     <small style="color: #999; margin-right: 5px;">"[" {time_str} "] "</small>
                                     <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>
-                                    <span>{msg.content.clone()}</span>
+                                    {move || {
+                                        if let Some(url) = msg.content.strip_prefix("GIF:") {
+                                            let url = url.to_string();
+                                            if shared::is_giphy_cdn_url(&url) {
+                                                view! {
+                                                    <div>
+                                                        <img src=url style="max-width: 200px; border-radius: 4px; display: block; margin-top: 5px;" />
+                                                    </div>
+                                                }.into_view()
+                                            } else {
+                                                view! { <span>{msg.content.clone()}</span> }.into_view()
+                                            }
+                                        } else {
+                                            view! { <span>{msg.content.clone()}</span> }.into_view()
+                                        }
+                                    }}
                                     {move || {
                                         if let Some(att) = &msg.attachment {
                                             if att.mime_type.starts_with("image/") {
@@ -262,6 +279,14 @@ pub fn Chat(
                     />
                 </ul>
             </div>
+            <Show when=move || show_giphy.get()>
+                <div style="margin-bottom: 10px;">
+                    <GiphySearch on_select=Callback::new(move |url| {
+                        on_send.call((format!("GIF:{}", url), recipient.get(), None, current_room_id.get()));
+                        set_show_giphy.set(false);
+                    })/>
+                </div>
+            </Show>
             <div class="typing-indicator" style="height: 20px; font-style: italic; color: #666; font-size: 0.8em;">
                 {move || {
                     let users = typing_users.get();
@@ -284,6 +309,11 @@ pub fn Chat(
                         disabled=move || !is_connected.get()
                         style="width: 60px;">
                         {move || if is_connected.get() { "Send" } else { "..." }}
+                    </button>
+                    <button
+                        on:click=move |_| set_show_giphy.update(|v| *v = !*v)
+                        style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        "GIF"
                     </button>
                 </div>
                 <div>

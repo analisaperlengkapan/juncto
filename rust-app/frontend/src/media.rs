@@ -530,7 +530,6 @@ mod tests {
 
 #[cfg(test)]
 mod tests_media_muted {
-    use super::*;
 
     #[test]
     fn test_audio_monitor_compiles() {

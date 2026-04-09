@@ -16,7 +16,6 @@ pub fn LobbyScreen() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leptos::*;
 
     #[test]
     fn test_lobby_screen_compiles() {

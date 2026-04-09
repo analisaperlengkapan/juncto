@@ -11,15 +11,16 @@ pub fn PrejoinScreen(
     on_join: Callback<JoinOptions>,
     is_connected: ReadSignal<bool>,
 ) -> impl IntoView {
-    let (display_name, set_display_name) = create_signal("Guest".to_string());
+    let initial_settings = crate::storage::load_settings();
+    let (display_name, set_display_name) = create_signal(initial_settings.display_name.clone().unwrap_or_else(|| "Guest".to_string()));
 
     // Device Lists
     let (video_devices, set_video_devices) = create_signal(Vec::<DeviceInfo>::new());
     let (audio_devices, set_audio_devices) = create_signal(Vec::<DeviceInfo>::new());
 
     // Selected Devices
-    let (selected_video_device, set_selected_video_device) = create_signal(None::<String>);
-    let (selected_audio_device, set_selected_audio_device) = create_signal(None::<String>);
+    let (selected_video_device, set_selected_video_device) = create_signal(initial_settings.camera_id);
+    let (selected_audio_device, set_selected_audio_device) = create_signal(initial_settings.mic_id);
 
     // Toggles
     let (is_camera_on, set_is_camera_on) = create_signal(false);
@@ -39,13 +40,27 @@ pub fn PrejoinScreen(
             // Batch updates to avoid multiple stream restarts
             batch(move || {
                 set_video_devices.set(v_devices.clone());
-                if let Some(first) = v_devices.first() {
-                    set_selected_video_device.set(Some(first.device_id.clone()));
+                // Fall back to first device if no saved ID or if the saved ID
+                // is stale (device was unplugged since settings were persisted).
+                let saved_vid = selected_video_device.get_untracked();
+                let vid_valid = saved_vid.as_ref().is_some_and(|id| {
+                    v_devices.iter().any(|d| &d.device_id == id)
+                });
+                if !vid_valid {
+                    if let Some(first) = v_devices.first() {
+                        set_selected_video_device.set(Some(first.device_id.clone()));
+                    }
                 }
 
                 set_audio_devices.set(a_devices.clone());
-                if let Some(first) = a_devices.first() {
-                    set_selected_audio_device.set(Some(first.device_id.clone()));
+                let saved_aid = selected_audio_device.get_untracked();
+                let aid_valid = saved_aid.as_ref().is_some_and(|id| {
+                    a_devices.iter().any(|d| &d.device_id == id)
+                });
+                if !aid_valid {
+                    if let Some(first) = a_devices.first() {
+                        set_selected_audio_device.set(Some(first.device_id.clone()));
+                    }
                 }
             });
         });

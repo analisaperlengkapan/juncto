@@ -147,6 +147,51 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::ToggleE2EE => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.e2ee_enabled = !config.e2ee_enabled;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetEtherpadUrl(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            // Server-side URL validation
+                                            if let Some(ref url_str) = url {
+                                                if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
+                                                    let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: must start with http:// or https://".to_string())).await;
+                                                    continue;
+                                                }
+                                                if url_str.len() > 2048 {
+                                                    let _ = internal_tx.send(ServerMessage::Error("Invalid Etherpad URL: too long".to_string())).await;
+                                                    continue;
+                                                }
+                                            }
+                                            let config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.etherpad_url = url.clone();
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::GiphyShare(_) => {
+                                    // GIFs are sent via ClientMessage::Chat with a "GIF:" prefix;
+                                    // this dedicated variant is unused by the frontend.
+                                },
                                 ClientMessage::ToggleSubtitles => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
@@ -346,6 +391,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             (false, false)
                                         } else {
                                             let mut config = room_config_mutex.lock().unwrap();
+                                            // Robust Host Check: Clear host_id if participant no longer exists
+                                            if let Some(hid) = &config.host_id {
+                                                if !participants.contains_key(hid) {
+                                                    config.host_id = None;
+                                                }
+                                            }
                                             let assigned = if config.host_id.is_none() {
                                                 config.host_id = Some(id.clone());
                                                 true
@@ -376,13 +427,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
                                     }
 
+                                    let current_config = {
+                                        room_config_mutex.lock().unwrap().clone()
+                                    };
                                     if new_host_assigned {
-                                        let new_config = {
-                                            room_config_mutex.lock().unwrap().clone()
-                                        };
-                                        let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
-                                        let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
+                                        let _ = tx.send(ServerMessage::RoomUpdated(current_config.clone()));
                                     }
+                                    let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config)).await;
 
                                     // Register initial location (Main Room)
                                     {
@@ -406,7 +457,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let locs = locations_clone.lock().unwrap();
                                                                 locs.get(&my_id_clone).cloned().flatten()
                                                             };
-                                                            println!("BROADCAST TASK 1: my_id: {}, msg from: {}, my_loc: {:?}, msg_room: {:?}", my_id_clone, message.user_id, my_loc, room_id);
                                                             if *room_id != my_loc {
                                                                 false
                                                             } else if let Some(target) = &message.recipient_id {
@@ -463,6 +513,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == *room_id || *id == my_id_clone
+                                                        },
+                                                        // Note: EtherpadUrlUpdated and GiphyShared are
+                                                        // currently never broadcast by the server (etherpad
+                                                        // changes go via RoomUpdated, GIFs via Chat). These
+                                                        // arms are kept for protocol completeness.
+                                                        ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            my_loc == *room_id
+                                                        },
+                                                        ServerMessage::GiphyShared { room_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            my_loc == *room_id
                                                         },
                                                         ServerMessage::MutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1005,6 +1069,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 if participants.len() >= config.max_participants as usize {
                                     (false, false)
                                 } else {
+                                    // Robust Host Check: Clear host_id if participant no longer exists
+                                    if let Some(hid) = &config.host_id {
+                                        if !participants.contains_key(hid) {
+                                            config.host_id = None;
+                                        }
+                                    }
                                     let assigned = if config.host_id.is_none() {
                                         config.host_id = Some(id.clone());
                                         true
@@ -1033,13 +1103,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 let _ = internal_tx.send(ServerMessage::ChatHistory(history)).await;
                             }
 
+                            let current_config = {
+                                room_config_mutex.lock().unwrap().clone()
+                            };
                             if new_host_assigned {
-                                let new_config = {
-                                    room_config_mutex.lock().unwrap().clone()
-                                };
-                                let _ = tx.send(ServerMessage::RoomUpdated(new_config.clone()));
-                                let _ = internal_tx.send(ServerMessage::RoomUpdated(new_config)).await;
+                                let _ = tx.send(ServerMessage::RoomUpdated(current_config.clone()));
                             }
+                            let _ = internal_tx.send(ServerMessage::RoomUpdated(current_config)).await;
 
                              // Register initial location (Main Room)
                             {
@@ -1064,7 +1134,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         let locs = locations_clone.lock().unwrap();
                                                         locs.get(&my_id_clone).cloned().flatten()
                                                     };
-                                                    println!("BROADCAST TASK 2: my_id: {}, msg from: {}, my_loc: {:?}, msg_room: {:?}", my_id_clone, message.user_id, my_loc, room_id);
                                                     if *room_id != my_loc {
                                                         false
                                                     } else if let Some(target) = &message.recipient_id {
@@ -1130,6 +1199,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                     let source_loc = locs.get(user_id).cloned().flatten();
                                                     my_loc == source_loc
+                                                },
+                                                // Note: EtherpadUrlUpdated and GiphyShared are
+                                                // currently never broadcast by the server (etherpad
+                                                // changes go via RoomUpdated, GIFs via Chat). These
+                                                // arms are kept for protocol completeness.
+                                                ServerMessage::EtherpadUrlUpdated { room_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id
+                                                },
+                                                ServerMessage::GiphyShared { room_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    my_loc == *room_id
                                                 },
                                                 ServerMessage::PeerSpeaking { user_id, speaking } => {
                                                     // Always deliver speaking=false so peers

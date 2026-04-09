@@ -18,8 +18,10 @@ pub fn SettingsDialog(
     #[prop(optional)] current_noise_suppression: Option<ReadSignal<bool>>,
     #[prop(optional)] is_host: Option<Signal<bool>>,
     #[prop(optional)] is_locked: Option<ReadSignal<bool>>,
+    #[prop(optional)] is_e2ee_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
 ) -> impl IntoView {
     let (active_tab, set_active_tab) = create_signal("profile");
@@ -362,6 +364,22 @@ pub fn SettingsDialog(
                                         style="margin-right: 10px;"
                                     />
                                     {move || t("enable_lobby")}
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || is_e2ee_enabled.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_e2ee {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || "Enable End-to-End Encryption (visual indicator only)"}
+                                    <input type="hidden" class="e2ee-toggle-marker" />
                                 </label>
                             </div>
                         </Show>

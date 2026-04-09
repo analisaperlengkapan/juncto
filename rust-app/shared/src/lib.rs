@@ -28,6 +28,8 @@ pub struct RoomConfig {
     pub e2ee_enabled: bool,
     #[serde(default)]
     pub is_subtitles_enabled: bool,
+    #[serde(default)]
+    pub etherpad_url: Option<String>,
 }
 
 impl Default for RoomConfig {
@@ -41,6 +43,7 @@ impl Default for RoomConfig {
             host_id: None,
             e2ee_enabled: false,
             is_subtitles_enabled: false,
+            etherpad_url: None,
         }
     }
 }
@@ -143,6 +146,9 @@ pub enum ClientMessage {
     ToggleRaiseHand,
     ToggleScreenShare,
     ToggleLobby,
+    ToggleE2EE,
+    SetEtherpadUrl(Option<String>),
+    GiphyShare(String),
     GrantAccess(String),
     DenyAccess(String),
     KickParticipant(String), // Target ID
@@ -236,6 +242,8 @@ pub enum ServerMessage {
     },
     Knocking,
     AccessDenied,
+    EtherpadUrlUpdated { url: Option<String>, room_id: Option<String> },
+    GiphyShared { url: String, sender_id: String, room_id: Option<String> },
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,
@@ -272,6 +280,28 @@ pub enum ServerMessage {
     AuthenticationResult(bool),
     CalendarEvents(Vec<String>),
     Error(String),
+}
+
+/// Returns `true` if the given URL belongs to a known Giphy CDN domain.
+/// Used on both the backend (chat validation, WS handler) and the frontend
+/// (chat rendering) to enforce a consistent allowlist.
+///
+/// Recognised CDN hosts: `media.giphy.com`, `media0`–`media9.giphy.com`,
+/// and `i.giphy.com`.  The check uses `starts_with` with a trailing `/`
+/// to prevent authority-based bypasses (e.g. `https://media.giphy.com@evil.com`).
+pub fn is_giphy_cdn_url(url: &str) -> bool {
+    if let Some(rest) = url.strip_prefix("https://media") {
+        // Matches "media.giphy.com/" or "media0.giphy.com/" … "media9.giphy.com/"
+        if rest.starts_with(".giphy.com/") {
+            return true;
+        }
+        if let Some(after_digit) = rest.strip_prefix(|c: char| c.is_ascii_digit()) {
+            return after_digit.starts_with(".giphy.com/");
+        }
+        false
+    } else {
+        url.starts_with("https://i.giphy.com/")
+    }
 }
 
 #[cfg(test)]
