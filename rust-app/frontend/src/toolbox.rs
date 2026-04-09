@@ -83,7 +83,7 @@ pub fn Toolbox(
                 <button
                     on:click=move |_| on_toggle_e2ee.call(())
                     style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_e2ee_enabled.get() { "#28a745" } else { "#6c757d" })
-                    title="End-to-End Encryption"
+                    title="End-to-End Encryption (visual indicator only — actual E2EE not yet implemented)"
                 >
                     {move || if is_e2ee_enabled.get() { "Disable E2EE" } else { "Enable E2EE" }}
                 </button>

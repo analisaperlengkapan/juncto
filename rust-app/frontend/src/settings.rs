@@ -378,7 +378,7 @@ pub fn SettingsDialog(
                                         }
                                         style="margin-right: 10px;"
                                     />
-                                    {move || "Enable End-to-End Encryption"}
+                                    {move || "Enable End-to-End Encryption (visual indicator only)"}
                                     <input type="hidden" class="e2ee-toggle-marker" />
                                 </label>
                             </div>

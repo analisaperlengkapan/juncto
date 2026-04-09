@@ -105,7 +105,7 @@ test.describe('Migration Full Integration', () => {
             await e2eeLabel.click();
         }
 
-        await expect(page.locator('div[title="End-to-End Encrypted"]')).toBeVisible({ timeout: 10000 });
+        await expect(page.locator('div[title^="End-to-End Encryption enabled"]')).toBeVisible({ timeout: 10000 });
         await page.click('.modal-header button:has-text("×")');
 
         // 4. Etherpad Test (Host)
@@ -126,7 +126,7 @@ test.describe('Migration Full Integration', () => {
         await guestPage.fill('.prejoin-container input[type="text"]', 'Guest');
         await guestPage.click('button:has-text("Join Meeting")');
 
-        await expect(guestPage.locator('div[title="End-to-End Encrypted"]')).toBeVisible({ timeout: 15000 });
+        await expect(guestPage.locator('div[title^="End-to-End Encryption enabled"]')).toBeVisible({ timeout: 15000 });
 
         const guestChatPanel = guestPage.locator('.side-panel.chat-container');
         if (await guestChatPanel.isHidden()) {

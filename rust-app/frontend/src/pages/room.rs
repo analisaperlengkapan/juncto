@@ -181,7 +181,7 @@ pub fn Room() -> impl IntoView {
                                             </div>
                                         </Show>
                                         <Show when=move || state.is_e2ee_enabled.get()>
-                                            <div style="background: #28a745; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" title="End-to-End Encrypted">
+                                            <div style="background: #28a745; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" title="End-to-End Encryption enabled (visual indicator — actual E2EE not yet implemented)">
                                                 "🔒 E2EE"
                                             </div>
                                         </Show>
@@ -260,11 +260,20 @@ pub fn Room() -> impl IntoView {
                                         let current = state.show_etherpad.get_untracked();
                                         if state.is_host.get_untracked() {
                                             if !current {
-                                                let rid = room_id_fn();
-                                                let pad_url = format!("https://etherpad.org/p/juncto-{}", rid);
-                                                state.toggle_etherpad.call(Some(pad_url));
+                                                // If no URL is set yet, configure one and send to server
+                                                let has_url = state.room_config.get_untracked().etherpad_url.is_some();
+                                                if !has_url {
+                                                    let rid = room_id_fn();
+                                                    let pad_url = format!("https://etherpad.org/p/juncto-{}", rid);
+                                                    state.toggle_etherpad.call(Some(pad_url));
+                                                }
+                                                // Optimistically show the panel immediately
+                                                state.set_show_etherpad.set(true);
                                             } else {
-                                                state.toggle_etherpad.call(None);
+                                                // Just hide locally; the URL stays active for other participants.
+                                                // To remove the shared document for everyone, the host
+                                                // can use the settings or a dedicated "Remove Pad" action.
+                                                state.set_show_etherpad.set(false);
                                             }
                                         } else {
                                             state.set_show_etherpad.set(!current);
