@@ -285,14 +285,23 @@ pub enum ServerMessage {
 /// Returns `true` if the given URL belongs to a known Giphy CDN domain.
 /// Used on both the backend (chat validation, WS handler) and the frontend
 /// (chat rendering) to enforce a consistent allowlist.
+///
+/// Recognised CDN hosts: `media.giphy.com`, `media0`–`media9.giphy.com`,
+/// and `i.giphy.com`.  The check uses `starts_with` with a trailing `/`
+/// to prevent authority-based bypasses (e.g. `https://media.giphy.com@evil.com`).
 pub fn is_giphy_cdn_url(url: &str) -> bool {
-    url.starts_with("https://media.giphy.com/")
-        || url.starts_with("https://media0.giphy.com/")
-        || url.starts_with("https://media1.giphy.com/")
-        || url.starts_with("https://media2.giphy.com/")
-        || url.starts_with("https://media3.giphy.com/")
-        || url.starts_with("https://media4.giphy.com/")
-        || url.starts_with("https://i.giphy.com/")
+    if let Some(rest) = url.strip_prefix("https://media") {
+        // Matches "media.giphy.com/" or "media0.giphy.com/" … "media9.giphy.com/"
+        if rest.starts_with(".giphy.com/") {
+            return true;
+        }
+        if let Some(after_digit) = rest.strip_prefix(|c: char| c.is_ascii_digit()) {
+            return after_digit.starts_with(".giphy.com/");
+        }
+        false
+    } else {
+        url.starts_with("https://i.giphy.com/")
+    }
 }
 
 #[cfg(test)]

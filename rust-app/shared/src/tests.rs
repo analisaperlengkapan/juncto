@@ -277,9 +277,13 @@ fn test_is_giphy_cdn_url() {
     assert!(is_giphy_cdn_url("https://media.giphy.com/media/abc/giphy.gif"));
     assert!(is_giphy_cdn_url("https://media0.giphy.com/media/abc/giphy.gif"));
     assert!(is_giphy_cdn_url("https://media4.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url("https://media5.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url("https://media9.giphy.com/media/abc/giphy.gif"));
     assert!(is_giphy_cdn_url("https://i.giphy.com/abc.gif"));
     assert!(!is_giphy_cdn_url("https://evil.com/tracker.png"));
     assert!(!is_giphy_cdn_url("https://media.giphy.com@evil.com/"));
+    assert!(!is_giphy_cdn_url("https://mediaX.giphy.com/media/abc/giphy.gif"));
+    assert!(!is_giphy_cdn_url("https://media99.giphy.com/media/abc/giphy.gif"));
     assert!(!is_giphy_cdn_url("not-a-url"));
 }
 
