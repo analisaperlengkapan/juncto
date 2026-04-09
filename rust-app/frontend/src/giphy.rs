@@ -59,7 +59,7 @@ impl GiphyService {
 
         let url = format!(
             "https://api.giphy.com/v1/gifs/search?api_key={}&q={}&limit=20&rating=g",
-            self.api_key,
+            urlencoding::encode(&self.api_key),
             urlencoding::encode(query)
         );
 
@@ -69,7 +69,7 @@ impl GiphyService {
     pub async fn trending(&self) -> Result<Vec<GiphyData>, String> {
         let url = format!(
             "https://api.giphy.com/v1/gifs/trending?api_key={}&limit=20&rating=g",
-            self.api_key
+            urlencoding::encode(&self.api_key)
         );
         self.fetch_from_url(&url).await
     }
