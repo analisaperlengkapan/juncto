@@ -351,6 +351,8 @@ mod tests {
                 is_muted: false,
                 speaking_time: 0,
                 presence: shared::PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
             },
             Participant {
                 id: "u2".to_string(),
@@ -360,6 +362,8 @@ mod tests {
                 is_muted: false,
                 speaking_time: 0,
                 presence: shared::PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
             },
         ];
 

@@ -147,6 +147,48 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::UpdatePowerStatus(status) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::PowerStatusUpdated {
+                                            user_id: uid.clone(),
+                                            status,
+                                        });
+                                    }
+                                },
+                                ClientMessage::RequestUnmute(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let _ = tx.send(ServerMessage::UnmuteRequested {
+                                                requester_id: uid.clone(),
+                                                target_id,
+                                            });
+                                        }
+                                    }
+                                },
+                                ClientMessage::ToggleLocalRecording(is_recording) => {
+                                    if let Some(_uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::RecordingStatusChanged(is_recording));
+                                    }
+                                },
+                                ClientMessage::UpdateE2EE(enabled) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.e2ee_enabled = enabled;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                        }
+                                    }
+                                },
                                 ClientMessage::ToggleE2EE => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
@@ -347,6 +389,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_muted: false,
                                         speaking_time: 0,
                                         presence: shared::PresenceStatus::Connected,
+                                        is_visitor: false,
+                                        e2ee_enabled: false,
                                     };
 
                                     if is_lobby && host_exists {
@@ -534,6 +578,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == source_loc || *id == my_id_clone
+                                                        },
+                                                        ServerMessage::PowerStatusUpdated { .. }
+                                                        | ServerMessage::RecordingStatusChanged(_)
+                                                        | ServerMessage::UnmuteRequested { .. } => {
+                                                            true
                                                         },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1194,6 +1243,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
+                                                ServerMessage::PowerStatusUpdated { .. }
+                                                | ServerMessage::RecordingStatusChanged(_)
+                                                | ServerMessage::UnmuteRequested { .. } => {
+                                                    true
+                                                },
                                                 ServerMessage::Transcription { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();

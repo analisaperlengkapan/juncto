@@ -84,6 +84,8 @@ pub struct RoomState {
     pub is_noise_suppression_enabled: ReadSignal<bool>,
     pub background_mode: ReadSignal<String>,
     pub room_config: ReadSignal<shared::RoomConfig>,
+    pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
+    pub is_recording_locally: ReadSignal<bool>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -131,6 +133,9 @@ pub struct RoomState {
     pub mute_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
+    pub toggle_local_recording: Callback<()>,
+    pub request_unmute: Callback<String>,
+    pub update_power_status: Callback<shared::PowerStatus>,
     #[allow(dead_code)]
     pub analytics: AnalyticsService,
 }
@@ -189,6 +194,10 @@ pub fn use_room_state() -> RoomState {
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
+
+    let (power_statuses, set_power_statuses) = create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
+    let (is_recording_locally, set_is_recording_locally) = create_signal(false);
+    let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(None));
 
     // Video Processing for Virtual Background
     let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
@@ -832,6 +841,25 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::VideoStopped => {
                                 set_shared_video_url.set(None);
                             }
+                            ServerMessage::PowerStatusUpdated { user_id, status } => {
+                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
+                                    map.insert(user_id, status);
+                                });
+                            }
+                            ServerMessage::RecordingStatusChanged(recording) => {
+                                if recording {
+                                    add_toast("Someone is recording the meeting locally".to_string(), ToastType::Info);
+                                }
+                            }
+                            ServerMessage::UnmuteRequested { requester_id, target_id } => {
+                                if let Some(my) = my_id.get_untracked() {
+                                    if my == target_id {
+                                        let parts = participants.get_untracked();
+                                        let sender_name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id);
+                                        add_toast(format!("Host ({}) asked you to unmute", sender_name), ToastType::Info);
+                                    }
+                                }
+                            }
                             ServerMessage::PeerSpeaking { user_id, speaking } => {
                                 set_speaking_peers.update(|s: &mut HashSet<String>| {
                                     if speaking {
@@ -1285,6 +1313,51 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_local_recording = Callback::new({
+        let local_recorder = local_recorder.clone();
+        move |_: ()| {
+            let mut recorder = local_recorder.borrow_mut();
+            if let Some(r) = recorder.take() {
+                r.stop();
+                set_is_recording_locally.set(false);
+                if let Some(socket) = ws.get() {
+                    let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                }
+            } else if let Some(stream) = local_stream.get_untracked() {
+                match crate::media_recorder::LocalRecorder::new(stream, Callback::new(|_| {})) {
+                    Ok(r) => {
+                        *recorder = Some(r);
+                        set_is_recording_locally.set(true);
+                        if let Some(socket) = ws.get() {
+                            let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(true)).unwrap());
+                        }
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                    }
+                }
+            }
+        }
+    });
+
+    let request_unmute = Callback::new(move |target_id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RequestUnmute(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let update_power_status = Callback::new(move |status: shared::PowerStatus| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdatePowerStatus(status);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
         // Check if we currently have video tracks active
@@ -1452,6 +1525,8 @@ pub fn use_room_state() -> RoomState {
         is_noise_suppression_enabled,
         background_mode,
         room_config,
+        power_statuses,
+        is_recording_locally,
         set_input_devices,
         set_background_mode,
         set_show_settings,
@@ -1498,6 +1573,9 @@ pub fn use_room_state() -> RoomState {
         start_share_video,
         stop_share_video,
         set_presence,
+        toggle_local_recording,
+        request_unmute,
+        update_power_status,
         analytics,
     }
 }

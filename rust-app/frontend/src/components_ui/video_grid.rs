@@ -485,6 +485,8 @@ mod tests {
             is_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
+            is_visitor: false,
+            e2ee_enabled: false,
         };
 
         let item_user = GridItem::User(p.clone());

@@ -97,6 +97,8 @@ mod tests {
                 is_muted: false,
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
             });
             p_map.insert(user_id.clone(), Participant {
                 id: user_id.clone(),
@@ -106,6 +108,8 @@ mod tests {
                 is_muted: false,
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
             });
         }
 
@@ -167,6 +171,8 @@ mod tests {
                     is_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
                 });
             }
         }

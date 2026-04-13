@@ -16,6 +16,12 @@ pub struct FileAttachment {
     pub content_base64: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PowerStatus {
+    pub battery_level: f64,
+    pub is_charging: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
     pub room_name: String,
@@ -105,6 +111,10 @@ pub struct Participant {
     pub speaking_time: u64, // Total milliseconds spoken
     #[serde(default)]
     pub presence: PresenceStatus,
+    #[serde(default)]
+    pub is_visitor: bool,
+    #[serde(default)]
+    pub e2ee_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -167,6 +177,10 @@ pub enum ClientMessage {
     Speaking(bool),
     Ping,
     MuteAll,
+    UpdatePowerStatus(PowerStatus),
+    RequestUnmute(String), // Target ID
+    ToggleLocalRecording(bool),
+    UpdateE2EE(bool),
     // WebRTC Signaling
     Offer {
         target_id: String,
@@ -247,6 +261,15 @@ pub enum ServerMessage {
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,
+    PowerStatusUpdated {
+        user_id: String,
+        status: PowerStatus,
+    },
+    UnmuteRequested {
+        requester_id: String,
+        target_id: String,
+    },
+    RecordingStatusChanged(bool),
     PeerSpeaking {
         user_id: String,
         speaking: bool,
