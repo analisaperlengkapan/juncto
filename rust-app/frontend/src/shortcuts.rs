@@ -28,11 +28,14 @@ pub fn KeyboardShortcuts(
 ) -> impl IntoView {
     create_effect(move |_| {
         let handle_keydown = Closure::wrap(Box::new(move |ev: web_sys::KeyboardEvent| {
-            // Ignore if user is typing in an input or textarea
+            // Ignore if user is typing in an input, textarea, or select
             if let Some(target) = ev.target() {
                 if let Some(el) = target.dyn_ref::<web_sys::HtmlElement>() {
                     let tag = el.tag_name().to_lowercase();
-                    if tag == "input" || tag == "textarea" {
+                    if tag == "input" || tag == "textarea" || tag == "select" {
+                        return;
+                    }
+                    if el.is_content_editable() {
                         return;
                     }
                 }

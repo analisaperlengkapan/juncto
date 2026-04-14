@@ -1353,8 +1353,11 @@ pub fn use_room_state() -> RoomState {
                     }
                     Err(e) => {
                         web_sys::console::error_1(&e);
+                        add_toast("Failed to start local recording".to_string(), ToastType::Error);
                     }
                 }
+            } else {
+                add_toast("Enable camera or microphone first to start recording".to_string(), ToastType::Error);
             }
         }
     });

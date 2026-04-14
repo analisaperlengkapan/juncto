@@ -147,8 +147,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::UpdatePowerStatus(status) => {
+                                ClientMessage::UpdatePowerStatus(mut status) => {
                                     if let Some(uid) = &my_id {
+                                        // Clamp battery_level to valid range; NaN becomes 0.0
+                                        if status.battery_level.is_nan() {
+                                            status.battery_level = 0.0;
+                                        } else {
+                                            status.battery_level = status.battery_level.clamp(0.0, 1.0);
+                                        }
                                         let _ = tx.send(ServerMessage::PowerStatusUpdated {
                                             user_id: uid.clone(),
                                             status,
@@ -593,9 +599,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
-                                                        ServerMessage::PowerStatusUpdated { .. }
-                                                        | ServerMessage::RecordingStatusChanged { .. } => {
+                                                        ServerMessage::PowerStatusUpdated { .. } => {
                                                             true
+                                                        },
+                                                        ServerMessage::RecordingStatusChanged { user_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(user_id).cloned().flatten();
+                                                            my_loc == source_loc
                                                         },
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
                                                             *target_id == my_id_clone
@@ -1259,9 +1270,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
-                                                ServerMessage::PowerStatusUpdated { .. }
-                                                | ServerMessage::RecordingStatusChanged { .. } => {
+                                                ServerMessage::PowerStatusUpdated { .. } => {
                                                     true
+                                                },
+                                                ServerMessage::RecordingStatusChanged { user_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
                                                 },
                                                 ServerMessage::UnmuteRequested { target_id, .. } => {
                                                     *target_id == my_id_clone
