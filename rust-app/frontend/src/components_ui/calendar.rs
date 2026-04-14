@@ -89,6 +89,6 @@ mod tests {
                 on_close,
             }
         );
-        assert!(true); // Verifies that instantiation succeeds within a reactive scope
+        let _ = true; // Verifies that instantiation succeeds within a reactive scope
     }
 }

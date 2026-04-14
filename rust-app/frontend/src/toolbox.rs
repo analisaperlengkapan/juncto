@@ -280,6 +280,6 @@ mod tests {
     #[test]
     fn test_toolbox_compiles() {
         // dummy test
-        assert!(true);
+        let _ = true;
     }
 }

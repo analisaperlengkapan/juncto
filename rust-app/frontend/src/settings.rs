@@ -414,7 +414,7 @@ mod tests {
         assert_eq!(settings.0, None);
         assert_eq!(settings.1, None);
         assert_eq!(settings.2, "sd");
-        assert_eq!(settings.3, false);
+        assert!(!settings.3);
     }
 
     #[test]

@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_room_compiles() {
         // dummy test
-        assert!(true);
+        let _ = true;
     }
 
     #[test]

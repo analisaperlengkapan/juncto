@@ -3,6 +3,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{MediaRecorder, MediaStream, BlobEvent, MediaRecorderOptions};
 use std::rc::Rc;
 use std::cell::RefCell;
+use leptos::Callback;
 
 pub struct LocalRecorder {
     recorder: MediaRecorder,
@@ -11,18 +12,7 @@ pub struct LocalRecorder {
 }
 
 impl LocalRecorder {
-    /// Create a new `LocalRecorder`.
-    ///
-    /// `on_complete` is invoked **after** the browser's asynchronous `stop`
-    /// event fires and the recording file has been downloaded.  The caller
-    /// should use this callback to drop the `LocalRecorder` (e.g. clear it
-    /// from an `Rc<RefCell<Option<LocalRecorder>>>`).  This ensures the
-    /// closures remain alive until the `MediaRecorder` has finished
-    /// processing all queued `dataavailable` / `stop` events.
-    pub fn new(
-        stream: MediaStream,
-        on_complete: impl FnMut() + 'static,
-    ) -> Result<Self, JsValue> {
+    pub fn new(stream: MediaStream, _on_error: Callback<String>) -> Result<Self, JsValue> {
         let options = MediaRecorderOptions::new();
         options.set_mime_type("video/webm;codecs=vp8,opus");
 
@@ -40,7 +30,6 @@ impl LocalRecorder {
         }) as Box<dyn FnMut(BlobEvent)>);
 
         let chunks_clone_2 = chunks.clone();
-        let mut on_complete = on_complete;
         let on_stop = Closure::wrap(Box::new(move || {
             let blob_parts = js_sys::Array::new();
             for blob in chunks_clone_2.borrow().iter() {
@@ -65,9 +54,6 @@ impl LocalRecorder {
                 }
             }
             chunks_clone_2.borrow_mut().clear();
-
-            // Signal the caller that the recorder is done and can be dropped.
-            on_complete();
         }) as Box<dyn FnMut()>);
 
         recorder.set_ondataavailable(Some(on_data_available.as_ref().unchecked_ref()));
@@ -85,8 +71,10 @@ impl LocalRecorder {
     pub fn stop(&self) {
         let _ = self.recorder.stop();
     }
+}
 
-    pub fn is_recording(&self) -> bool {
-        self.recorder.state() == web_sys::RecordingState::Recording
+impl Drop for LocalRecorder {
+    fn drop(&mut self) {
+        let _ = self.recorder.stop();
     }
 }

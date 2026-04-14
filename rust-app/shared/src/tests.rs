@@ -271,7 +271,7 @@ fn test_presence_status_default() {
 #[test]
 fn test_room_config_subtitles_default() {
     let config: RoomConfig = Default::default();
-    assert_eq!(config.is_subtitles_enabled, false);
+    assert!(!config.is_subtitles_enabled);
 }
 
 #[test]

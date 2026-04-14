@@ -89,6 +89,6 @@ mod tests {
         let _view = view! {
             <EmbedMeetingDialog show=show.read_only() on_close=on_close />
         };
-        assert!(true);
+        let _ = true;
     }
 }
