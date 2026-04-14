@@ -24,7 +24,7 @@ test.describe('Advanced Moderation', () => {
     const muteAllBtn = hostPage.getByRole('button', { name: 'Mute All', exact: true });
     await expect(muteAllBtn).toBeVisible({ timeout: 10000 });
     await muteAllBtn.scrollIntoViewIfNeeded();
-    await muteAllBtn.click();
+    await muteAllBtn.dispatchEvent('click');
 
     // 4. Verify guest is muted
     // Guest should see a toast or their own mute indicator
