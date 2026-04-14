@@ -846,9 +846,13 @@ pub fn use_room_state() -> RoomState {
                                     map.insert(user_id, status);
                                 });
                             }
-                            ServerMessage::RecordingStatusChanged(recording) => {
-                                if recording {
-                                    add_toast("Someone is recording the meeting locally".to_string(), ToastType::Info);
+                            ServerMessage::RecordingStatusChanged { user_id, is_recording } => {
+                                if is_recording {
+                                    // Skip the toast if we are the one who started recording
+                                    let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
+                                    if !is_self {
+                                        add_toast("Someone is recording the meeting locally".to_string(), ToastType::Info);
+                                    }
                                 }
                             }
                             ServerMessage::UnmuteRequested { requester_id, target_id } => {
@@ -1316,17 +1320,27 @@ pub fn use_room_state() -> RoomState {
     let toggle_local_recording = Callback::new({
         let local_recorder = local_recorder.clone();
         move |_: ()| {
-            let mut recorder = local_recorder.borrow_mut();
-            if let Some(r) = recorder.take() {
-                r.stop();
+            let is_active = local_recorder.borrow().is_some();
+            if is_active {
+                // Call stop() but keep the LocalRecorder alive in the RefCell so
+                // its Closure callbacks (_on_data_available, _on_stop) remain
+                // valid when the browser asynchronously fires the stop event.
+                // The recorder will be dropped the next time the user starts a
+                // new recording (the `else` branch below replaces it).
+                if let Some(r) = local_recorder.borrow().as_ref() {
+                    r.stop();
+                }
                 set_is_recording_locally.set(false);
                 if let Some(socket) = ws.get() {
                     let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
                 }
             } else if let Some(stream) = local_stream.get_untracked() {
+                // Drop any previous (already-stopped) recorder before creating
+                // a new one, so old closures are freed.
+                *local_recorder.borrow_mut() = None;
                 match crate::media_recorder::LocalRecorder::new(stream, Callback::new(|_| {})) {
                     Ok(r) => {
-                        *recorder = Some(r);
+                        *local_recorder.borrow_mut() = Some(r);
                         set_is_recording_locally.set(true);
                         if let Some(socket) = ws.get() {
                             let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(true)).unwrap());

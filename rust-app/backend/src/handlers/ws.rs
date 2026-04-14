@@ -180,8 +180,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::ToggleLocalRecording(is_recording) => {
-                                    if let Some(_uid) = &my_id {
-                                        let _ = tx.send(ServerMessage::RecordingStatusChanged(is_recording));
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::RecordingStatusChanged {
+                                            user_id: uid.clone(),
+                                            is_recording,
+                                        });
                                     }
                                 },
                                 ClientMessage::UpdateE2EE(enabled) => {
@@ -591,7 +594,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
                                                         ServerMessage::PowerStatusUpdated { .. }
-                                                        | ServerMessage::RecordingStatusChanged(_) => {
+                                                        | ServerMessage::RecordingStatusChanged { .. } => {
                                                             true
                                                         },
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
@@ -1257,7 +1260,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
                                                 ServerMessage::PowerStatusUpdated { .. }
-                                                | ServerMessage::RecordingStatusChanged(_) => {
+                                                | ServerMessage::RecordingStatusChanged { .. } => {
                                                     true
                                                 },
                                                 ServerMessage::UnmuteRequested { target_id, .. } => {

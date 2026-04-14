@@ -75,6 +75,12 @@ impl LocalRecorder {
 
 impl Drop for LocalRecorder {
     fn drop(&mut self) {
-        let _ = self.recorder.stop();
+        // Only call stop() if the recorder is still active. Calling stop() on
+        // an already-stopped MediaRecorder throws a DOMException.
+        if self.recorder.state() == web_sys::RecordingState::Recording
+            || self.recorder.state() == web_sys::RecordingState::Paused
+        {
+            let _ = self.recorder.stop();
+        }
     }
 }

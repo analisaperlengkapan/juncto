@@ -269,7 +269,10 @@ pub enum ServerMessage {
         requester_id: String,
         target_id: String,
     },
-    RecordingStatusChanged(bool),
+    RecordingStatusChanged {
+        user_id: String,
+        is_recording: bool,
+    },
     PeerSpeaking {
         user_id: String,
         speaking: bool,
