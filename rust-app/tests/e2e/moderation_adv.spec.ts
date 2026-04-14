@@ -16,7 +16,11 @@ test.describe('Advanced Moderation', () => {
 
     // 3. Host opens participants list and clicks Mute All
     await hostPage.waitForSelector('.participants-list');
-    await hostPage.click('button:has-text("Mute All")');
+    // Wait for the guest to appear in the host's participant list before muting
+    await expect(hostPage.locator('.participants-list li').filter({ hasText: 'Guest' })).toBeVisible({ timeout: 15000 });
+    const muteAllBtn = hostPage.getByRole('button', { name: 'Mute All', exact: true });
+    await expect(muteAllBtn).toBeVisible({ timeout: 10000 });
+    await muteAllBtn.click();
 
     // 4. Verify guest is muted
     // Guest should see a toast or their own mute indicator

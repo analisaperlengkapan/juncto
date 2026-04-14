@@ -1340,9 +1340,14 @@ pub fn use_room_state() -> RoomState {
                     let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
                 }
             } else if let Some(stream) = local_stream.get_untracked() {
-                // Drop any previous (already-stopped) recorder before creating
-                // a new one, so old closures are freed.
-                *local_recorder.borrow_mut() = None;
+                // Move any previous (already-stopped) recorder out of the
+                // RefCell and schedule its drop via a short timeout. This
+                // gives the browser event loop time to fire the async
+                // `onstop` callback (which triggers the download) before
+                // the old closures are freed.
+                if let Some(old) = local_recorder.borrow_mut().take() {
+                    set_timeout(move || drop(old), std::time::Duration::from_millis(500));
+                }
                 match crate::media_recorder::LocalRecorder::new(stream, Callback::new(|_| {})) {
                     Ok(r) => {
                         *local_recorder.borrow_mut() = Some(r);

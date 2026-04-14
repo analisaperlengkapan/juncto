@@ -3,14 +3,24 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use shared::PowerStatus;
 use gloo_timers::callback::Interval;
+use std::cell::Cell;
+use std::rc::Rc;
 
 #[component]
 pub fn PowerMonitor(
     on_update: Callback<PowerStatus>,
 ) -> impl IntoView {
     create_effect(move |_| {
+        // Track last sent values so we only send updates when something changes.
+        let last_level: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+        let last_charging: Rc<Cell<Option<bool>>> = Rc::new(Cell::new(None));
+
+        let last_level_clone = last_level.clone();
+        let last_charging_clone = last_charging.clone();
         let update_battery = move || {
             let on_update = on_update;
+            let last_level = last_level_clone.clone();
+            let last_charging = last_charging_clone.clone();
             spawn_local(async move {
                 if let Some(window) = web_sys::window() {
                     let navigator = window.navigator();
@@ -29,10 +39,21 @@ pub fn PowerMonitor(
                                         .and_then(|v| v.as_bool().ok_or(JsValue::UNDEFINED))
                                         .unwrap_or(true);
 
-                                    on_update.call(PowerStatus {
-                                        battery_level: level,
-                                        is_charging: charging,
-                                    });
+                                    // Only send an update if the value actually changed.
+                                    // Compare battery level as integer percentage to avoid
+                                    // floating-point noise triggering spurious updates.
+                                    let level_pct = (level * 100.0) as i32;
+                                    let changed = last_level.get() != Some(level_pct)
+                                        || last_charging.get() != Some(charging);
+
+                                    if changed {
+                                        last_level.set(Some(level_pct));
+                                        last_charging.set(Some(charging));
+                                        on_update.call(PowerStatus {
+                                            battery_level: level,
+                                            is_charging: charging,
+                                        });
+                                    }
                                 }
                             }
                         }

@@ -149,6 +149,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::UpdatePowerStatus(mut status) => {
                                     if let Some(uid) = &my_id {
+                                        // Rate limit: reuse the analytics rate limiter to
+                                        // prevent abuse from malicious clients.
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
                                         // Clamp battery_level to valid range; NaN becomes 0.0
                                         if status.battery_level.is_nan() {
                                             status.battery_level = 0.0;
@@ -187,6 +198,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleLocalRecording(is_recording) => {
                                     if let Some(uid) = &my_id {
+                                        // Rate limit: reuse the analytics rate limiter to
+                                        // prevent toast spam from malicious clients.
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
                                         let _ = tx.send(ServerMessage::RecordingStatusChanged {
                                             user_id: uid.clone(),
                                             is_recording,
