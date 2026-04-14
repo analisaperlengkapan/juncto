@@ -621,8 +621,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
-                                                        ServerMessage::PowerStatusUpdated { .. } => {
-                                                            true
+                                                        ServerMessage::PowerStatusUpdated { user_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(user_id).cloned().flatten();
+                                                            my_loc == source_loc
                                                         },
                                                         ServerMessage::RecordingStatusChanged { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1292,8 +1295,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
-                                                ServerMessage::PowerStatusUpdated { .. } => {
-                                                    true
+                                                ServerMessage::PowerStatusUpdated { user_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
                                                 },
                                                 ServerMessage::RecordingStatusChanged { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
