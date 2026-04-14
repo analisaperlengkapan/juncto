@@ -49,7 +49,19 @@ impl LocalRecorder {
                         a.set_href(&url);
                         a.set_download(&format!("juncto-recording-{}.webm", js_sys::Date::now()));
                         a.click();
-                        let _ = web_sys::Url::revoke_object_url(&url);
+                        // Delay revoking the object URL so the browser has time
+                        // to fully initiate the download. Revoking synchronously
+                        // after click() can cause download failures in some
+                        // browser environments.
+                        let url_to_revoke = url;
+                        let revoke_cb = Closure::once(move || {
+                            let _ = web_sys::Url::revoke_object_url(&url_to_revoke);
+                        });
+                        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            revoke_cb.as_ref().unchecked_ref(),
+                            1000,
+                        );
+                        revoke_cb.forget();
                     }
                 }
             }
