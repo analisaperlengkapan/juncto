@@ -1325,7 +1325,7 @@ pub fn use_room_state() -> RoomState {
     let toggle_local_recording = Callback::new({
         let local_recorder = local_recorder.clone();
         move |_: ()| {
-            let is_active = local_recorder.borrow().is_some();
+            let is_active = is_recording_locally.get_untracked();
             if is_active {
                 // Call stop() but keep the LocalRecorder alive in the RefCell so
                 // its Closure callbacks (_on_data_available, _on_stop) remain
