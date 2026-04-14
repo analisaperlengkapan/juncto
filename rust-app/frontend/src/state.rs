@@ -533,8 +533,12 @@ pub fn use_room_state() -> RoomState {
     // Initialize WebSocket
     let webrtc_manager_for_ws = webrtc_manager.clone();
     let analytics_for_ws = analytics.clone();
+    let local_recorder_for_ws = local_recorder.clone();
+    let pending_recorders_for_ws = pending_recorders.clone();
     create_effect(move |_| {
         let analytics = analytics_for_ws.clone();
+        let local_recorder_for_cleanup = local_recorder_for_ws.clone();
+        let pending_recorders_for_cleanup = pending_recorders_for_ws.clone();
         let set_messages = set_messages;
         let set_participants = set_participants;
         let set_typing_users = set_typing_users;
@@ -710,6 +714,16 @@ pub fn use_room_state() -> RoomState {
                                         // Clean up WebRTC
                                         webrtc_manager.close_all_peers();
                                         set_remote_streams.set(HashMap::new());
+                                        set_power_statuses.set(std::collections::HashMap::new());
+                                        // Stop any active local recording so the
+                                        // download is triggered before navigation.
+                                        if is_recording_locally.get_untracked() {
+                                            if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
+                                                r.stop();
+                                                pending_recorders_for_cleanup.borrow_mut().push(r);
+                                            }
+                                            set_is_recording_locally.set(false);
+                                        }
                                         set_current_state.set(RoomConnectionState::Prejoin);
 
                                         // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
@@ -765,6 +779,15 @@ pub fn use_room_state() -> RoomState {
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
                                 set_power_statuses.set(std::collections::HashMap::new());
+                                // Stop any active local recording so the
+                                // download is triggered before navigation.
+                                if is_recording_locally.get_untracked() {
+                                    if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
+                                        r.stop();
+                                        pending_recorders_for_cleanup.borrow_mut().push(r);
+                                    }
+                                    set_is_recording_locally.set(false);
+                                }
                                 set_is_connected.set(false);
 
                                 // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
@@ -857,11 +880,13 @@ pub fn use_room_state() -> RoomState {
                                 });
                             }
                             ServerMessage::RecordingStatusChanged { user_id, is_recording } => {
-                                if is_recording {
-                                    // Skip the toast if we are the one who started recording
-                                    let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
-                                    if !is_self {
-                                        add_toast("Someone is recording the meeting locally".to_string(), ToastType::Info);
+                                // Skip toasts for our own recording actions
+                                let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
+                                if !is_self {
+                                    if is_recording {
+                                        add_toast("A participant started recording locally".to_string(), ToastType::Info);
+                                    } else {
+                                        add_toast("A participant stopped their local recording".to_string(), ToastType::Info);
                                     }
                                 }
                             }
