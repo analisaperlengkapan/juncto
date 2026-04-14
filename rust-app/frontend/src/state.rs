@@ -666,6 +666,10 @@ pub fn use_room_state() -> RoomState {
                                 set_speaking_peers.update(|s: &mut HashSet<String>| {
                                     s.remove(&id);
                                 });
+                                // Remove stale power status entry
+                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
+                                    map.remove(&id);
+                                });
                                 // Cleanup WebRTC
                                 webrtc_manager.handle_participant_left(&id);
                                 set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
@@ -755,6 +759,7 @@ pub fn use_room_state() -> RoomState {
                                 set_remote_streams.set(HashMap::new());
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
+                                set_power_statuses.set(std::collections::HashMap::new());
                                 set_is_connected.set(false);
 
                                 // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
