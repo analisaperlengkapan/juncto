@@ -1269,6 +1269,9 @@ pub fn use_room_state() -> RoomState {
         // Clear stale indicators
         set_speaking_peers.update(|s: &mut HashSet<String>| s.clear());
         set_typing_users.update(|u: &mut HashSet<String>| u.clear());
+        // Clear stale power statuses from the previous room; the new room's
+        // participants will send fresh PowerStatusUpdated messages.
+        set_power_statuses.set(std::collections::HashMap::new());
 
         // Cleanup existing WebRTC connections on room switch
         webrtc_manager_for_breakout.close_all_peers();
