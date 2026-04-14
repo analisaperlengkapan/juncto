@@ -161,6 +161,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
+                                            // Only allow unmute requests within the same breakout
+                                            // room, consistent with MuteParticipant scoping.
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
                                             let _ = tx.send(ServerMessage::UnmuteRequested {
                                                 requester_id: uid.clone(),
                                                 target_id,
@@ -580,9 +591,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
                                                         ServerMessage::PowerStatusUpdated { .. }
-                                                        | ServerMessage::RecordingStatusChanged(_)
-                                                        | ServerMessage::UnmuteRequested { .. } => {
+                                                        | ServerMessage::RecordingStatusChanged(_) => {
                                                             true
+                                                        },
+                                                        ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                            *target_id == my_id_clone
                                                         },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1244,9 +1257,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
                                                 ServerMessage::PowerStatusUpdated { .. }
-                                                | ServerMessage::RecordingStatusChanged(_)
-                                                | ServerMessage::UnmuteRequested { .. } => {
+                                                | ServerMessage::RecordingStatusChanged(_) => {
                                                     true
+                                                },
+                                                ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                    *target_id == my_id_clone
                                                 },
                                                 ServerMessage::Transcription { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
