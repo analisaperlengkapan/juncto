@@ -4,12 +4,15 @@ test.describe('Advanced Moderation', () => {
   test('host should be able to mute all participants', async ({ context }) => {
     // 1. Host joins
     const hostPage = await context.newPage();
+    // Use a large viewport so the toolbox and participants list are fully visible
+    await hostPage.setViewportSize({ width: 1280, height: 1024 });
     await hostPage.goto('/room/mute-all-test');
     await hostPage.fill('input[placeholder="Enter your name"]', 'Host');
     await hostPage.click('button:has-text("Join Meeting")');
 
     // 2. Guest joins
     const guestPage = await context.newPage();
+    await guestPage.setViewportSize({ width: 1280, height: 1024 });
     await guestPage.goto('/room/mute-all-test');
     await guestPage.fill('input[placeholder="Enter your name"]', 'Guest');
     await guestPage.click('button:has-text("Join Meeting")');
@@ -20,6 +23,7 @@ test.describe('Advanced Moderation', () => {
     await expect(hostPage.locator('.participants-list li').filter({ hasText: 'Guest' })).toBeVisible({ timeout: 15000 });
     const muteAllBtn = hostPage.getByRole('button', { name: 'Mute All', exact: true });
     await expect(muteAllBtn).toBeVisible({ timeout: 10000 });
+    await muteAllBtn.scrollIntoViewIfNeeded();
     await muteAllBtn.click();
 
     // 4. Verify guest is muted

@@ -198,6 +198,11 @@ pub fn use_room_state() -> RoomState {
     let (power_statuses, set_power_statuses) = create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
     let (is_recording_locally, set_is_recording_locally) = create_signal(false);
     let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(None));
+    // Holds previously-stopped recorders whose async `onstop` callbacks may
+    // not have fired yet. They are kept alive here so the wasm-bindgen
+    // Closures remain valid until the browser event loop processes the stop
+    // event. Entries are cleared each time a new recording starts.
+    let pending_recorders: Rc<RefCell<Vec<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(Vec::new()));
 
     // Video Processing for Virtual Background
     let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
@@ -1324,30 +1329,28 @@ pub fn use_room_state() -> RoomState {
 
     let toggle_local_recording = Callback::new({
         let local_recorder = local_recorder.clone();
+        let pending_recorders = pending_recorders.clone();
         move |_: ()| {
             let is_active = is_recording_locally.get_untracked();
             if is_active {
-                // Call stop() but keep the LocalRecorder alive in the RefCell so
-                // its Closure callbacks (_on_data_available, _on_stop) remain
-                // valid when the browser asynchronously fires the stop event.
-                // The recorder will be dropped the next time the user starts a
-                // new recording (the `else` branch below replaces it).
-                if let Some(r) = local_recorder.borrow().as_ref() {
+                // Call stop() but keep the LocalRecorder alive so its Closure
+                // callbacks (_on_data_available, _on_stop) remain valid when
+                // the browser asynchronously fires the stop event. Move the
+                // recorder into `pending_recorders`; it will be dropped the
+                // next time the user starts a new recording.
+                if let Some(r) = local_recorder.borrow_mut().take() {
                     r.stop();
+                    pending_recorders.borrow_mut().push(r);
                 }
                 set_is_recording_locally.set(false);
                 if let Some(socket) = ws.get() {
                     let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
                 }
             } else if let Some(stream) = local_stream.get_untracked() {
-                // Move any previous (already-stopped) recorder out of the
-                // RefCell and schedule its drop via a short timeout. This
-                // gives the browser event loop time to fire the async
-                // `onstop` callback (which triggers the download) before
-                // the old closures are freed.
-                if let Some(old) = local_recorder.borrow_mut().take() {
-                    set_timeout(move || drop(old), std::time::Duration::from_millis(500));
-                }
+                // Drop any previously-stopped recorders. By now their async
+                // `onstop` callbacks have had ample time to fire (the user
+                // had to click stop, wait, then click start again).
+                pending_recorders.borrow_mut().clear();
                 match crate::media_recorder::LocalRecorder::new(stream, Callback::new(|_| {})) {
                     Ok(r) => {
                         *local_recorder.borrow_mut() = Some(r);
