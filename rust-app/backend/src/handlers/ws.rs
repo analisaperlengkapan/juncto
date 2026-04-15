@@ -77,6 +77,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Rate limiting for analytics events: max 10 events per second per connection
     let mut analytics_count: u32 = 0;
     let mut analytics_window_start = std::time::Instant::now();
+    // Track the last recording state sent by this client to prevent
+    // redundant broadcasts (and toast spam) from repeated identical
+    // ToggleLocalRecording messages.
+    let mut last_recording_state: Option<bool> = None;
 
     // Send initial breakout rooms list
     let rooms: Vec<shared::BreakoutRoom> = {
@@ -198,6 +202,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleLocalRecording(is_recording) => {
                                     if let Some(uid) = &my_id {
+                                        // Deduplicate: skip if the client is re-sending the
+                                        // same recording state it already sent. This prevents
+                                        // toast spam from malicious or buggy clients.
+                                        if last_recording_state == Some(is_recording) {
+                                            continue;
+                                        }
                                         // Rate limit: reuse the analytics rate limiter to
                                         // prevent toast spam from malicious clients.
                                         let now = std::time::Instant::now();
@@ -209,6 +219,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if analytics_count > 10 {
                                             continue;
                                         }
+                                        last_recording_state = Some(is_recording);
                                         let _ = tx.send(ServerMessage::RecordingStatusChanged {
                                             user_id: uid.clone(),
                                             is_recording,
