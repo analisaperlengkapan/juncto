@@ -1443,8 +1443,13 @@ pub fn use_room_state() -> RoomState {
             }
 
             if let Some(stream) = current_stream {
-                // Start a new recorder on the replacement stream
-                pending_recorders.borrow_mut().clear();
+                // Start a new recorder on the replacement stream.
+                // Do NOT clear pending_recorders here — the old recorder
+                // was just pushed above and its async onstop callback has
+                // not fired yet. Clearing now would drop the Closure and
+                // lose the recorded data. Stale recorders are cleaned up
+                // the next time the user manually starts a new recording
+                // (in toggle_local_recording) after an interactive delay.
                 match crate::media_recorder::LocalRecorder::new(stream.clone(), Callback::new(move |msg: String| {
                     add_toast(format!("Recording error: {}", msg), ToastType::Error);
                 })) {
