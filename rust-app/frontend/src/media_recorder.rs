@@ -9,10 +9,11 @@ pub struct LocalRecorder {
     recorder: MediaRecorder,
     _on_data_available: Closure<dyn FnMut(BlobEvent)>,
     _on_stop: Closure<dyn FnMut()>,
+    _on_error: Closure<dyn FnMut(web_sys::Event)>,
 }
 
 impl LocalRecorder {
-    pub fn new(stream: MediaStream, _on_error: Callback<String>) -> Result<Self, JsValue> {
+    pub fn new(stream: MediaStream, on_error: Callback<String>) -> Result<Self, JsValue> {
         let options = MediaRecorderOptions::new();
         options.set_mime_type("video/webm;codecs=vp8,opus");
 
@@ -68,8 +69,21 @@ impl LocalRecorder {
             chunks_clone_2.borrow_mut().clear();
         }) as Box<dyn FnMut()>);
 
+        let on_error_cb = Closure::wrap(Box::new(move |e: web_sys::Event| {
+            let msg = js_sys::Reflect::get(&e, &JsValue::from_str("message"))
+                .ok()
+                .and_then(|v| v.as_string())
+                .unwrap_or_else(|| "Unknown MediaRecorder error".to_string());
+            on_error.call(msg);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+
         recorder.set_ondataavailable(Some(on_data_available.as_ref().unchecked_ref()));
         recorder.set_onstop(Some(on_stop.as_ref().unchecked_ref()));
+        let error_target: &web_sys::EventTarget = recorder.unchecked_ref();
+        let _ = error_target.add_event_listener_with_callback(
+            "error",
+            on_error_cb.as_ref().unchecked_ref(),
+        );
 
         recorder.start_with_time_slice(5000)?; // 5s slices
 
@@ -77,6 +91,7 @@ impl LocalRecorder {
             recorder,
             _on_data_available: on_data_available,
             _on_stop: on_stop,
+            _on_error: on_error_cb,
         })
     }
 

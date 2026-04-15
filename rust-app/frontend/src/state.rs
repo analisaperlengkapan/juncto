@@ -879,11 +879,11 @@ pub fn use_room_state() -> RoomState {
                                     map.insert(user_id, status);
                                 });
                             }
-                            ServerMessage::RecordingStatusChanged { user_id, is_recording } => {
+                            ServerMessage::RecordingStatusChanged { user_id, is_recording: is_locally_recording } => {
                                 // Skip toasts for our own recording actions
                                 let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
                                 if !is_self {
-                                    if is_recording {
+                                    if is_locally_recording {
                                         add_toast("A participant started recording locally".to_string(), ToastType::Info);
                                     } else {
                                         add_toast("A participant stopped their local recording".to_string(), ToastType::Info);
@@ -1380,7 +1380,9 @@ pub fn use_room_state() -> RoomState {
                 // `onstop` callbacks have had ample time to fire (the user
                 // had to click stop, wait, then click start again).
                 pending_recorders.borrow_mut().clear();
-                match crate::media_recorder::LocalRecorder::new(stream, Callback::new(|_| {})) {
+                match crate::media_recorder::LocalRecorder::new(stream, Callback::new(move |msg: String| {
+                    add_toast(format!("Recording error: {}", msg), ToastType::Error);
+                })) {
                     Ok(r) => {
                         *local_recorder.borrow_mut() = Some(r);
                         set_is_recording_locally.set(true);
