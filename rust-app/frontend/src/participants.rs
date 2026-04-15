@@ -131,7 +131,7 @@ pub fn ParticipantsList(
                                         if let Some(statuses) = power_statuses {
                                             if let Some(status) = statuses.get().get(&p_id_for_power) {
                                                 let icon = if status.is_charging { "⚡" } else { "🔋" };
-                                                let level = (status.battery_level * 100.0) as i32;
+                                                let level = (status.battery_level * 100.0).round() as i32;
                                                 return view! {
                                                     <span style="margin-right: 8px; font-size: 0.8em;" title=format!("Battery: {}%", level)>
                                                         {icon} {level} "%"
