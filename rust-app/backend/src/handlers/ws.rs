@@ -215,6 +215,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         });
                                     }
                                 },
+                                // NOTE: UpdateE2EE is handled server-side but no
+                                // frontend UI currently sends this message. It is
+                                // kept for protocol completeness; wire up when the
+                                // per-participant E2EE settings panel is migrated.
                                 ClientMessage::UpdateE2EE(enabled) => {
                                     if let Some(uid) = &my_id {
                                         let updated_participant = {

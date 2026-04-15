@@ -111,8 +111,13 @@ pub struct Participant {
     pub speaking_time: u64, // Total milliseconds spoken
     #[serde(default)]
     pub presence: PresenceStatus,
+    /// Whether this participant joined as a visitor (read-only mode).
+    /// Currently always `false`; reserved for future visitor-role support.
     #[serde(default)]
     pub is_visitor: bool,
+    /// Whether this participant has end-to-end encryption enabled locally.
+    /// Updated via `ClientMessage::UpdateE2EE`; the frontend does not yet
+    /// expose a UI toggle for this field.
     #[serde(default)]
     pub e2ee_enabled: bool,
 }
@@ -180,6 +185,10 @@ pub enum ClientMessage {
     UpdatePowerStatus(PowerStatus),
     RequestUnmute(String), // Target ID
     ToggleLocalRecording(bool),
+    /// Update this participant's per-user E2EE status. The server handler
+    /// exists (`ws.rs: UpdateE2EE`) but no frontend UI sends this message yet.
+    /// Kept for protocol completeness; wire up when the E2EE settings panel
+    /// is migrated.
     UpdateE2EE(bool),
     // WebRTC Signaling
     Offer {
