@@ -3,7 +3,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{MediaRecorder, MediaStream, BlobEvent, MediaRecorderOptions};
 use std::rc::Rc;
 use std::cell::RefCell;
-use leptos::Callback;
+use leptos::{Callback, Callable};
 
 pub struct LocalRecorder {
     recorder: MediaRecorder,
