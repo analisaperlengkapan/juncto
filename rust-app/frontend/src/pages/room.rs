@@ -25,6 +25,9 @@ use leptos::*;
 use leptos_router::*;
 use wasm_bindgen::JsCast;
 
+use crate::power_monitor::PowerMonitor;
+use crate::deeplink::DeepLinking;
+
 #[component]
 pub fn Room() -> impl IntoView {
     let params = use_params_map();
@@ -117,11 +120,16 @@ pub fn Room() -> impl IntoView {
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
+                        <PowerMonitor on_update=state.update_power_status />
+                        <DeepLinking />
                         <KeyboardShortcuts
                             on_toggle_mic=state.toggle_mic
                             on_toggle_camera=state.toggle_camera
                             on_raise_hand=state.toggle_raise_hand
                             on_screen_share=state.toggle_screen_share
+                            on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
+                            on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
+                            on_toggle_local_recording=state.toggle_local_recording
                         />
                         <ConnectionStats
                             on_ping=state.send_ping
@@ -295,6 +303,8 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                                 on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
+                                is_recording_locally=state.is_recording_locally
+                                on_toggle_local_recording=state.toggle_local_recording
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
@@ -369,6 +379,8 @@ pub fn Room() -> impl IntoView {
                                     on_mute=state.mute_participant
                                     on_mute_all=state.mute_all
                                     on_transfer_host=state.transfer_host
+                                    power_statuses=state.power_statuses
+                                    on_request_unmute=state.request_unmute
                                 />
                             </div>
                         </div>
@@ -443,7 +455,7 @@ mod tests {
     #[test]
     fn test_room_compiles() {
         // dummy test
-        assert!(true);
+        let _ = true;
     }
 
     #[test]

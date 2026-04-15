@@ -22,6 +22,6 @@ mod tests {
         let _ = create_runtime();
         let _view = view! { <LobbyScreen /> };
         // Component macro compilation is the main check here
-        assert!(true);
+        let _ = true;
     }
 }

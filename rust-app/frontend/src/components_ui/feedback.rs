@@ -110,6 +110,6 @@ mod tests {
         let _view = view! {
             <FeedbackDialog show=show.read_only() on_close=on_cancel />
         };
-        assert!(true);
+        let _ = true;
     }
 }

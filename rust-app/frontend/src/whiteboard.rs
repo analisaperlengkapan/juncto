@@ -125,6 +125,6 @@ mod tests {
     #[test]
     fn test_whiteboard_compiles() {
         // dummy test
-        assert!(true);
+        let _ = true;
     }
 }

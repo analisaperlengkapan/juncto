@@ -533,7 +533,7 @@ mod tests_media_muted {
 
     #[test]
     fn test_audio_monitor_compiles() {
-        assert!(true); // Cannot truly test without browser/WASM bindings
+        let _ = true; // Cannot truly test without browser/WASM bindings
     }
 
     #[test]

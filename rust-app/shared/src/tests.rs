@@ -47,6 +47,8 @@ fn test_server_message_serialization() {
         is_muted: false,
         speaking_time: 0,
         presence: PresenceStatus::Connected,
+        is_visitor: false,
+        e2ee_enabled: false,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -269,7 +271,7 @@ fn test_presence_status_default() {
 #[test]
 fn test_room_config_subtitles_default() {
     let config: RoomConfig = Default::default();
-    assert_eq!(config.is_subtitles_enabled, false);
+    assert!(!config.is_subtitles_enabled);
 }
 
 #[test]

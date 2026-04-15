@@ -26,6 +26,8 @@ pub fn ParticipantsList(
     on_mute: Callback<String>,
     #[prop(optional)] on_mute_all: Option<Callback<()>>,
     on_transfer_host: Callback<String>,
+    #[prop(optional)] power_statuses: Option<ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>>,
+    #[prop(optional)] on_request_unmute: Option<Callback<String>>,
 ) -> impl IntoView {
     let format_time = |ms: u64| {
         let seconds = ms / 1000;
@@ -101,25 +103,47 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone())
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled)
                     children=move |p| {
                         let id_kick = p.id.clone();
+                        let p_id_for_host = p.id.clone();
+                        let p_id_for_power = p.id.clone();
                         // Use reactive check for host status
                         view! {
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div>
-                                    <span>{p.name}</span>
+                                    <span>{p.name.clone()}</span>
                                     <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
                                        " [" {format!("{:?}", p.presence)} "]"
                                     </span>
                                     <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
                                        "(" {format_time(p.speaking_time)} ")"
                                     </span>
-                                    <Show when=move || host_id.get() == Some(p.id.clone())>
+                                    <Show when={
+                                        let pid = p_id_for_host.clone();
+                                        move || host_id.get() == Some(pid.clone())
+                                    }>
                                         <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
                                     </Show>
                                 </div>
                                 <div style="display: flex; align-items: center;">
+                                    {move || {
+                                        if let Some(statuses) = power_statuses {
+                                            let result = statuses.with(|map| {
+                                                map.get(&p_id_for_power).cloned()
+                                            });
+                                            if let Some(status) = result {
+                                                let icon = if status.is_charging { "⚡" } else { "🔋" };
+                                                let level = (status.battery_level * 100.0).round() as i32;
+                                                return view! {
+                                                    <span style="margin-right: 8px; font-size: 0.8em;" title=format!("Battery: {}%", level)>
+                                                        {icon} {level} "%"
+                                                    </span>
+                                                }.into_view();
+                                            }
+                                        }
+                                        view! { <span></span> }.into_view()
+                                    }}
                                     {if p.is_sharing_screen {
                                         view! { <span style="margin-right: 5px;">"🖥️"</span> }.into_view()
                                     } else {
@@ -140,15 +164,16 @@ pub fn ParticipantsList(
                                         move || is_host.get() && my_id.get() != Some(id_check.clone())
                                     }>
                                         {
-                                            let id_kick = id_kick.clone();
-                                            let id_mute = id_kick.clone();
-                                            let id_transfer = id_kick.clone();
+                                            let id_kick_for_mute = id_kick.clone();
+                                            let id_kick_for_transfer = id_kick.clone();
+                                            let id_kick_for_kick = id_kick.clone();
+                                            let id_kick_for_unmute = id_kick.clone();
                                             let is_muted = p.is_muted;
                                             view! {
                                                 <div style="display: flex; gap: 5px;">
                                                     <Show when=move || !is_muted>
                                                         {
-                                                            let id_mute = id_mute.clone();
+                                                            let id_mute = id_kick_for_mute.clone();
                                                             view! {
                                                                 <button
                                                                     on:click=move |_| on_mute.call(id_mute.clone())
@@ -161,19 +186,37 @@ pub fn ParticipantsList(
                                                         }
                                                     </Show>
                                                     <button
-                                                        on:click=move |_| on_transfer_host.call(id_transfer.clone())
+                                                        on:click=move |_| on_transfer_host.call(id_kick_for_transfer.clone())
                                                         style="background: none; border: 1px solid #ccc; color: blue; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
                                                         title="Make Host"
                                                     >
                                                         "Host"
                                                     </button>
                                                     <button
-                                                        on:click=move |_| on_kick.call(id_kick.clone())
+                                                        on:click=move |_| on_kick.call(id_kick_for_kick.clone())
                                                         style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
                                                         title="Kick Participant"
                                                     >
                                                         "Kick"
                                                     </button>
+                                                    <Show when=move || is_muted>
+                                                        {
+                                                            let id_unmute = id_kick_for_unmute.clone();
+                                                            view! {
+                                                                <button
+                                                                    on:click=move |_| {
+                                                                        if let Some(cb) = on_request_unmute {
+                                                                            cb.call(id_unmute.clone());
+                                                                        }
+                                                                    }
+                                                                    style="background: none; border: 1px solid #ccc; color: green; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                                    title="Request Unmute"
+                                                                >
+                                                                    "Unmute"
+                                                                </button>
+                                                            }
+                                                        }
+                                                    </Show>
                                                 </div>
                                             }
                                         }
@@ -203,6 +246,8 @@ mod tests {
             is_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
+            is_visitor: false,
+            e2ee_enabled: false,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -212,6 +257,8 @@ mod tests {
             is_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
+            is_visitor: false,
+            e2ee_enabled: false,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -221,6 +268,8 @@ mod tests {
             is_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
+            is_visitor: false,
+            e2ee_enabled: false,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

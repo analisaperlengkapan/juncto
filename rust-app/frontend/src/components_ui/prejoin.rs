@@ -304,6 +304,6 @@ mod tests {
         let _view = view! {
             <PrejoinScreen on_join=on_join is_connected=is_connected />
         };
-        assert!(true);
+        let _ = true;
     }
 }

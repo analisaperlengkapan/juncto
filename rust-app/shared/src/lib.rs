@@ -16,6 +16,12 @@ pub struct FileAttachment {
     pub content_base64: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PowerStatus {
+    pub battery_level: f64,
+    pub is_charging: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
     pub room_name: String,
@@ -105,6 +111,15 @@ pub struct Participant {
     pub speaking_time: u64, // Total milliseconds spoken
     #[serde(default)]
     pub presence: PresenceStatus,
+    /// Whether this participant joined as a visitor (read-only mode).
+    /// Currently always `false`; reserved for future visitor-role support.
+    #[serde(default)]
+    pub is_visitor: bool,
+    /// Whether this participant has end-to-end encryption enabled locally.
+    /// Updated via `ClientMessage::UpdateE2EE`; the frontend does not yet
+    /// expose a UI toggle for this field.
+    #[serde(default)]
+    pub e2ee_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -167,6 +182,14 @@ pub enum ClientMessage {
     Speaking(bool),
     Ping,
     MuteAll,
+    UpdatePowerStatus(PowerStatus),
+    RequestUnmute(String), // Target ID
+    ToggleLocalRecording(bool),
+    /// Update this participant's per-user E2EE status. The server handler
+    /// exists (`ws.rs: UpdateE2EE`) but no frontend UI sends this message yet.
+    /// Kept for protocol completeness; wire up when the E2EE settings panel
+    /// is migrated.
+    UpdateE2EE(bool),
     // WebRTC Signaling
     Offer {
         target_id: String,
@@ -247,6 +270,18 @@ pub enum ServerMessage {
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,
+    PowerStatusUpdated {
+        user_id: String,
+        status: PowerStatus,
+    },
+    UnmuteRequested {
+        requester_id: String,
+        target_id: String,
+    },
+    RecordingStatusChanged {
+        user_id: String,
+        is_recording: bool,
+    },
     PeerSpeaking {
         user_id: String,
         speaking: bool,

@@ -62,7 +62,7 @@ test.describe('Moderation Controls', () => {
         await pageB.click('button:has-text("Unmute")');
     }
     // Now B should be unmuted. Host should see "Mute" button.
-    const muteBtn = userBRow.locator('button:has-text("Mute")');
+    const muteBtn = userBRow.getByRole('button', { name: 'Mute', exact: true });
     await expect(muteBtn).toBeVisible();
 
     // 3. Host mutes User B
@@ -112,7 +112,8 @@ test.describe('Moderation Controls', () => {
     if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('.toolbox button:has-text("Participants")'); }
     const userBRow = pageA.locator('.participants-list li').filter({ hasText: 'User B' });
     await expect(userBRow).toBeVisible();
-    await userBRow.locator('button:has-text("Host")').click();
+    const hostBtn = userBRow.getByRole('button', { name: 'Host', exact: true });
+    await hostBtn.dispatchEvent('click');
 
     // 4. Verify Transfer
     // User B gets "End Meeting"

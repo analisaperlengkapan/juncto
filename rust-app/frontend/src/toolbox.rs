@@ -43,6 +43,8 @@ pub fn Toolbox(
     #[prop(optional)] on_end_meeting: Option<Callback<()>>,
     #[prop(optional)] class: &'static str,
     #[prop(optional)] style: &'static str,
+    #[prop(optional)] is_recording_locally: Option<ReadSignal<bool>>,
+    #[prop(optional)] on_toggle_local_recording: Option<Callback<()>>,
 ) -> impl IntoView {
     view! {
         <div class=format!("toolbox {}", class) style=format!("padding: 10px; border-top: 1px solid #ccc; text-align: center; background: #eee; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; {}", style)>
@@ -195,6 +197,20 @@ pub fn Toolbox(
             >
                 "Settings"
             </button>
+            <Show when=move || on_toggle_local_recording.is_some()>
+                <button
+                    on:click=move |_| {
+                        if let Some(cb) = on_toggle_local_recording {
+                            cb.call(());
+                        }
+                    }
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;",
+                        if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "#dc3545" } else { "#6c757d" })
+                    title="Local Record"
+                >
+                    {move || if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "Stop Local Rec" } else { "Local Record" }}
+                </button>
+            </Show>
             <button
                 on:click=move |_| on_polls.call(())
                 style="padding: 8px 16px; background-color: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px;"
@@ -264,6 +280,6 @@ mod tests {
     #[test]
     fn test_toolbox_compiles() {
         // dummy test
-        assert!(true);
+        let _ = true;
     }
 }

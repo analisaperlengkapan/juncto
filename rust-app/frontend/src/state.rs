@@ -84,6 +84,8 @@ pub struct RoomState {
     pub is_noise_suppression_enabled: ReadSignal<bool>,
     pub background_mode: ReadSignal<String>,
     pub room_config: ReadSignal<shared::RoomConfig>,
+    pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
+    pub is_recording_locally: ReadSignal<bool>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -131,6 +133,9 @@ pub struct RoomState {
     pub mute_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
+    pub toggle_local_recording: Callback<()>,
+    pub request_unmute: Callback<String>,
+    pub update_power_status: Callback<shared::PowerStatus>,
     #[allow(dead_code)]
     pub analytics: AnalyticsService,
 }
@@ -189,6 +194,20 @@ pub fn use_room_state() -> RoomState {
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
+
+    let (power_statuses, set_power_statuses) = create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
+    let (is_recording_locally, set_is_recording_locally) = create_signal(false);
+    let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(None));
+    // Holds previously-stopped recorders whose async `onstop` callbacks may
+    // not have fired yet. They are kept alive here so the wasm-bindgen
+    // Closures remain valid until the browser event loop processes the stop
+    // event. Entries are cleared each time a new recording starts.
+    let pending_recorders: Rc<RefCell<Vec<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(Vec::new()));
+    // Tracks the stream ID that the active LocalRecorder was created with.
+    // Used by a reactive effect to detect when `local_stream` is replaced
+    // (e.g. camera toggle, device switch) and automatically restart the
+    // recording on the new stream.
+    let recording_stream_id: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
 
     // Video Processing for Virtual Background
     let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
@@ -519,8 +538,14 @@ pub fn use_room_state() -> RoomState {
     // Initialize WebSocket
     let webrtc_manager_for_ws = webrtc_manager.clone();
     let analytics_for_ws = analytics.clone();
+    let local_recorder_for_ws = local_recorder.clone();
+    let pending_recorders_for_ws = pending_recorders.clone();
+    let recording_stream_id_for_ws = recording_stream_id.clone();
     create_effect(move |_| {
         let analytics = analytics_for_ws.clone();
+        let local_recorder_for_cleanup = local_recorder_for_ws.clone();
+        let pending_recorders_for_cleanup = pending_recorders_for_ws.clone();
+        let recording_stream_id_for_cleanup = recording_stream_id_for_ws.clone();
         let set_messages = set_messages;
         let set_participants = set_participants;
         let set_typing_users = set_typing_users;
@@ -657,6 +682,10 @@ pub fn use_room_state() -> RoomState {
                                 set_speaking_peers.update(|s: &mut HashSet<String>| {
                                     s.remove(&id);
                                 });
+                                // Remove stale power status entry
+                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
+                                    map.remove(&id);
+                                });
                                 // Cleanup WebRTC
                                 webrtc_manager.handle_participant_left(&id);
                                 set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
@@ -692,6 +721,17 @@ pub fn use_room_state() -> RoomState {
                                         // Clean up WebRTC
                                         webrtc_manager.close_all_peers();
                                         set_remote_streams.set(HashMap::new());
+                                        set_power_statuses.set(std::collections::HashMap::new());
+                                        // Stop any active local recording so the
+                                        // download is triggered before navigation.
+                                        if is_recording_locally.get_untracked() {
+                                            if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
+                                                r.stop();
+                                                pending_recorders_for_cleanup.borrow_mut().push(r);
+                                            }
+                                            *recording_stream_id_for_cleanup.borrow_mut() = None;
+                                            set_is_recording_locally.set(false);
+                                        }
                                         set_current_state.set(RoomConnectionState::Prejoin);
 
                                         // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
@@ -746,6 +786,17 @@ pub fn use_room_state() -> RoomState {
                                 set_remote_streams.set(HashMap::new());
                                 set_current_state.set(RoomConnectionState::Prejoin);
                                 set_participants.set(Vec::new());
+                                set_power_statuses.set(std::collections::HashMap::new());
+                                // Stop any active local recording so the
+                                // download is triggered before navigation.
+                                if is_recording_locally.get_untracked() {
+                                    if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
+                                        r.stop();
+                                        pending_recorders_for_cleanup.borrow_mut().push(r);
+                                    }
+                                    *recording_stream_id_for_cleanup.borrow_mut() = None;
+                                    set_is_recording_locally.set(false);
+                                }
                                 set_is_connected.set(false);
 
                                 // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
@@ -831,6 +882,31 @@ pub fn use_room_state() -> RoomState {
                             }
                             ServerMessage::VideoStopped => {
                                 set_shared_video_url.set(None);
+                            }
+                            ServerMessage::PowerStatusUpdated { user_id, status } => {
+                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
+                                    map.insert(user_id, status);
+                                });
+                            }
+                            ServerMessage::RecordingStatusChanged { user_id, is_recording: is_locally_recording } => {
+                                // Skip toasts for our own recording actions
+                                let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
+                                if !is_self {
+                                    if is_locally_recording {
+                                        add_toast("A participant started recording locally".to_string(), ToastType::Info);
+                                    } else {
+                                        add_toast("A participant stopped their local recording".to_string(), ToastType::Info);
+                                    }
+                                }
+                            }
+                            ServerMessage::UnmuteRequested { requester_id, target_id } => {
+                                if let Some(my) = my_id.get_untracked() {
+                                    if my == target_id {
+                                        let parts = participants.get_untracked();
+                                        let sender_name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id);
+                                        add_toast(format!("Host ({}) asked you to unmute", sender_name), ToastType::Info);
+                                    }
+                                }
                             }
                             ServerMessage::PeerSpeaking { user_id, speaking } => {
                                 set_speaking_peers.update(|s: &mut HashSet<String>| {
@@ -1227,6 +1303,10 @@ pub fn use_room_state() -> RoomState {
         // Clear stale indicators
         set_speaking_peers.update(|s: &mut HashSet<String>| s.clear());
         set_typing_users.update(|u: &mut HashSet<String>| u.clear());
+        // Clear stale power statuses from the previous room; each
+        // participant's PowerMonitor will re-send their status on the
+        // next 60-second poll cycle.
+        set_power_statuses.set(std::collections::HashMap::new());
 
         // Cleanup existing WebRTC connections on room switch
         webrtc_manager_for_breakout.close_all_peers();
@@ -1279,6 +1359,153 @@ pub fn use_room_state() -> RoomState {
     let end_meeting = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::EndMeeting;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_local_recording = Callback::new({
+        let local_recorder = local_recorder.clone();
+        let pending_recorders = pending_recorders.clone();
+        let recording_stream_id = recording_stream_id.clone();
+        move |_: ()| {
+            let is_active = is_recording_locally.get_untracked();
+            if is_active {
+                // Call stop() but keep the LocalRecorder alive so its Closure
+                // callbacks (_on_data_available, _on_stop) remain valid when
+                // the browser asynchronously fires the stop event. Move the
+                // recorder into `pending_recorders`; it will be dropped the
+                // next time the user starts a new recording.
+                if let Some(r) = local_recorder.borrow_mut().take() {
+                    r.stop();
+                    pending_recorders.borrow_mut().push(r);
+                }
+                *recording_stream_id.borrow_mut() = None;
+                set_is_recording_locally.set(false);
+                if let Some(socket) = ws.get() {
+                    let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                }
+            } else if let Some(stream) = local_stream.get_untracked() {
+                // Drop any previously-stopped recorders. By now their async
+                // `onstop` callbacks have had ample time to fire (the user
+                // had to click stop, wait, then click start again).
+                pending_recorders.borrow_mut().clear();
+                match crate::media_recorder::LocalRecorder::new(stream.clone(), Callback::new(move |msg: String| {
+                    add_toast(format!("Recording error: {}", msg), ToastType::Error);
+                })) {
+                    Ok(r) => {
+                        *local_recorder.borrow_mut() = Some(r);
+                        *recording_stream_id.borrow_mut() = Some(stream.id());
+                        set_is_recording_locally.set(true);
+                        if let Some(socket) = ws.get() {
+                            let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(true)).unwrap());
+                        }
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                        add_toast("Failed to start local recording".to_string(), ToastType::Error);
+                    }
+                }
+            } else {
+                add_toast("Enable camera or microphone first to start recording".to_string(), ToastType::Error);
+            }
+        }
+    });
+
+    // Reactive effect: when local_stream changes while recording, automatically
+    // stop the old recorder and start a new one on the fresh stream. This handles
+    // camera toggles, device switches, and noise-suppression restarts that replace
+    // the underlying MediaStream whose tracks the recorder depends on.
+    {
+        let local_recorder = local_recorder.clone();
+        let pending_recorders = pending_recorders.clone();
+        let recording_stream_id = recording_stream_id.clone();
+        create_effect(move |_| {
+            let current_stream = local_stream.get();
+            let is_active = is_recording_locally.get_untracked();
+            if !is_active {
+                return;
+            }
+
+            let old_id = recording_stream_id.borrow().clone();
+            let new_id = current_stream.as_ref().map(|s| s.id());
+
+            // Only act when the stream identity actually changed
+            if old_id == new_id {
+                return;
+            }
+
+            // Stop the old recorder, keeping it alive for async onstop
+            if let Some(r) = local_recorder.borrow_mut().take() {
+                r.stop();
+                pending_recorders.borrow_mut().push(r);
+            }
+
+            // Trim very old pending recorders to prevent unbounded growth
+            // during rapid stream changes. Keep the most recent entries
+            // whose async onstop callbacks may not have fired yet; older
+            // ones have had enough time (each stream change is user- or
+            // system-initiated with perceptible delay).
+            {
+                let mut pending = pending_recorders.borrow_mut();
+                if pending.len() > 3 {
+                    let drain_count = pending.len() - 3;
+                    pending.drain(..drain_count);
+                }
+            }
+
+            if let Some(stream) = current_stream {
+                // Start a new recorder on the replacement stream.
+                // Do NOT clear pending_recorders here — the old recorder
+                // was just pushed above and its async onstop callback has
+                // not fired yet. Clearing now would drop the Closure and
+                // lose the recorded data. Stale recorders are cleaned up
+                // the next time the user manually starts a new recording
+                // (in toggle_local_recording) after an interactive delay.
+                match crate::media_recorder::LocalRecorder::new(stream.clone(), Callback::new(move |msg: String| {
+                    add_toast(format!("Recording error: {}", msg), ToastType::Error);
+                })) {
+                    Ok(r) => {
+                        *local_recorder.borrow_mut() = Some(r);
+                        *recording_stream_id.borrow_mut() = Some(stream.id());
+                        // No WS notification — the recording session continues
+                        // from the other participants' perspective.
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(&e);
+                        *recording_stream_id.borrow_mut() = None;
+                        set_is_recording_locally.set(false);
+                        add_toast("Recording stopped: failed to record new stream".to_string(), ToastType::Error);
+                        if let Some(socket) = ws.get() {
+                            let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                        }
+                    }
+                }
+            } else {
+                // Stream was removed entirely (e.g. all media disabled)
+                *recording_stream_id.borrow_mut() = None;
+                set_is_recording_locally.set(false);
+                add_toast("Recording stopped: media stream ended".to_string(), ToastType::Info);
+                if let Some(socket) = ws.get() {
+                    let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                }
+            }
+        });
+    }
+
+    let request_unmute = Callback::new(move |target_id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RequestUnmute(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let update_power_status = Callback::new(move |status: shared::PowerStatus| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdatePowerStatus(status);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1452,6 +1679,8 @@ pub fn use_room_state() -> RoomState {
         is_noise_suppression_enabled,
         background_mode,
         room_config,
+        power_statuses,
+        is_recording_locally,
         set_input_devices,
         set_background_mode,
         set_show_settings,
@@ -1498,6 +1727,9 @@ pub fn use_room_state() -> RoomState {
         start_share_video,
         stop_share_video,
         set_presence,
+        toggle_local_recording,
+        request_unmute,
+        update_power_status,
         analytics,
     }
 }

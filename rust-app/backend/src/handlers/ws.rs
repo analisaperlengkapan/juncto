@@ -77,6 +77,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Rate limiting for analytics events: max 10 events per second per connection
     let mut analytics_count: u32 = 0;
     let mut analytics_window_start = std::time::Instant::now();
+    // Track the last recording state sent by this client to prevent
+    // redundant broadcasts (and toast spam) from repeated identical
+    // ToggleLocalRecording messages.
+    let mut last_recording_state: Option<bool> = None;
 
     // Send initial breakout rooms list
     let rooms: Vec<shared::BreakoutRoom> = {
@@ -144,6 +148,101 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
+                                        }
+                                    }
+                                },
+                                ClientMessage::UpdatePowerStatus(mut status) => {
+                                    if let Some(uid) = &my_id {
+                                        // Rate limit: reuse the analytics rate limiter to
+                                        // prevent abuse from malicious clients.
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
+                                        // Clamp battery_level to valid range; NaN becomes 0.0
+                                        if status.battery_level.is_nan() {
+                                            status.battery_level = 0.0;
+                                        } else {
+                                            status.battery_level = status.battery_level.clamp(0.0, 1.0);
+                                        }
+                                        let _ = tx.send(ServerMessage::PowerStatusUpdated {
+                                            user_id: uid.clone(),
+                                            status,
+                                        });
+                                    }
+                                },
+                                ClientMessage::RequestUnmute(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            // Only allow unmute requests within the same breakout
+                                            // room, consistent with MuteParticipant scoping.
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
+                                            let _ = tx.send(ServerMessage::UnmuteRequested {
+                                                requester_id: uid.clone(),
+                                                target_id,
+                                            });
+                                        }
+                                    }
+                                },
+                                ClientMessage::ToggleLocalRecording(is_recording) => {
+                                    if let Some(uid) = &my_id {
+                                        // Deduplicate: skip if the client is re-sending the
+                                        // same recording state it already sent. This prevents
+                                        // toast spam from malicious or buggy clients.
+                                        if last_recording_state == Some(is_recording) {
+                                            continue;
+                                        }
+                                        // Rate limit: reuse the analytics rate limiter to
+                                        // prevent toast spam from malicious clients.
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
+                                        last_recording_state = Some(is_recording);
+                                        let _ = tx.send(ServerMessage::RecordingStatusChanged {
+                                            user_id: uid.clone(),
+                                            is_recording,
+                                        });
+                                    }
+                                },
+                                // NOTE: UpdateE2EE is handled server-side but no
+                                // frontend UI currently sends this message. It is
+                                // kept for protocol completeness; wire up when the
+                                // per-participant E2EE settings panel is migrated.
+                                ClientMessage::UpdateE2EE(enabled) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.e2ee_enabled = enabled;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                         }
                                     }
                                 },
@@ -347,6 +446,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_muted: false,
                                         speaking_time: 0,
                                         presence: shared::PresenceStatus::Connected,
+                                        is_visitor: false,
+                                        e2ee_enabled: false,
                                     };
 
                                     if is_lobby && host_exists {
@@ -534,6 +635,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == source_loc || *id == my_id_clone
+                                                        },
+                                                        ServerMessage::PowerStatusUpdated { user_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(user_id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::RecordingStatusChanged { user_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(user_id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
+                                                        ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                            *target_id == my_id_clone
                                                         },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1194,6 +1310,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(id).cloned().flatten();
                                                             my_loc == source_loc || *id == my_id_clone
                                                         },
+                                                ServerMessage::PowerStatusUpdated { user_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
+                                                },
+                                                ServerMessage::RecordingStatusChanged { user_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
+                                                },
+                                                ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                    *target_id == my_id_clone
+                                                },
                                                 ServerMessage::Transcription { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
@@ -1384,6 +1515,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 mod tests {
     #[test]
     fn test_ws_handler() {
-        assert!(true);
+        let _ = true;
     }
 }

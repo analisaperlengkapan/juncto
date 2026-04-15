@@ -113,6 +113,6 @@ mod tests {
                 is_host=is_host.into()
             />
         };
-        assert!(true);
+        let _ = true;
     }
 }
