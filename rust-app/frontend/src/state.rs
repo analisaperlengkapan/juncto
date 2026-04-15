@@ -1442,6 +1442,19 @@ pub fn use_room_state() -> RoomState {
                 pending_recorders.borrow_mut().push(r);
             }
 
+            // Trim very old pending recorders to prevent unbounded growth
+            // during rapid stream changes. Keep the most recent entries
+            // whose async onstop callbacks may not have fired yet; older
+            // ones have had enough time (each stream change is user- or
+            // system-initiated with perceptible delay).
+            {
+                let mut pending = pending_recorders.borrow_mut();
+                if pending.len() > 3 {
+                    let drain_count = pending.len() - 3;
+                    pending.drain(..drain_count);
+                }
+            }
+
             if let Some(stream) = current_stream {
                 // Start a new recorder on the replacement stream.
                 // Do NOT clear pending_recorders here — the old recorder

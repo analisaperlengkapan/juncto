@@ -109,5 +109,15 @@ impl Drop for LocalRecorder {
         {
             let _ = self.recorder.stop();
         }
+        // Remove the error event listener added via addEventListener so
+        // the browser doesn't try to invoke the dropped Closure.
+        let error_target: &web_sys::EventTarget = self.recorder.unchecked_ref();
+        let _ = error_target.remove_event_listener_with_callback(
+            "error",
+            self._on_error.as_ref().unchecked_ref(),
+        );
+        // Clear property-based handlers for the same reason.
+        self.recorder.set_ondataavailable(None);
+        self.recorder.set_onstop(None);
     }
 }

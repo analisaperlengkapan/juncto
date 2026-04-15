@@ -103,7 +103,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone())
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled)
                     children=move |p| {
                         let id_kick = p.id.clone();
                         let p_id_for_host = p.id.clone();
@@ -129,7 +129,10 @@ pub fn ParticipantsList(
                                 <div style="display: flex; align-items: center;">
                                     {move || {
                                         if let Some(statuses) = power_statuses {
-                                            if let Some(status) = statuses.get().get(&p_id_for_power) {
+                                            let result = statuses.with(|map| {
+                                                map.get(&p_id_for_power).cloned()
+                                            });
+                                            if let Some(status) = result {
                                                 let icon = if status.is_charging { "⚡" } else { "🔋" };
                                                 let level = (status.battery_level * 100.0).round() as i32;
                                                 return view! {
