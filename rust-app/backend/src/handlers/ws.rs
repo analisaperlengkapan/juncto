@@ -511,6 +511,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                         tokio::spawn(async move {
                                             let mut r_fused = r;
+                                            let timeout = tokio::time::sleep(std::time::Duration::from_secs(120));
+                                            tokio::pin!(timeout);
                                             loop {
                                                 tokio::select! {
                                                     res = &mut r_fused => {
@@ -536,7 +538,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let _ = forward_tx.send(ServerMessage::LobbyAnnouncement(text)).await;
                                                         }
                                                     },
-                                                    _ = tokio::time::sleep(std::time::Duration::from_secs(120)) => {
+                                                    _ = &mut timeout => {
                                                         let removed = {
                                                             let mut knocking = knocking_mutex_clone.lock().unwrap();
                                                             knocking.remove(&id_clone).is_some()
@@ -566,7 +568,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     config.host_id = None;
                                                 }
                                             }
-                                            let assigned = if config.host_id.is_none() {
+                                            let assigned = if config.host_id.is_none() && !me.is_visitor {
                                                 config.host_id = Some(id.clone());
                                                 true
                                             } else {
@@ -1225,6 +1227,24 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 participants.contains_key(&target_id)
                                             };
                                             if target_exists {
+                                                // Auto-promote visitor when transferring host to them
+                                                let promoted = {
+                                                    let mut participants = participants_mutex.lock().unwrap();
+                                                    if let Some(p) = participants.get_mut(&target_id) {
+                                                        if p.is_visitor {
+                                                            p.is_visitor = false;
+                                                            Some(p.clone())
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                };
+                                                if let Some(p) = promoted {
+                                                    let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                                    let _ = tx.send(ServerMessage::VisitorPromoted(target_id.clone()));
+                                                }
                                                 let new_config = {
                                                     let mut config = room_config_mutex.lock().unwrap();
                                                     config.host_id = Some(target_id);
@@ -1303,7 +1323,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             config.host_id = None;
                                         }
                                     }
-                                    let assigned = if config.host_id.is_none() {
+                                    let assigned = if config.host_id.is_none() && !me.is_visitor {
                                         config.host_id = Some(id.clone());
                                         true
                                     } else {
