@@ -139,7 +139,10 @@ pub fn PollsDialog(
                                                                         <div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2;">
                                                                             <span>{opt.text}</span>
                                                                             <div style="display: flex; align-items: center;">
-                                                                                <span style="margin-right: 10px; font-weight: bold; font-size: 12px;">{opt.votes} " (" {format!("{:.0}", percent)} "%)"</span>
+                                                                                <span style="margin-right: 10px; font-weight: bold; font-size: 12px;">
+                                                                                    <span>{opt.votes} " votes"</span>
+                                                                                    " (" {format!("{:.0}", percent)} "%)"
+                                                                                </span>
                                                                                 <button
                                                                                     on:click={
                                                                                         let pid_inner3 = pid_inner2.clone();
@@ -201,7 +204,10 @@ pub fn PollsDialog(
                                                                 <li style="margin-bottom: 5px; position: relative; padding: 6px; border-radius: 4px;">
                                                                     <div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; font-size: 13px;">
                                                                         <span>{opt.text}</span>
-                                                                        <span style="font-weight: bold;">{opt.votes} " (" {format!("{:.0}", percent)} "%)"</span>
+                                                                        <span style="font-weight: bold;">
+                                                                            <span>{opt.votes} " votes"</span>
+                                                                            " (" {format!("{:.0}", percent)} "%)"
+                                                                        </span>
                                                                     </div>
                                                                     <div
                                                                         style=format!("position: absolute; top: 0; left: 0; height: 100%; width: {}%; background-color: rgba(0, 0, 0, 0.05); border-radius: 4px; z-index: 1;", percent)
