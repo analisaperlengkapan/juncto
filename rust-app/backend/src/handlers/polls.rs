@@ -62,6 +62,29 @@ pub fn vote(
     }
 }
 
+pub fn close_poll(
+    user_id: &str,
+    poll_id: String,
+    state: &Arc<AppState>,
+) -> Result<ServerMessage, String> {
+    let is_host = {
+        let config = state.room_config.lock().unwrap();
+        config.host_id.as_deref() == Some(user_id)
+    };
+
+    if !is_host {
+        return Err("Only host can close polls".to_string());
+    }
+
+    let mut polls = state.polls.lock().unwrap();
+    if let Some(poll) = polls.get_mut(&poll_id) {
+        poll.is_closed = true;
+        Ok(ServerMessage::PollClosed(poll_id))
+    } else {
+        Err("Poll not found".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,6 +125,7 @@ mod tests {
             question: "Test?".to_string(),
             options: vec![],
             voters: HashSet::new(),
+            is_closed: false,
         };
 
         let res = create_poll(user_id, poll, &state);
@@ -125,6 +149,7 @@ mod tests {
             question: "Test?".to_string(),
             options: vec![],
             voters: HashSet::new(),
+            is_closed: false,
         };
 
         let res = create_poll(user_id, poll, &state);
@@ -158,6 +183,7 @@ mod tests {
                         },
                     ],
                     voters: HashSet::new(),
+                    is_closed: false,
                 },
             );
         }

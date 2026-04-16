@@ -13,3 +13,4 @@ pub mod prejoin;
 pub mod shared_video_dialog;
 pub mod toast;
 pub mod video_grid;
+pub mod screenshot_capture;

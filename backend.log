@@ -1,0 +1,27 @@
+   Compiling tokio v1.49.0
+   Compiling futures-util v0.3.31
+   Compiling zerocopy v0.8.36
+   Compiling tracing v0.1.44
+   Compiling thiserror v1.0.69
+   Compiling serde v1.0.228
+   Compiling serde_urlencoded v0.7.1
+   Compiling shared v0.1.0 (/app/rust-app/shared)
+   Compiling futures-executor v0.3.31
+   Compiling axum-core v0.4.5
+   Compiling futures v0.3.31
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.3.1
+   Compiling rand v0.8.5
+   Compiling hyper v1.8.1
+   Compiling tower v0.5.3
+   Compiling tungstenite v0.24.0
+   Compiling tokio-util v0.7.18
+   Compiling tokio-tungstenite v0.24.0
+   Compiling hyper-util v0.1.19
+   Compiling tower-http v0.5.2
+   Compiling tokio-stream v0.1.18
+   Compiling axum v0.7.9
+   Compiling backend v0.1.0 (/app/rust-app/backend)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 18.27s
+     Running `target/debug/backend`
+Listening on 0.0.0.0:3000

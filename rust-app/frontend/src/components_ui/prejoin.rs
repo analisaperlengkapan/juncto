@@ -25,6 +25,7 @@ pub fn PrejoinScreen(
     // Toggles
     let (is_camera_on, set_is_camera_on) = create_signal(false);
     let (is_mic_on, set_is_mic_on) = create_signal(true);
+    let (is_visitor, set_is_visitor) = create_signal(false);
 
     // Stream & Audio Monitor
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
@@ -166,6 +167,7 @@ pub fn PrejoinScreen(
             camera_enabled: is_camera_on.get_untracked(),
             audio_device_id: selected_audio_device.get_untracked(),
             video_device_id: selected_video_device.get_untracked(),
+            is_visitor: is_visitor.get_untracked(),
         });
     };
 
@@ -265,7 +267,7 @@ pub fn PrejoinScreen(
                     </div>
                 </div>
 
-                // Name Input
+                // Name Input & Join Type
                 <div style="margin-bottom: 20px; text-align: left;">
                     <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Display Name"</label>
                     <input
@@ -275,6 +277,16 @@ pub fn PrejoinScreen(
                         style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                         placeholder="Enter your name"
                     />
+                </div>
+
+                <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #666;">
+                    <input
+                        type="checkbox"
+                        id="visitor-mode"
+                        prop:checked=is_visitor
+                        on:change=move |ev| set_is_visitor.set(event_target_checked(&ev))
+                    />
+                    <label for="visitor-mode">"Join as Visitor (Read-only)"</label>
                 </div>
 
                 <button

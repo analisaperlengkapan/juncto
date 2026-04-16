@@ -136,6 +136,8 @@ pub struct Poll {
     pub options: Vec<PollOption>,
     #[serde(default)]
     pub voters: HashSet<String>,
+    #[serde(default)]
+    pub is_closed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -146,7 +148,11 @@ pub enum ClientMessage {
         poll_id: String,
         option_id: u32,
     },
-    Join(String), // Display Name
+    Join {
+        name: String,
+        #[serde(default)]
+        is_visitor: bool,
+    },
     Chat {
         content: String,
         recipient_id: Option<String>,
@@ -185,11 +191,15 @@ pub enum ClientMessage {
     UpdatePowerStatus(PowerStatus),
     RequestUnmute(String), // Target ID
     ToggleLocalRecording(bool),
+    FollowMe(String), // Layout name (e.g., "grid", "spotlight")
+    ClosePoll(String), // Poll ID
     /// Update this participant's per-user E2EE status. The server handler
     /// exists (`ws.rs: UpdateE2EE`) but no frontend UI sends this message yet.
     /// Kept for protocol completeness; wire up when the E2EE settings panel
     /// is migrated.
     UpdateE2EE(bool),
+    BroadcastToLobby(String),
+    PromoteVisitor(String),
     // WebRTC Signaling
     Offer {
         target_id: String,
@@ -294,6 +304,10 @@ pub enum ServerMessage {
         text: String,
         timestamp: u64,
     },
+    FollowMe(String), // Layout name
+    PollClosed(String), // Poll ID
+    LobbyAnnouncement(String),
+    VisitorPromoted(String), // ID
     // WebRTC Signaling
     Offer {
         source_id: String,

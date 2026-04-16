@@ -9,6 +9,7 @@ pub fn Whiteboard(
     on_draw: Callback<DrawAction>,
     history: ReadSignal<Vec<DrawAction>>,
     my_id: ReadSignal<Option<String>>,
+    is_visitor: Signal<bool>,
 ) -> impl IntoView {
     let canvas_ref = create_node_ref::<Canvas>();
     let (is_drawing, set_is_drawing) = create_signal(false);
@@ -59,6 +60,7 @@ pub fn Whiteboard(
     });
 
     let on_mousedown = move |ev: web_sys::MouseEvent| {
+        if is_visitor.get_untracked() { return; }
         set_is_drawing.set(true);
         set_last_pos.set(Some((ev.offset_x() as f64, ev.offset_y() as f64)));
     };
@@ -98,19 +100,21 @@ pub fn Whiteboard(
     view! {
         <div class="whiteboard-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 10; display: flex; flex-direction: column; align-items: center;">
             <div class="controls" style="margin: 10px; display: flex; gap: 10px; align-items: center;">
-                <label>{move || t("color")}</label>
-                <input
-                    type="color"
-                    prop:value=color
-                    on:input=move |ev| set_color.set(event_target_value(&ev))
-                    style="cursor: pointer;"
-                />
+                <Show when=move || !is_visitor.get() fallback=|| view! { <span style="color: #666;">"Visitor Mode: Read-only"</span> }>
+                    <label>{move || t("color")}</label>
+                    <input
+                        type="color"
+                        prop:value=color
+                        on:input=move |ev| set_color.set(event_target_value(&ev))
+                        style="cursor: pointer;"
+                    />
+                </Show>
             </div>
             <canvas
-                _ref=canvas_ref
+                node_ref=canvas_ref
                 width="800"
                 height="600"
-                style="border: 1px solid black; cursor: crosshair; background: white;"
+                style=move || format!("border: 1px solid black; cursor: {}; background: white;", if is_visitor.get() { "default" } else { "crosshair" })
                 on:mousedown=on_mousedown
                 on:mouseup=on_mouseup
                 on:mouseleave=on_mouseup
