@@ -73,7 +73,7 @@ pub fn PollsDialog(
                             on:click=move |_| set_active_tab.set("active")
                             style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "active" { "#007bff" } else { "transparent" })
                         >
-                            "Active"
+                            "Active Polls"
                         </button>
                         <button
                             on:click=move |_| set_active_tab.set("history")
@@ -86,7 +86,7 @@ pub fn PollsDialog(
                                 on:click=move |_| set_active_tab.set("create")
                                 style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "create" { "#007bff" } else { "transparent" })
                             >
-                                "Create"
+                                "Create Poll"
                             </button>
                         </Show>
                     </div>

@@ -32,7 +32,14 @@ use crate::deeplink::DeepLinking;
 #[component]
 pub fn Room() -> impl IntoView {
     let params = use_params_map();
-    let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
+    let room_id = move || {
+        params.with(|params| {
+            let id = params.get("id").cloned().unwrap_or_default();
+            urlencoding::decode(&id)
+                .map(|s| s.into_owned())
+                .unwrap_or(id)
+        })
+    };
 
     let state = use_room_state();
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
@@ -177,7 +184,7 @@ pub fn Room() -> impl IntoView {
                                 }>
                                     <div id="capture-area" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                            <h2>"Meeting Room: " {room_id}</h2>
+                                            <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
                                                 {format_time}
                                             </span>

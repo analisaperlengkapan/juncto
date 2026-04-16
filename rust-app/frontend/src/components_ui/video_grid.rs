@@ -102,7 +102,7 @@ pub fn VideoGrid(
                     style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
                 >
                     <Show when=move || is_host.get() fallback=|| "Switch View">
-                        {move || if layout.get() == "grid" { "Follow Me: Spotlight" } else { "Follow Me: Grid" }}
+                        {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
                     </Show>
                 </button>
             </div>
