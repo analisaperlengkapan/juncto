@@ -511,8 +511,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                         tokio::spawn(async move {
                                             let mut r_fused = r;
-                                            let timeout = tokio::time::sleep(std::time::Duration::from_secs(120));
-                                            tokio::pin!(timeout);
                                             loop {
                                                 tokio::select! {
                                                     res = &mut r_fused => {
@@ -538,7 +536,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let _ = forward_tx.send(ServerMessage::LobbyAnnouncement(text)).await;
                                                         }
                                                     },
-                                                    _ = &mut timeout => {
+                                                    _ = tokio::time::sleep(std::time::Duration::from_secs(120)) => {
                                                         let removed = {
                                                             let mut knocking = knocking_mutex_clone.lock().unwrap();
                                                             knocking.remove(&id_clone).is_some()

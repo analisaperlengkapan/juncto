@@ -37,9 +37,6 @@ pub fn vote(
     let mut polls = state.polls.lock().unwrap();
 
     if let Some(poll) = polls.get_mut(&poll_id) {
-        if poll.is_closed {
-            return Err("Poll is closed".to_string());
-        }
         if poll.voters.contains(user_id) {
             return Err("Already voted".to_string());
         }
