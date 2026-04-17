@@ -534,8 +534,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         break;
                                                     },
                                                     msg_res = rx.recv() => {
-                                                        if let Ok(ServerMessage::LobbyAnnouncement(text)) = msg_res {
-                                                            let _ = forward_tx.send(ServerMessage::LobbyAnnouncement(text)).await;
+                                                        match msg_res {
+                                                            Ok(ServerMessage::LobbyAnnouncement(text)) => {
+                                                                let _ = forward_tx.send(ServerMessage::LobbyAnnouncement(text)).await;
+                                                            },
+                                                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                                                            _ => {} // Ignore other messages and Lagged errors
                                                         }
                                                     },
                                                     _ = &mut timeout => {
@@ -1599,7 +1603,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let mut config = room_config_mutex.lock().unwrap();
             if config.host_id == Some(id.clone()) {
                 // Host left, assign new host if any participants remain
-                if let Some(new_host) = participants.keys().next() {
+                if let Some(new_host) = participants.values().find(|p| !p.is_visitor).map(|p| p.id.clone()) {
                     config.host_id = Some(new_host.clone());
                     true
                 } else {
