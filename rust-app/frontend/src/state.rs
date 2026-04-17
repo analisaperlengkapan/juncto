@@ -1206,6 +1206,7 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
+        if is_visitor.get_untracked() { return; }
         let props = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&props, &JsValue::from_str("emoji"), &JsValue::from_str(&emoji));
         analytics_for_reaction.track_event("send_reaction", props.into());
