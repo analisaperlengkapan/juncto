@@ -952,6 +952,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleScreenShare => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot share screen".to_string())).await;
+                                            continue;
+                                        }
                                         let updated_participant = {
                                             let mut participants = participants_mutex.lock().unwrap();
                                             if let Some(p) = participants.get_mut(uid) {
@@ -969,6 +976,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleRaiseHand => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot raise hand".to_string())).await;
+                                            continue;
+                                        }
                                         let updated_participant = {
                                             let mut participants = participants_mutex.lock().unwrap();
                                             if let Some(p) = participants.get_mut(uid) {

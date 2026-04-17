@@ -1219,6 +1219,7 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_raise_hand = analytics.clone();
     let toggle_raise_hand = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         analytics_for_raise_hand.track_interaction("toggle_raise_hand");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRaiseHand;
@@ -1230,6 +1231,7 @@ pub fn use_room_state() -> RoomState {
 
     let webrtc_manager_for_screen = webrtc_manager.clone();
     let toggle_screen_share = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         if local_screen_stream.get().is_some() {
             // Stop sharing
             if let Some(stream) = local_screen_stream.get() {
