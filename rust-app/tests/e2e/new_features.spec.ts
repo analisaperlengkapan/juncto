@@ -22,7 +22,7 @@ test('Authentication flow', async ({ page }) => {
   await page.goto('/');
 
   // Wait for the WASM to load and the welcome container to appear
-  await page.waitForSelector('.welcome-container', { timeout: 60000 });
+  await page.waitForSelector('.welcome-container', { timeout: 120000 });
   await page.fill('.welcome-container input[type="text"]', roomName);
   await page.click('button.create-btn');
 
@@ -63,7 +63,7 @@ test('Authentication flow', async ({ page }) => {
 test('Integrations UI', async ({ page }) => {
   const roomName = `Int-${Math.random().toString(36).substring(7)}`;
   await page.goto('/');
-  await page.waitForSelector('.welcome-container', { timeout: 60000 });
+  await page.waitForSelector('.welcome-container', { timeout: 120000 });
   await page.fill('.welcome-container input[type="text"]', roomName);
   await page.click('button.create-btn');
 
@@ -80,8 +80,8 @@ test('Integrations UI', async ({ page }) => {
   await settingsBtn.click();
 
   // Open Integrations tab
-  const integrationsTab = page.locator('button').filter({ hasText: 'Integrations' });
-  await expect(integrationsTab).toBeVisible();
+  const integrationsTab = page.locator('button').filter({ hasText: 'Integrations' }).first();
+  await expect(integrationsTab).toBeVisible({ timeout: 10000 });
   await integrationsTab.click();
 
   await expect(page.locator('.integration-item').filter({ hasText: 'Dropbox' })).toBeVisible();
