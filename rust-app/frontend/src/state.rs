@@ -649,6 +649,7 @@ pub fn use_room_state() -> RoomState {
                             set_is_recording,
                             set_is_lobby_enabled,
                             is_subtitles_enabled,
+                            set_is_subtitles_enabled,
                             set_subtitles,
                             set_room_config,
                             current_room_id,
