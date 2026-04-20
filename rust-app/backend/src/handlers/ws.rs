@@ -730,7 +730,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             my_loc == *room_id
                                                         },
-                                                        ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::MutedByHost(id) | ServerMessage::CameraMutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
@@ -1481,7 +1481,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                     my_loc == *room_id || *id == my_id_clone
                                                 },
-                                                ServerMessage::MutedByHost(id) => {
+                                                ServerMessage::MutedByHost(id) | ServerMessage::CameraMutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();

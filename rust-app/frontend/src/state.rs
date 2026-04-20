@@ -654,17 +654,26 @@ pub fn use_room_state() -> RoomState {
                                             "Your camera has been disabled by the host.".to_string(),
                                             ToastType::Info,
                                         );
-                                        // Stop video tracks
-                                        if let Some(stream) = local_stream.get_untracked() {
-                                            let video_tracks = stream.get_video_tracks();
-                                            for i in 0..video_tracks.length() {
-                                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    track.stop();
+                                        // Only stop video and restart the stream if the user
+                                        // actually had active video tracks. This avoids
+                                        // unexpectedly activating the microphone (or
+                                        // interrupting an audio-only session) when the user
+                                        // had no camera running.
+                                        let has_video = local_stream.with_untracked(|s| {
+                                            s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
+                                        });
+                                        if has_video {
+                                            if let Some(stream) = local_stream.get_untracked() {
+                                                let video_tracks = stream.get_video_tracks();
+                                                for i in 0..video_tracks.length() {
+                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        track.stop();
+                                                    }
                                                 }
                                             }
+                                            // Restart media stream without video
+                                            start_media_stream.call(false);
                                         }
-                                        // Update state (re-run start_media_stream without video)
-                                        start_media_stream.call(false);
                                     }
                                 }
                             }
