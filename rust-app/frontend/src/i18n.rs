@@ -128,6 +128,10 @@ fn translate(locale: Locale, key: &str) -> String {
         (Locale::Id, "salesforce") => "Salesforce".to_string(),
         (Locale::En, "google_calendar") => "Google Calendar".to_string(),
         (Locale::Id, "google_calendar") => "Kalender Google".to_string(),
+        (Locale::En, "connect") => "Connect".to_string(),
+        (Locale::Id, "connect") => "Hubungkan".to_string(),
+        (Locale::En, "coming_soon") => "Coming soon".to_string(),
+        (Locale::Id, "coming_soon") => "Segera hadir".to_string(),
         // Add more keys as needed
         (_, k) => k.to_string(),
     }

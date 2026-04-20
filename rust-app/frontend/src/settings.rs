@@ -1,3 +1,4 @@
+use crate::components_ui::toast::{use_toast, ToastType};
 use crate::i18n::t;
 use crate::media::{enumerate_devices, get_user_media};
 use leptos::*;
@@ -24,6 +25,7 @@ pub fn SettingsDialog(
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
 ) -> impl IntoView {
+    let toast_ctx = use_toast();
     let (active_tab, set_active_tab) = create_signal("profile");
 
     create_effect(move |_| {
@@ -345,15 +347,30 @@ pub fn SettingsDialog(
                             <div class="integrations-list" style="display: flex; flex-direction: column; gap: 10px;">
                                 <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
                                     <span>{move || t("dropbox")}</span>
-                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                    <button
+                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
                                 </div>
                                 <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
                                     <span>{move || t("salesforce")}</span>
-                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                    <button
+                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
                                 </div>
                                 <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
                                     <span>{move || t("google_calendar")}</span>
-                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                    <button
+                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
                                 </div>
                             </div>
                         </Show>
