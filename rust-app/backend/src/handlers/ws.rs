@@ -151,6 +151,32 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::MuteCameraParticipant(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            // Verify target actually exists before broadcasting
+                                            let target_exists = {
+                                                participants_mutex.lock().unwrap().contains_key(&target_id)
+                                            };
+                                            if !target_exists {
+                                                continue;
+                                            }
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
+                                            let _ = tx.send(ServerMessage::CameraMutedByHost(target_id));
+                                        }
+                                    }
+                                },
                                 ClientMessage::BroadcastToLobby(text) => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
@@ -158,6 +184,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         };
                                         if is_host {
                                             let _ = tx.send(ServerMessage::LobbyAnnouncement(text));
+                                        }
+                                    }
+                                },
+                                ClientMessage::MuteCameraAll => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::mute_camera_all(uid, &state);
+                                        for msg in msgs {
+                                            let _ = tx.send(msg);
                                         }
                                     }
                                 },
@@ -703,7 +737,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             my_loc == *room_id
                                                         },
-                                                        ServerMessage::MutedByHost(id) => {
+                                                        ServerMessage::MutedByHost(id) | ServerMessage::CameraMutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();
@@ -1165,8 +1199,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Authenticate { username, password } => {
                                     if let Some(_uid) = &my_id {
-                                        // FIXME: mock auth — accepts any non-empty credentials. Replace with real authentication before using is_authenticated to gate features.
-                                        if !username.is_empty() && password.as_ref().is_some_and(|p| !p.is_empty()) {
+                                        // FIXME: mock auth — accepts credentials from env vars MOCK_AUTH_USER / MOCK_AUTH_PASS (defaults: admin / admin123). Replace with real authentication before using is_authenticated to gate features.
+                                        let expected_user = std::env::var("MOCK_AUTH_USER").unwrap_or_else(|_| "admin".to_string());
+                                        let expected_pass = std::env::var("MOCK_AUTH_PASS").unwrap_or_else(|_| "admin123".to_string());
+                                        if username == expected_user && password.as_deref() == Some(expected_pass.as_str()) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
@@ -1454,7 +1490,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                     my_loc == *room_id || *id == my_id_clone
                                                 },
-                                                ServerMessage::MutedByHost(id) => {
+                                                ServerMessage::MutedByHost(id) | ServerMessage::CameraMutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                             let source_loc = locs.get(id).cloned().flatten();

@@ -392,7 +392,9 @@ pub fn Room() -> impl IntoView {
                                     on_deny=state.deny_access
                                     on_kick=state.kick_participant
                                     on_mute=state.mute_participant
+                                    on_mute_camera=state.mute_camera_participant
                                     on_mute_all=state.mute_all
+                                    on_mute_camera_all=state.mute_camera_all
                                     on_transfer_host=state.transfer_host
                                     power_statuses=state.power_statuses
                                     on_request_unmute=state.request_unmute

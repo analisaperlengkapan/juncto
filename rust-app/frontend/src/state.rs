@@ -136,7 +136,9 @@ pub struct RoomState {
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
     pub mute_participant: Callback<String>,
+    pub mute_camera_participant: Callback<String>,
     pub mute_all: Callback<()>,
+    pub mute_camera_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
     pub toggle_local_recording: Callback<()>,
@@ -185,6 +187,7 @@ pub fn use_room_state() -> RoomState {
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
     let (is_muted, set_is_muted) = create_signal(false);
+    let (is_camera_off, set_is_camera_off) = create_signal(false);
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
     let (audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
@@ -480,6 +483,8 @@ pub fn use_room_state() -> RoomState {
 
     // Extract start_media_stream logic
     let start_media_stream = Callback::new(move |enable_video: bool| {
+        // Clear host-muted camera state since we are replacing the stream
+        set_is_camera_off.set(false);
         spawn_local(async move {
             let v_id = selected_camera_id.get_untracked();
             let a_id = selected_mic_id.get_untracked();
@@ -641,6 +646,53 @@ pub fn use_room_state() -> RoomState {
                                         let msg = ClientMessage::SetMuteStatus(true);
                                         if let Ok(json) = serde_json::to_string(&msg) {
                                             let _ = socket.send_with_str(&json);
+                                        }
+                                    }
+                                }
+                            }
+                            ServerMessage::CameraMutedByHost(target_id) => {
+                                if let Some(my) = my_id.get() {
+                                    if my == target_id {
+                                        // Only disable video tracks if the user actually
+                                        // had active video. This avoids showing a
+                                        // confusing toast when the user had no camera.
+                                        let has_video = local_stream.with_untracked(|s| {
+                                            s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
+                                        });
+                                        if has_video {
+                                            add_toast(
+                                                "Your camera has been disabled by the host.".to_string(),
+                                                ToastType::Info,
+                                            );
+                                            // Update state so toggle_camera knows the
+                                            // camera is off, matching the MutedByHost
+                                            // pattern where set_is_muted.set(true) is
+                                            // called alongside track disabling.
+                                            set_is_camera_off.set(true);
+                                            // Disable (not stop) raw stream video tracks.
+                                            // Using set_enabled(false) keeps the track alive
+                                            // so the user can re-enable their camera via
+                                            // toggle_camera without a new permission prompt,
+                                            // matching the MutedByHost pattern for audio.
+                                            if let Some(raw) = raw_local_stream.get_untracked() {
+                                                let video_tracks = raw.get_video_tracks();
+                                                for i in 0..video_tracks.length() {
+                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        track.set_enabled(false);
+                                                    }
+                                                }
+                                            }
+                                            // Also disable processed stream video tracks
+                                            // (e.g. canvas captureStream tracks from
+                                            // virtual background).
+                                            if let Some(stream) = local_stream.get_untracked() {
+                                                let video_tracks = stream.get_video_tracks();
+                                                for i in 0..video_tracks.length() {
+                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        track.set_enabled(false);
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1402,9 +1454,27 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let mute_camera_participant = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteCameraParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let mute_all = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::MuteAll;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let mute_camera_all = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteCameraAll;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1597,6 +1667,32 @@ pub fn use_room_state() -> RoomState {
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
         if is_visitor.get_untracked() { return; }
+
+        // If the camera was disabled by the host, re-enable the existing
+        // tracks instead of restarting the media stream. This mirrors
+        // toggle_mic which checks is_muted to determine the current state.
+        if is_camera_off.get_untracked() {
+            set_is_camera_off.set(false);
+            analytics_for_camera.track_toggle_media("camera", true);
+            if let Some(raw) = raw_local_stream.get_untracked() {
+                let video_tracks = raw.get_video_tracks();
+                for i in 0..video_tracks.length() {
+                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.set_enabled(true);
+                    }
+                }
+            }
+            if let Some(stream) = local_stream.get_untracked() {
+                let video_tracks = stream.get_video_tracks();
+                for i in 0..video_tracks.length() {
+                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.set_enabled(true);
+                    }
+                }
+            }
+            return;
+        }
+
         // Check if we currently have video tracks active
         let has_video = if let Some(stream) = local_stream.get_untracked() {
             stream.get_video_tracks().length() > 0
@@ -1811,7 +1907,9 @@ pub fn use_room_state() -> RoomState {
         toggle_mic,
         end_meeting,
         mute_participant,
+        mute_camera_participant,
         mute_all,
+        mute_camera_all,
         transfer_host,
         start_share_video,
         stop_share_video,

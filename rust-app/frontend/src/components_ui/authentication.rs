@@ -20,7 +20,7 @@ pub fn LoginDialog(
 
     view! {
         <div class="login-dialog-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-            <div class="login-dialog" style="background: #2a2a2a; padding: 20px; border-radius: 8px; width: 300px; color: white;">
+            <div class="modal-content login-dialog" style="background: #2a2a2a; padding: 20px; border-radius: 8px; width: 300px; color: white;">
                 <h3 style="margin-top: 0; margin-bottom: 15px;">"Authentication Required"</h3>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 5px;">"Username"</label>

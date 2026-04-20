@@ -24,7 +24,9 @@ pub fn ParticipantsList(
     on_deny: Callback<String>,
     on_kick: Callback<String>,
     on_mute: Callback<String>,
+    #[prop(optional)] on_mute_camera: Option<Callback<String>>,
     #[prop(optional)] on_mute_all: Option<Callback<()>>,
+    #[prop(optional)] on_mute_camera_all: Option<Callback<()>>,
     on_transfer_host: Callback<String>,
     #[prop(optional)] power_statuses: Option<ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>>,
     #[prop(optional)] on_request_unmute: Option<Callback<String>>,
@@ -43,6 +45,7 @@ pub fn ParticipantsList(
     // Store callbacks in StoredValue for easy multi-closure access
     let on_promote_sv = store_value(on_promote);
     let on_mute_sv = store_value(on_mute);
+    let on_mute_camera_sv = store_value(on_mute_camera);
     let on_transfer_host_sv = store_value(on_transfer_host);
     let on_kick_sv = store_value(on_kick);
     let on_request_unmute_sv = store_value(on_request_unmute);
@@ -126,16 +129,29 @@ pub fn ParticipantsList(
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
                 <h3 style="margin: 0;">"Participants"</h3>
                 <Show when=move || is_host.get()>
-                    <button
-                        on:click=move |_| {
-                            if let Some(cb) = on_mute_all {
-                                cb.call(());
+                    <div style="display: flex; gap: 5px;">
+                        <button
+                            on:click=move |_| {
+                                if let Some(cb) = on_mute_all {
+                                    cb.call(());
+                                }
                             }
-                        }
-                        style="background: #ffc107; color: black; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
-                    >
-                        "Mute All"
-                    </button>
+                            style="background: #ffc107; color: black; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
+                        >
+                            "Mute All"
+                        </button>
+                        <button
+                            on:click=move |_| {
+                                if let Some(cb) = on_mute_camera_all {
+                                    cb.call(());
+                                }
+                            }
+                            style="background: #ffc107; color: black; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
+                            title="Mute All Cameras"
+                        >
+                            "Mute Cam All"
+                        </button>
+                    </div>
                 </Show>
             </div>
             <ul>
@@ -146,7 +162,7 @@ pub fn ParticipantsList(
                         let p_sv = store_value(p);
 
                         view! {
-                            <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <li class="participant-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <div style=move || if p_sv.get_value().is_visitor { "opacity: 0.7;" } else { "" }>
                                     <span>{move || p_sv.get_value().name}</span>
                                     {move || if p_sv.get_value().is_visitor {
@@ -223,6 +239,19 @@ pub fn ParticipantsList(
                                                     title="Mute Participant"
                                                 >
                                                     "Mute"
+                                                </button>
+                                            </Show>
+                                            <Show when=move || !p_sv.get_value().is_visitor>
+                                                <button
+                                                    on:click=move |_| {
+                                                        if let Some(cb) = on_mute_camera_sv.get_value() {
+                                                            cb.call(p_sv.get_value().id);
+                                                        }
+                                                    }
+                                                    style="background: none; border: 1px solid #ccc; color: orange; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Mute Camera"
+                                                >
+                                                    "Cam"
                                                 </button>
                                             </Show>
                                             <button
