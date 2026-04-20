@@ -185,24 +185,21 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::KnockingParticipantLeft(id) => {
             ctx.set_knocking_participants.update(|list| list.retain(|x| x.id != id));
         }
-        ServerMessage::ParticipantLeft { id, room_id } => {
-            let current_room = ctx.current_room_id.get_untracked();
-            if room_id == current_room {
-                ctx.set_participants.update(|list| list.retain(|p| p.id != id));
-                ctx.set_typing_users.update(|users| {
-                    users.remove(&id);
-                });
-                ctx.set_speaking_peers.update(|s| {
-                    s.remove(&id);
-                });
-                ctx.set_power_statuses.update(|map| {
-                    map.remove(&id);
-                });
-                ctx.webrtc_manager.handle_participant_left(&id);
-                ctx.set_remote_streams.update(|map| {
-                    map.remove(&id);
-                });
-            }
+        ServerMessage::ParticipantLeft { id, .. } => {
+            ctx.set_participants.update(|list| list.retain(|p| p.id != id));
+            ctx.set_typing_users.update(|users| {
+                users.remove(&id);
+            });
+            ctx.set_speaking_peers.update(|s| {
+                s.remove(&id);
+            });
+            ctx.set_power_statuses.update(|map| {
+                map.remove(&id);
+            });
+            ctx.webrtc_manager.handle_participant_left(&id);
+            ctx.set_remote_streams.update(|map| {
+                map.remove(&id);
+            });
         }
         ServerMessage::ParticipantList(list) => {
             ctx.set_participants.set(list.clone());
