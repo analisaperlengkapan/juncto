@@ -177,6 +177,8 @@ pub enum ClientMessage {
     TransferHost(String),    // Target ID
     SetMuteStatus(bool),
     EndMeeting,
+    MuteCameraParticipant(String), // Target ID
+    MuteCameraAll,
     SetPresence(PresenceStatus),
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
@@ -307,6 +309,7 @@ pub enum ServerMessage {
     FollowMe(String), // Layout name
     PollClosed(String), // Poll ID
     LobbyAnnouncement(String),
+    CameraMutedByHost(String), // Target ID
     VisitorPromoted(String), // ID
     // WebRTC Signaling
     Offer {

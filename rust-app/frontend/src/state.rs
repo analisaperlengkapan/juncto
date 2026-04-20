@@ -136,7 +136,9 @@ pub struct RoomState {
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
     pub mute_participant: Callback<String>,
+    pub mute_camera_participant: Callback<String>,
     pub mute_all: Callback<()>,
+    pub mute_camera_all: Callback<()>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
     pub toggle_local_recording: Callback<()>,
@@ -642,6 +644,27 @@ pub fn use_room_state() -> RoomState {
                                         if let Ok(json) = serde_json::to_string(&msg) {
                                             let _ = socket.send_with_str(&json);
                                         }
+                                    }
+                                }
+                            }
+                            ServerMessage::CameraMutedByHost(target_id) => {
+                                if let Some(my) = my_id.get() {
+                                    if my == target_id {
+                                        add_toast(
+                                            "Your camera has been disabled by the host.".to_string(),
+                                            ToastType::Info,
+                                        );
+                                        // Stop video tracks
+                                        if let Some(stream) = local_stream.get_untracked() {
+                                            let video_tracks = stream.get_video_tracks();
+                                            for i in 0..video_tracks.length() {
+                                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                    track.stop();
+                                                }
+                                            }
+                                        }
+                                        // Update state (re-run start_media_stream without video)
+                                        start_media_stream.call(false);
                                     }
                                 }
                             }
@@ -1402,9 +1425,27 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let mute_camera_participant = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteCameraParticipant(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let mute_all = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::MuteAll;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let mute_camera_all = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteCameraAll;
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1811,7 +1852,9 @@ pub fn use_room_state() -> RoomState {
         toggle_mic,
         end_meeting,
         mute_participant,
+        mute_camera_participant,
         mute_all,
+        mute_camera_all,
         transfer_host,
         start_share_video,
         stop_share_video,

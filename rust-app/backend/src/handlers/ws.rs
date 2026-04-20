@@ -151,6 +151,25 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::MuteCameraParticipant(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let same_room = {
+                                                let locs = participant_locations_mutex.lock().unwrap();
+                                                let host_loc = locs.get(uid).cloned().flatten();
+                                                let target_loc = locs.get(&target_id).cloned().flatten();
+                                                host_loc == target_loc
+                                            };
+                                            if !same_room {
+                                                continue;
+                                            }
+                                            let _ = tx.send(ServerMessage::CameraMutedByHost(target_id));
+                                        }
+                                    }
+                                },
                                 ClientMessage::BroadcastToLobby(text) => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
@@ -158,6 +177,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         };
                                         if is_host {
                                             let _ = tx.send(ServerMessage::LobbyAnnouncement(text));
+                                        }
+                                    }
+                                },
+                                ClientMessage::MuteCameraAll => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::mute_camera_all(uid, &state);
+                                        for msg in msgs {
+                                            let _ = tx.send(msg);
                                         }
                                     }
                                 },
