@@ -187,6 +187,7 @@ pub fn use_room_state() -> RoomState {
     let (local_stream, set_local_stream) = create_signal(None::<MediaStream>);
     let (local_screen_stream, set_local_screen_stream) = create_signal(None::<MediaStream>);
     let (is_muted, set_is_muted) = create_signal(false);
+    let (is_camera_off, set_is_camera_off) = create_signal(false);
     let (shared_video_url, set_shared_video_url) = create_signal(None::<String>);
     let (speaking_peers, set_speaking_peers) = create_signal(HashSet::<String>::new());
     let (audio_monitor, set_audio_monitor) = create_signal(None::<AudioMonitor>);
@@ -482,6 +483,8 @@ pub fn use_room_state() -> RoomState {
 
     // Extract start_media_stream logic
     let start_media_stream = Callback::new(move |enable_video: bool| {
+        // Clear host-muted camera state since we are replacing the stream
+        set_is_camera_off.set(false);
         spawn_local(async move {
             let v_id = selected_camera_id.get_untracked();
             let a_id = selected_mic_id.get_untracked();
@@ -661,6 +664,11 @@ pub fn use_room_state() -> RoomState {
                                                 "Your camera has been disabled by the host.".to_string(),
                                                 ToastType::Info,
                                             );
+                                            // Update state so toggle_camera knows the
+                                            // camera is off, matching the MutedByHost
+                                            // pattern where set_is_muted.set(true) is
+                                            // called alongside track disabling.
+                                            set_is_camera_off.set(true);
                                             // Disable (not stop) raw stream video tracks.
                                             // Using set_enabled(false) keeps the track alive
                                             // so the user can re-enable their camera via
@@ -1659,6 +1667,32 @@ pub fn use_room_state() -> RoomState {
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
         if is_visitor.get_untracked() { return; }
+
+        // If the camera was disabled by the host, re-enable the existing
+        // tracks instead of restarting the media stream. This mirrors
+        // toggle_mic which checks is_muted to determine the current state.
+        if is_camera_off.get_untracked() {
+            set_is_camera_off.set(false);
+            analytics_for_camera.track_toggle_media("camera", true);
+            if let Some(raw) = raw_local_stream.get_untracked() {
+                let video_tracks = raw.get_video_tracks();
+                for i in 0..video_tracks.length() {
+                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.set_enabled(true);
+                    }
+                }
+            }
+            if let Some(stream) = local_stream.get_untracked() {
+                let video_tracks = stream.get_video_tracks();
+                for i in 0..video_tracks.length() {
+                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.set_enabled(true);
+                    }
+                }
+            }
+            return;
+        }
+
         // Check if we currently have video tracks active
         let has_video = if let Some(stream) = local_stream.get_untracked() {
             stream.get_video_tracks().length() > 0
