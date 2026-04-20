@@ -183,6 +183,12 @@ pub fn SettingsDialog(
                         >
                             {move || t("devices")}
                         </button>
+                        <button
+                            on:click=move |_| set_active_tab.set("integrations")
+                            style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "integrations" { "#007bff" } else { "transparent" })
+                        >
+                            {move || t("integrations")}
+                        </button>
                         <Show when=move || is_host.map(|h| h.get()).unwrap_or(false)>
                             <button
                                 on:click=move |_| set_active_tab.set("moderator")
@@ -333,6 +339,22 @@ pub fn SettingsDialog(
                                 >
                                     {move || t("apply_devices")}
                                 </button>
+                            </div>
+                        </Show>
+                        <Show when=move || active_tab.get() == "integrations">
+                            <div class="integrations-list" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>{move || t("dropbox")}</span>
+                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                </div>
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>{move || t("salesforce")}</span>
+                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                </div>
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>{move || t("google_calendar")}</span>
+                                    <button style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">"Connect"</button>
+                                </div>
                             </div>
                         </Show>
                         <Show when=move || active_tab.get() == "moderator">

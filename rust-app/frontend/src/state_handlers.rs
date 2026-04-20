@@ -149,10 +149,12 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_is_recording.set(config.is_recording);
 
             ctx.set_is_lobby_enabled.set(config.is_lobby_enabled);
-            ctx.set_is_subtitles_enabled.set(config.is_subtitles_enabled);
+
             if !config.is_subtitles_enabled && ctx.is_subtitles_enabled.get_untracked() {
                 ctx.set_subtitles.set(Vec::new());
             }
+            ctx.set_is_subtitles_enabled.set(config.is_subtitles_enabled);
+
             ctx.set_room_config.set(config);
         }
         ServerMessage::Chat { message, room_id } => {
