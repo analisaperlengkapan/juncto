@@ -663,6 +663,18 @@ pub fn use_room_state() -> RoomState {
                                             s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
                                         });
                                         if has_video {
+                                            // Stop raw stream video tracks first to release
+                                            // camera hardware immediately (turns off LED).
+                                            if let Some(raw) = raw_local_stream.get_untracked() {
+                                                let video_tracks = raw.get_video_tracks();
+                                                for i in 0..video_tracks.length() {
+                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                                        track.stop();
+                                                    }
+                                                }
+                                            }
+                                            // Also stop processed stream video tracks (e.g.
+                                            // canvas captureStream tracks from virtual background).
                                             if let Some(stream) = local_stream.get_untracked() {
                                                 let video_tracks = stream.get_video_tracks();
                                                 for i in 0..video_tracks.length() {

@@ -32,9 +32,7 @@ test('Authentication flow', async ({ page }) => {
   await expect(nameInput).toBeVisible();
   await nameInput.fill('Tester');
 
-  const joinBtn = page.getByRole('button', { name: 'Join Meeting' });
-  // Sometimes it's 'Join Meeting' or 'Join'
-  const btn = await joinBtn.isVisible() ? joinBtn : page.locator('button.join-btn');
+  const btn = page.getByRole('button', { name: 'Join Meeting' }).or(page.locator('button.join-btn'));
 
   await expect(btn).toBeEnabled();
   await btn.click();
@@ -69,8 +67,7 @@ test('Integrations UI', async ({ page }) => {
 
   await page.waitForSelector('.prejoin-container', { timeout: 30000 });
   await page.getByPlaceholder('Enter your name').fill('Tester');
-  const joinBtn = page.getByRole('button', { name: 'Join Meeting' });
-  const btn = await joinBtn.isVisible() ? joinBtn : page.locator('button.join-btn');
+  const btn = page.getByRole('button', { name: 'Join Meeting' }).or(page.locator('button.join-btn'));
   await btn.click();
 
   await page.waitForSelector('.room-container', { timeout: 30000 });

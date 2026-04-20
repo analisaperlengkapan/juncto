@@ -157,6 +157,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
+                                            // Verify target actually exists before broadcasting
+                                            let target_exists = {
+                                                participants_mutex.lock().unwrap().contains_key(&target_id)
+                                            };
+                                            if !target_exists {
+                                                continue;
+                                            }
                                             let same_room = {
                                                 let locs = participant_locations_mutex.lock().unwrap();
                                                 let host_loc = locs.get(uid).cloned().flatten();
