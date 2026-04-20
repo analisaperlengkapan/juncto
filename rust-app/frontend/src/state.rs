@@ -650,11 +650,9 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::CameraMutedByHost(target_id) => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
-                                        // Only stop video and restart the stream if the user
-                                        // actually had active video tracks. This avoids
-                                        // unexpectedly activating the microphone (or
-                                        // interrupting an audio-only session) when the user
-                                        // had no camera running.
+                                        // Only disable video tracks if the user actually
+                                        // had active video. This avoids showing a
+                                        // confusing toast when the user had no camera.
                                         let has_video = local_stream.with_untracked(|s| {
                                             s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
                                         });
@@ -663,28 +661,30 @@ pub fn use_room_state() -> RoomState {
                                                 "Your camera has been disabled by the host.".to_string(),
                                                 ToastType::Info,
                                             );
-                                            // Stop raw stream video tracks first to release
-                                            // camera hardware immediately (turns off LED).
+                                            // Disable (not stop) raw stream video tracks.
+                                            // Using set_enabled(false) keeps the track alive
+                                            // so the user can re-enable their camera via
+                                            // toggle_camera without a new permission prompt,
+                                            // matching the MutedByHost pattern for audio.
                                             if let Some(raw) = raw_local_stream.get_untracked() {
                                                 let video_tracks = raw.get_video_tracks();
                                                 for i in 0..video_tracks.length() {
                                                     if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                                        track.stop();
+                                                        track.set_enabled(false);
                                                     }
                                                 }
                                             }
-                                            // Also stop processed stream video tracks (e.g.
-                                            // canvas captureStream tracks from virtual background).
+                                            // Also disable processed stream video tracks
+                                            // (e.g. canvas captureStream tracks from
+                                            // virtual background).
                                             if let Some(stream) = local_stream.get_untracked() {
                                                 let video_tracks = stream.get_video_tracks();
                                                 for i in 0..video_tracks.length() {
                                                     if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                                        track.stop();
+                                                        track.set_enabled(false);
                                                     }
                                                 }
                                             }
-                                            // Restart media stream without video
-                                            start_media_stream.call(false);
                                         }
                                     }
                                 }
