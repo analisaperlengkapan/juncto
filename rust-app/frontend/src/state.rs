@@ -1,4 +1,5 @@
 use crate::analytics::{provide_analytics_context, use_analytics, AnalyticsService};
+use crate::state_handlers::{handle_server_message, HandlerContext};
 use crate::storage::{load_settings, update_setting};
 use crate::components_ui::toast::{use_toast, ToastType};
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
@@ -626,471 +627,66 @@ pub fn use_room_state() -> RoomState {
                 if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                     let txt: String = txt.into();
                     if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
-                        match server_msg {
-                            ServerMessage::Welcome { id } => {
-                                set_my_id.set(Some(id.clone()));
-                                set_current_state.set(RoomConnectionState::Joined);
-
-                                // Track join
-                                analytics.track_join(&id);
-
-                                // Auto-start media if requested from prejoin
-                                if start_media_on_join.get_untracked() {
-                                    start_media_stream.call(initial_cam_on.get_untracked());
-                                    set_start_media_on_join.set(false);
-                                }
-
-                                // Sync mute state after joining (important for Lobby flow)
-                                if is_muted.get_untracked() {
-                                    if let Some(socket) = ws.get_untracked() {
-                                        let msg = ClientMessage::SetMuteStatus(true);
-                                        if let Ok(json) = serde_json::to_string(&msg) {
-                                            let _ = socket.send_with_str(&json);
-                                        }
-                                    }
-                                }
-                            }
-                            ServerMessage::CameraMutedByHost(target_id) => {
-                                if let Some(my) = my_id.get() {
-                                    if my == target_id {
-                                        // Only disable video tracks if the user actually
-                                        // had active video. This avoids showing a
-                                        // confusing toast when the user had no camera.
-                                        let has_video = local_stream.with_untracked(|s| {
-                                            s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
-                                        });
-                                        if has_video {
-                                            add_toast(
-                                                "Your camera has been disabled by the host.".to_string(),
-                                                ToastType::Info,
-                                            );
-                                            // Update state so toggle_camera knows the
-                                            // camera is off, matching the MutedByHost
-                                            // pattern where set_is_muted.set(true) is
-                                            // called alongside track disabling.
-                                            set_is_camera_off.set(true);
-                                            // Disable (not stop) raw stream video tracks.
-                                            // Using set_enabled(false) keeps the track alive
-                                            // so the user can re-enable their camera via
-                                            // toggle_camera without a new permission prompt,
-                                            // matching the MutedByHost pattern for audio.
-                                            if let Some(raw) = raw_local_stream.get_untracked() {
-                                                let video_tracks = raw.get_video_tracks();
-                                                for i in 0..video_tracks.length() {
-                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                                        track.set_enabled(false);
-                                                    }
-                                                }
-                                            }
-                                            // Also disable processed stream video tracks
-                                            // (e.g. canvas captureStream tracks from
-                                            // virtual background).
-                                            if let Some(stream) = local_stream.get_untracked() {
-                                                let video_tracks = stream.get_video_tracks();
-                                                for i in 0..video_tracks.length() {
-                                                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                                                        track.set_enabled(false);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            ServerMessage::RoomUpdated(config) => {
-                                // Only force-open/close etherpad when the URL actually changed
-                                let old_etherpad_url = room_config.get_untracked().etherpad_url;
-                                if config.etherpad_url != old_etherpad_url {
-                                    set_show_etherpad.set(config.etherpad_url.is_some());
-                                }
-
-                                set_is_locked.set(config.is_locked);
-                                set_is_e2ee_enabled.set(config.e2ee_enabled);
-
-                                // Check for recording status change — only show
-                                // toasts after the user has actually joined to
-                                // avoid spurious notifications from the initial
-                                // RoomUpdated sent on WS connect or from room
-                                // resets via the REST API.
-                                let was_recording = is_recording.get_untracked();
-                                if config.is_recording != was_recording && my_id.get_untracked().is_some() {
-                                    if config.is_recording {
-                                        add_toast("Recording Started".to_string(), ToastType::Info);
-                                    } else {
-                                        add_toast("Recording Stopped".to_string(), ToastType::Info);
-                                    }
-                                }
-                                set_is_recording.set(config.is_recording);
-
-                                set_is_lobby_enabled.set(config.is_lobby_enabled);
-                                // Clear stale transcriptions when subtitles are toggled off
-                                if !config.is_subtitles_enabled && is_subtitles_enabled.get_untracked() {
-                                    set_subtitles.set(Vec::new());
-                                }
-                                set_is_subtitles_enabled.set(config.is_subtitles_enabled);
-                                set_room_config.set(config);
-                            }
-                            ServerMessage::Chat { message, room_id } => {
-                                let current_room = current_room_id.get_untracked();
-                                if room_id == current_room {
-                                    set_messages.update(|msgs: &mut Vec<ChatMessage>| msgs.push(message));
-                                }
-                            }
-                            ServerMessage::ChatHistory(history) => {
-                                // Only accept chat history if we are in the main room
-                                if current_room_id.get_untracked().is_none() {
-                                    set_messages.set(history);
-                                }
-                            }
-                            ServerMessage::ParticipantJoined(p) => {
-                                set_knocking_participants
-                                    .update(|list: &mut Vec<Participant>| list.retain(|x| x.id != p.id));
-                                set_participants.update(|list: &mut Vec<Participant>| {
-                                    if !list.iter().any(|x| x.id == p.id) {
-                                        list.push(p.clone());
-                                    }
-                                });
-
-                                // Initiate WebRTC connection (Polite Peer)
-                                // Only connect if it's NOT me.
-                                // Deterministic initiation: Higher ID initiates.
-                                if let Some(me) = my_id.get_untracked() {
-                                    if me != p.id && me > p.id {
-                                        webrtc_manager.handle_participant_joined(p.id);
-                                    }
-                                }
-                            }
-                            ServerMessage::KnockingParticipantLeft(id) => {
-                                set_knocking_participants
-                                    .update(|list: &mut Vec<Participant>| list.retain(|x| x.id != id));
-                            }
-                            ServerMessage::ParticipantLeft { id, .. } => {
-                                set_participants.update(|list: &mut Vec<Participant>| list.retain(|p| p.id != id));
-                                // Remove from typing users if present
-                                set_typing_users.update(|users: &mut HashSet<String>| {
-                                    users.remove(&id);
-                                });
-                                // Remove from speaking peers to avoid stale indicators
-                                set_speaking_peers.update(|s: &mut HashSet<String>| {
-                                    s.remove(&id);
-                                });
-                                // Remove stale power status entry
-                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
-                                    map.remove(&id);
-                                });
-                                // Cleanup WebRTC
-                                webrtc_manager.handle_participant_left(&id);
-                                set_remote_streams.update(|map: &mut HashMap<String, Vec<MediaStream>>| {
-                                    map.remove(&id);
-                                });
-                            }
-                            ServerMessage::ParticipantList(list) => {
-                                set_participants.set(list.clone());
-
-                                // Initiate connections to existing peers if I am impolite (higher ID)
-                                if let Some(me) = my_id.get_untracked() {
-                                    for p in list {
-                                        if me > p.id {
-                                            webrtc_manager.handle_participant_joined(p.id);
-                                        }
-                                    }
-                                }
-                            }
-                            ServerMessage::Knocking => {
-                                set_current_state.set(RoomConnectionState::Lobby);
-                            }
-                            ServerMessage::AccessDenied => {
-                                add_toast("Access Denied".to_string(), ToastType::Error);
-                                set_current_state.set(RoomConnectionState::Prejoin);
-                            }
-                            ServerMessage::Kicked { target_id, .. } => {
-                                if let Some(my) = my_id.get() {
-                                    if my == target_id {
-                                        add_toast(
-                                            "You have been kicked from the room.".to_string(),
-                                            ToastType::Error,
-                                        );
-                                        // Clean up WebRTC
-                                        webrtc_manager.close_all_peers();
-                                        set_remote_streams.set(HashMap::new());
-                                        set_power_statuses.set(std::collections::HashMap::new());
-                                        // Stop any active local recording so the
-                                        // download is triggered before navigation.
-                                        if is_recording_locally.get_untracked() {
-                                            if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
-                                                r.stop();
-                                                pending_recorders_for_cleanup.borrow_mut().push(r);
-                                            }
-                                            *recording_stream_id_for_cleanup.borrow_mut() = None;
-                                            set_is_recording_locally.set(false);
-                                        }
-                                        set_current_state.set(RoomConnectionState::Prejoin);
-
-                                        // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
-                                        // NOTE: Add a small timeout so the toast can render before redirect
-                                        set_timeout(
-                                            move || {
-                                                if let Some(window) = web_sys::window() {
-                                                    let _ = window.location().set_href("/");
-                                                }
-                                            },
-                                            std::time::Duration::from_millis(1500),
-                                        );
-                                    }
-                                }
-                            }
-                            ServerMessage::MutedByHost(target_id) => {
-                                if let Some(my) = my_id.get() {
-                                    if my == target_id {
-                                        add_toast(
-                                            "You have been muted by the host.".to_string(),
-                                            ToastType::Info,
-                                        );
-                                        set_is_muted.set(true);
-                                        if let Some(stream) = local_stream.get_untracked() {
-                                            let audio_tracks = stream.get_audio_tracks();
-                                            for i in 0..audio_tracks.length() {
-                                                if let Ok(track) = audio_tracks
-                                                    .get(i)
-                                                    .dyn_into::<web_sys::MediaStreamTrack>(
-                                                ) {
-                                                    track.set_enabled(false);
-                                                }
-                                            }
-
-                                            // Pause the AudioMonitor so we don't get false positive "no audio" warnings while muted by host
-                                            set_audio_monitor.update(|monitor: &mut Option<AudioMonitor>| {
-                                                if let Some(m) = monitor.as_mut() {
-                                                    m.set_muted(true);
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                            ServerMessage::RoomEnded => {
-                                add_toast(
-                                    "The meeting has ended by the host.".to_string(),
-                                    ToastType::Info,
-                                );
-                                // Clean up WebRTC
-                                webrtc_manager.close_all_peers();
-                                set_remote_streams.set(HashMap::new());
-                                set_current_state.set(RoomConnectionState::Prejoin);
-                                set_participants.set(Vec::new());
-                                set_power_statuses.set(std::collections::HashMap::new());
-                                // Stop any active local recording so the
-                                // download is triggered before navigation.
-                                if is_recording_locally.get_untracked() {
-                                    if let Some(r) = local_recorder_for_cleanup.borrow_mut().take() {
-                                        r.stop();
-                                        pending_recorders_for_cleanup.borrow_mut().push(r);
-                                    }
-                                    *recording_stream_id_for_cleanup.borrow_mut() = None;
-                                    set_is_recording_locally.set(false);
-                                }
-                                set_is_connected.set(false);
-
-                                // Perform a hard redirect to the home page so the Prejoin state doesn't get stuck with stale WS info
-                                set_timeout(
-                                    move || {
-                                        if let Some(window) = web_sys::window() {
-                                            let _ = window.location().set_href("/");
-                                        }
-                                    },
-                                    std::time::Duration::from_millis(1500),
-                                );
-                            }
-                            ServerMessage::KnockingParticipant(p) => {
-                                set_knocking_participants.update(|list: &mut Vec<Participant>| {
-                                    if !list.iter().any(|x| x.id == p.id) {
-                                        list.push(p);
-                                    }
-                                });
-                            }
-                            ServerMessage::ParticipantUpdated(p) => {
-                                set_participants.update(|list: &mut Vec<Participant>| {
-                                    if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
-                                        // Check for hand raise
-                                        if p.is_hand_raised && !existing.is_hand_raised {
-                                            add_toast(
-                                                format!("{} raised their hand", p.name),
-                                                ToastType::Info,
-                                            );
-                                        }
-                                        *existing = p;
-                                    }
-                                });
-                            }
-                            ServerMessage::Reaction { sender_id, emoji } => {
-                                set_last_reaction.set(Some((
-                                    sender_id,
-                                    emoji,
-                                    js_sys::Date::now() as u64,
-                                )));
-                            }
-                            ServerMessage::PeerTyping {
-                                user_id, is_typing, ..
-                            } => {
-                                set_typing_users.update(|users: &mut HashSet<String>| {
-                                    if is_typing {
-                                        users.insert(user_id);
-                                    } else {
-                                        users.remove(&user_id);
-                                    }
-                                });
-                            }
-                            ServerMessage::BreakoutRoomsList(rooms) => {
-                                set_breakout_rooms.set(rooms);
-                            }
-                            ServerMessage::PollCreated(poll) => {
-                                set_polls.update(|list: &mut Vec<Poll>| {
-                                    if !list.iter().any(|p| p.id == poll.id) {
-                                        list.push(poll);
-                                    }
-                                });
-                            }
-                            ServerMessage::PollUpdated(poll) => {
-                                set_polls.update(|list: &mut Vec<Poll>| {
-                                    if let Some(existing) =
-                                        list.iter_mut().find(|x| x.id == poll.id)
-                                    {
-                                        *existing = poll;
-                                    }
-                                });
-                            }
-                            ServerMessage::PollClosed(poll_id) => {
-                                set_polls.update(|list: &mut Vec<Poll>| {
-                                    if let Some(existing) = list.iter_mut().find(|x| x.id == poll_id) {
-                                        existing.is_closed = true;
-                                    }
-                                });
-                            }
-                            ServerMessage::FollowMe(layout) => {
-                                set_grid_layout_sig.set(layout);
-                            }
-                            ServerMessage::PollsList(list) => {
-                                set_polls.set(list);
-                            }
-                            ServerMessage::Draw(action) => {
-                                set_last_draw_action.set(Some(action.clone()));
-                                set_whiteboard_history.update(|h: &mut Vec<DrawAction>| h.push(action));
-                            }
-                            ServerMessage::WhiteboardHistory(history) => {
-                                set_whiteboard_history.set(history);
-                            }
-                            ServerMessage::VideoShared(url) => {
-                                set_shared_video_url.set(Some(url));
-                            }
-                            ServerMessage::VideoStopped => {
-                                set_shared_video_url.set(None);
-                            }
-                            ServerMessage::PowerStatusUpdated { user_id, status } => {
-                                set_power_statuses.update(|map: &mut std::collections::HashMap<String, shared::PowerStatus>| {
-                                    map.insert(user_id, status);
-                                });
-                            }
-                            ServerMessage::RecordingStatusChanged { user_id, is_recording: is_locally_recording } => {
-                                // Skip toasts for our own recording actions
-                                let is_self = my_id.get_untracked().as_deref() == Some(&user_id);
-                                if !is_self {
-                                    if is_locally_recording {
-                                        add_toast("A participant started recording locally".to_string(), ToastType::Info);
-                                    } else {
-                                        add_toast("A participant stopped their local recording".to_string(), ToastType::Info);
-                                    }
-                                }
-                            }
-                            ServerMessage::UnmuteRequested { requester_id, target_id } => {
-                                if let Some(my) = my_id.get_untracked() {
-                                    if my == target_id {
-                                        let parts = participants.get_untracked();
-                                        let sender_name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id);
-                                        add_toast(format!("Host ({}) asked you to unmute", sender_name), ToastType::Info);
-                                    }
-                                }
-                            }
-                            ServerMessage::LobbyAnnouncement(text) => {
-                                set_lobby_announcement.set(Some(text));
-                            }
-                            ServerMessage::VisitorPromoted(target_id) => {
-                                if let Some(my) = my_id.get_untracked() {
-                                    if my == target_id {
-                                        add_toast("You have been promoted to a full participant".to_string(), ToastType::Info);
-                                    }
-                                }
-                            }
-                            ServerMessage::PeerSpeaking { user_id, speaking } => {
-                                set_speaking_peers.update(|s: &mut HashSet<String>| {
-                                    if speaking {
-                                        s.insert(user_id);
-                                    } else {
-                                        s.remove(&user_id);
-                                    }
-                                });
-                            }
-                            ServerMessage::Transcription { user_id, text, timestamp } => {
-                                set_subtitles.update(|subs: &mut Vec<(String, String, u64)>| {
-                                    subs.push((user_id, text, timestamp));
-                                    // Keep only the last 5 transcriptions to avoid UI clutter
-                                    if subs.len() > 5 {
-                                        subs.remove(0);
-                                    }
-                                });
-                            }
-                            ServerMessage::Pong { .. } => {
-                                let now = js_sys::Date::now();
-                                let start = last_ping_time.get_untracked();
-                                if start > 0.0 {
-                                    let latency = (now - start) as u64;
-                                    set_rtt.set(latency);
-                                }
-                            }
-                            ServerMessage::AuthenticationResult(success) => {
-                                if success {
-                                    set_is_authenticated.set(true);
-                                    set_show_login_dialog.set(false);
-                                    set_auth_error.set(None);
-                                    add_toast("Authenticated successfully (mock)".to_string(), ToastType::Info);
-                                } else {
-                                    set_auth_error.set(Some("Invalid username or password".to_string()));
-                                }
-                            }
-                            ServerMessage::CalendarEvents(events) => {
-                                set_calendar_events.set(events);
-                            }
-                            ServerMessage::Error(err) => {
-                                add_toast(err, ToastType::Error);
-                            }
-                            ServerMessage::Offer { source_id, sdp, .. } => {
-                                webrtc_manager.handle_offer(source_id, sdp);
-                            }
-                            ServerMessage::Answer { source_id, sdp, .. } => {
-                                webrtc_manager.handle_answer(source_id, sdp);
-                            }
-                            ServerMessage::IceCandidate {
-                                source_id,
-                                candidate,
-                                sdp_mid,
-                                sdp_m_line_index,
-                                ..
-                            } => {
-                                webrtc_manager.handle_ice_candidate(
-                                    source_id,
-                                    candidate,
-                                    sdp_mid,
-                                    sdp_m_line_index,
-                                );
-                            }
-                            ServerMessage::EtherpadUrlUpdated { .. } => {
-                                // Handled via RoomUpdated; this variant is not
-                                // currently sent by the server.
-                            }
-                            ServerMessage::GiphyShared { .. } => {
-                                // GIFs are sent/received as regular Chat messages
-                                // with a "GIF:" prefix; this variant is unused.
-                            }
-                        }
+                        let ctx = HandlerContext {
+                            set_my_id,
+                            set_current_state,
+                            analytics: analytics.clone(),
+                            start_media_on_join,
+                            initial_cam_on,
+                            start_media_stream,
+                            set_start_media_on_join,
+                            is_muted,
+                            ws,
+                            local_stream,
+                            raw_local_stream,
+                            add_toast: Callback::new(move |(msg, t)| add_toast(msg, t)),
+                            set_is_camera_off,
+                            room_config,
+                            set_show_etherpad,
+                            set_is_locked,
+                            set_is_e2ee_enabled,
+                            is_recording,
+                            set_is_recording,
+                            set_is_lobby_enabled,
+                            is_subtitles_enabled,
+                            set_is_subtitles_enabled,
+                            set_subtitles,
+                            set_room_config,
+                            current_room_id,
+                            set_messages,
+                            set_is_connected,
+                            set_knocking_participants,
+                            set_participants,
+                            my_id,
+                            webrtc_manager: webrtc_manager.clone(),
+                            set_typing_users,
+                            set_speaking_peers,
+                            set_power_statuses,
+                            set_remote_streams,
+                            is_recording_locally,
+                            local_recorder: local_recorder_for_cleanup.clone(),
+                            pending_recorders: pending_recorders_for_cleanup.clone(),
+                            recording_stream_id: recording_stream_id_for_cleanup.clone(),
+                            set_is_recording_locally,
+                            set_is_muted,
+                            set_audio_monitor,
+                            participants,
+                            set_last_reaction,
+                            set_breakout_rooms,
+                            set_polls,
+                            set_grid_layout_sig,
+                            set_whiteboard_history,
+                            set_last_draw_action,
+                            set_shared_video_url,
+                            last_ping_time,
+                            set_rtt,
+                            set_is_authenticated,
+                            set_show_login_dialog,
+                            set_auth_error,
+                            set_calendar_events,
+                            set_lobby_announcement,
+                        };
+                        handle_server_message(server_msg, &ctx);
                     }
                 }
             });

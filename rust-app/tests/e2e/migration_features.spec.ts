@@ -25,8 +25,8 @@ test.describe('Migration Features', () => {
         await expect(page.locator('.login-dialog-overlay')).toBeVisible();
 
         // Fill in the form
-        await page.fill('input[placeholder="user@domain.com"]', 'test_user');
-        await page.fill('input[placeholder="Password"]', 'secret');
+        await page.fill('input[placeholder="user@domain.com"]', 'admin');
+        await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('.login-dialog button:has-text("Login")');
 
         // Note: The mock backend handles authentication but we might need a small delay or explicit wait for the toast
