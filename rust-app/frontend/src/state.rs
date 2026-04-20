@@ -650,10 +650,6 @@ pub fn use_room_state() -> RoomState {
                             ServerMessage::CameraMutedByHost(target_id) => {
                                 if let Some(my) = my_id.get() {
                                     if my == target_id {
-                                        add_toast(
-                                            "Your camera has been disabled by the host.".to_string(),
-                                            ToastType::Info,
-                                        );
                                         // Only stop video and restart the stream if the user
                                         // actually had active video tracks. This avoids
                                         // unexpectedly activating the microphone (or
@@ -663,6 +659,10 @@ pub fn use_room_state() -> RoomState {
                                             s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
                                         });
                                         if has_video {
+                                            add_toast(
+                                                "Your camera has been disabled by the host.".to_string(),
+                                                ToastType::Info,
+                                            );
                                             // Stop raw stream video tracks first to release
                                             // camera hardware immediately (turns off LED).
                                             if let Some(raw) = raw_local_stream.get_untracked() {
