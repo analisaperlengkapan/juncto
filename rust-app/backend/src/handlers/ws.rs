@@ -1199,8 +1199,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Authenticate { username, password } => {
                                     if let Some(_uid) = &my_id {
-                                        // FIXME: mock auth — accepts hardcoded credentials only. Replace with real authentication before using is_authenticated to gate features.
-                                        if username == "admin" && password.as_deref() == Some("admin123") {
+                                        // FIXME: mock auth — accepts credentials from env vars MOCK_AUTH_USER / MOCK_AUTH_PASS (defaults: admin / admin123). Replace with real authentication before using is_authenticated to gate features.
+                                        let expected_user = std::env::var("MOCK_AUTH_USER").unwrap_or_else(|_| "admin".to_string());
+                                        let expected_pass = std::env::var("MOCK_AUTH_PASS").unwrap_or_else(|_| "admin123".to_string());
+                                        if username == expected_user && password.as_deref() == Some(expected_pass.as_str()) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;

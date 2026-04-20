@@ -48,12 +48,15 @@ test('Authentication flow', async ({ page }) => {
 
   // Authentication Dialog
   await page.waitForSelector('.modal-content', { timeout: 10000 });
-  await page.getByPlaceholder('Username').fill('admin');
+  const mockUser = process.env.MOCK_AUTH_USER ?? 'admin';
+  const mockPass = process.env.MOCK_AUTH_PASS ?? 'admin123';
+
+  await page.getByPlaceholder('user@domain.com').fill(mockUser);
   await page.getByPlaceholder('Password').fill('wrong');
   await page.locator('.modal-content button').filter({ hasText: 'Login' }).click();
   await expect(page.locator('text=Invalid username or password')).toBeVisible();
 
-  await page.getByPlaceholder('Password').fill('admin123');
+  await page.getByPlaceholder('Password').fill(mockPass);
   await page.locator('.modal-content button').filter({ hasText: 'Login' }).click();
   await expect(page.locator('text=Authenticated successfully')).toBeVisible();
 });
