@@ -269,3 +269,37 @@ pub fn PollsDialog(
         </Show>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use shared::Poll;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_poll_filtering_logic() {
+        let p1 = Poll {
+            id: "1".to_string(),
+            question: "Q1".to_string(),
+            options: vec![],
+            voters: HashSet::new(),
+            is_closed: false,
+        };
+        let p2 = Poll {
+            id: "2".to_string(),
+            question: "Q2".to_string(),
+            options: vec![],
+            voters: HashSet::new(),
+            is_closed: true,
+        };
+
+        let polls = vec![p1.clone(), p2.clone()];
+
+        let active: Vec<_> = polls.iter().filter(|p| !p.is_closed).collect();
+        let history: Vec<_> = polls.iter().filter(|p| p.is_closed).collect();
+
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, "1");
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].id, "2");
+    }
+}

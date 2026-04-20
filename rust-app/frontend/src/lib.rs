@@ -16,6 +16,7 @@ mod settings;
 mod shortcuts;
 mod speaker_stats;
 mod state;
+mod state_handlers;
 mod storage;
 mod toolbox;
 mod utils;
