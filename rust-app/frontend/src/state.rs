@@ -29,6 +29,7 @@ pub struct JoinOptions {
     pub camera_enabled: bool,
     pub audio_device_id: Option<String>,
     pub video_device_id: Option<String>,
+    pub is_visitor: bool,
 }
 
 #[derive(Clone)]
@@ -83,12 +84,16 @@ pub struct RoomState {
     pub video_resolution: ReadSignal<String>,
     pub is_noise_suppression_enabled: ReadSignal<bool>,
     pub background_mode: ReadSignal<String>,
+    pub grid_layout: ReadSignal<String>,
+    pub is_visitor: Signal<bool>,
     pub room_config: ReadSignal<shared::RoomConfig>,
     pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
     pub is_recording_locally: ReadSignal<bool>,
+    pub lobby_announcement: ReadSignal<Option<String>>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
+    pub set_grid_layout: Callback<String>,
     pub set_show_settings: WriteSignal<bool>,
     pub set_show_polls: WriteSignal<bool>,
     pub set_show_shortcuts: WriteSignal<bool>,
@@ -122,6 +127,7 @@ pub struct RoomState {
     pub kick_participant: Callback<String>,
     pub create_poll: Callback<Poll>,
     pub vote_poll: Callback<(String, u32)>,
+    pub close_poll: Callback<String>,
     pub send_draw: Callback<DrawAction>,
     pub set_is_typing: Callback<bool>,
     pub create_breakout_room: Callback<String>,
@@ -136,6 +142,8 @@ pub struct RoomState {
     pub toggle_local_recording: Callback<()>,
     pub request_unmute: Callback<String>,
     pub update_power_status: Callback<shared::PowerStatus>,
+    pub broadcast_to_lobby: Callback<String>,
+    pub promote_visitor: Callback<String>,
     #[allow(dead_code)]
     pub analytics: AnalyticsService,
 }
@@ -190,7 +198,9 @@ pub fn use_room_state() -> RoomState {
     let (video_resolution, set_video_resolution) = create_signal(settings.resolution.unwrap_or("hd".to_string()));
     let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
+    let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
+    let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -211,6 +221,27 @@ pub fn use_room_state() -> RoomState {
 
     // Video Processing for Virtual Background
     let (raw_local_stream, set_raw_local_stream) = create_signal(None::<MediaStream>);
+
+    // Reactive signals that need to be defined before callbacks
+    let host_id = Signal::derive(move || room_config.get().host_id);
+
+    let is_host = Signal::derive(move || {
+        let h = host_id.get();
+        let my = my_id.get();
+
+        match (h, my) {
+            (Some(host), Some(me)) => host == me,
+            _ => false,
+        }
+    });
+
+    let is_visitor = Signal::derive(move || {
+        if let Some(me_id) = my_id.get() {
+            participants.get().iter().find(|p| p.id == me_id).map(|p| p.is_visitor).unwrap_or(false)
+        } else {
+            false
+        }
+    });
 
     // Note: Reactive Noise Suppression effect is created after start_media_stream below.
 
@@ -300,6 +331,27 @@ pub fn use_room_state() -> RoomState {
                 *prev_stream_id.borrow_mut() = None;
                 set_local_stream.set(None);
                 None
+            }
+        }
+    });
+
+    let set_grid_layout = Callback::new(move |layout: String| {
+        set_grid_layout_sig.set(layout.clone());
+        if is_host.get_untracked() {
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::FollowMe(layout);
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
+            }
+        }
+    });
+
+    let close_poll = Callback::new(move |poll_id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ClosePoll(poll_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
             }
         }
     });
@@ -419,18 +471,6 @@ pub fn use_room_state() -> RoomState {
                     let _ = win.remove_event_listener_with_callback("talk_while_muted", closure.as_ref().unchecked_ref());
                 }
             });
-        }
-    });
-
-    let host_id = Signal::derive(move || room_config.get().host_id);
-
-    let is_host = Signal::derive(move || {
-        let h = host_id.get();
-        let my = my_id.get();
-
-        match (h, my) {
-            (Some(host), Some(me)) => host == me,
-            _ => false,
         }
     });
 
@@ -867,6 +907,16 @@ pub fn use_room_state() -> RoomState {
                                     }
                                 });
                             }
+                            ServerMessage::PollClosed(poll_id) => {
+                                set_polls.update(|list: &mut Vec<Poll>| {
+                                    if let Some(existing) = list.iter_mut().find(|x| x.id == poll_id) {
+                                        existing.is_closed = true;
+                                    }
+                                });
+                            }
+                            ServerMessage::FollowMe(layout) => {
+                                set_grid_layout_sig.set(layout);
+                            }
                             ServerMessage::PollsList(list) => {
                                 set_polls.set(list);
                             }
@@ -905,6 +955,16 @@ pub fn use_room_state() -> RoomState {
                                         let parts = participants.get_untracked();
                                         let sender_name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id);
                                         add_toast(format!("Host ({}) asked you to unmute", sender_name), ToastType::Info);
+                                    }
+                                }
+                            }
+                            ServerMessage::LobbyAnnouncement(text) => {
+                                set_lobby_announcement.set(Some(text));
+                            }
+                            ServerMessage::VisitorPromoted(target_id) => {
+                                if let Some(my) = my_id.get_untracked() {
+                                    if my == target_id {
+                                        add_toast("You have been promoted to a full participant".to_string(), ToastType::Info);
                                     }
                                 }
                             }
@@ -1146,6 +1206,7 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
+        if is_visitor.get_untracked() { return; }
         let props = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&props, &JsValue::from_str("emoji"), &JsValue::from_str(&emoji));
         analytics_for_reaction.track_event("send_reaction", props.into());
@@ -1159,6 +1220,7 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_raise_hand = analytics.clone();
     let toggle_raise_hand = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         analytics_for_raise_hand.track_interaction("toggle_raise_hand");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRaiseHand;
@@ -1170,6 +1232,7 @@ pub fn use_room_state() -> RoomState {
 
     let webrtc_manager_for_screen = webrtc_manager.clone();
     let toggle_screen_share = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         if local_screen_stream.get().is_some() {
             // Stop sharing
             if let Some(stream) = local_screen_stream.get() {
@@ -1268,9 +1331,10 @@ pub fn use_room_state() -> RoomState {
         set_initial_cam_on.set(options.camera_enabled);
 
         let display_name = options.display_name;
+        let is_visitor = options.is_visitor;
 
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Join(display_name);
+            let msg = ClientMessage::Join { name: display_name, is_visitor };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1512,8 +1576,27 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let broadcast_to_lobby = Callback::new(move |text: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::BroadcastToLobby(text);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let promote_visitor = Callback::new(move |id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::PromoteVisitor(id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         // Check if we currently have video tracks active
         let has_video = if let Some(stream) = local_stream.get_untracked() {
             stream.get_video_tracks().length() > 0
@@ -1575,6 +1658,7 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_mic = analytics.clone();
     let toggle_mic = Callback::new(move |_: ()| {
+        if is_visitor.get_untracked() { return; }
         let new_state = !is_muted.get();
         set_is_muted.set(new_state);
         analytics_for_mic.track_toggle_media("microphone", !new_state);
@@ -1678,11 +1762,15 @@ pub fn use_room_state() -> RoomState {
         video_resolution,
         is_noise_suppression_enabled,
         background_mode,
+        grid_layout,
+        is_visitor,
         room_config,
         power_statuses,
         is_recording_locally,
+        lobby_announcement,
         set_input_devices,
         set_background_mode,
+        set_grid_layout,
         set_show_settings,
         set_show_polls,
         set_show_shortcuts,
@@ -1714,6 +1802,7 @@ pub fn use_room_state() -> RoomState {
         kick_participant,
         create_poll,
         vote_poll,
+        close_poll,
         send_draw,
         set_is_typing,
         create_breakout_room,
@@ -1730,6 +1819,8 @@ pub fn use_room_state() -> RoomState {
         toggle_local_recording,
         request_unmute,
         update_power_status,
+        broadcast_to_lobby,
+        promote_visitor,
         analytics,
     }
 }

@@ -37,6 +37,10 @@ pub fn vote(
     let mut polls = state.polls.lock().unwrap();
 
     if let Some(poll) = polls.get_mut(&poll_id) {
+        if poll.is_closed {
+            return Err("Poll is closed".to_string());
+        }
+
         if poll.voters.contains(user_id) {
             return Err("Already voted".to_string());
         }
@@ -57,6 +61,29 @@ pub fn vote(
         poll.voters.insert(user_id.to_string());
 
         Ok(ServerMessage::PollUpdated(poll.clone()))
+    } else {
+        Err("Poll not found".to_string())
+    }
+}
+
+pub fn close_poll(
+    user_id: &str,
+    poll_id: String,
+    state: &Arc<AppState>,
+) -> Result<ServerMessage, String> {
+    let is_host = {
+        let config = state.room_config.lock().unwrap();
+        config.host_id.as_deref() == Some(user_id)
+    };
+
+    if !is_host {
+        return Err("Only host can close polls".to_string());
+    }
+
+    let mut polls = state.polls.lock().unwrap();
+    if let Some(poll) = polls.get_mut(&poll_id) {
+        poll.is_closed = true;
+        Ok(ServerMessage::PollClosed(poll_id))
     } else {
         Err("Poll not found".to_string())
     }
@@ -102,6 +129,7 @@ mod tests {
             question: "Test?".to_string(),
             options: vec![],
             voters: HashSet::new(),
+            is_closed: false,
         };
 
         let res = create_poll(user_id, poll, &state);
@@ -125,6 +153,7 @@ mod tests {
             question: "Test?".to_string(),
             options: vec![],
             voters: HashSet::new(),
+            is_closed: false,
         };
 
         let res = create_poll(user_id, poll, &state);
@@ -158,6 +187,7 @@ mod tests {
                         },
                     ],
                     voters: HashSet::new(),
+                    is_closed: false,
                 },
             );
         }
@@ -174,5 +204,36 @@ mod tests {
         // Vote again
         let res2 = vote(user_id, poll_id.clone(), 2, &state);
         assert!(res2.is_err()); // Already voted
+    }
+
+    #[test]
+    fn test_vote_on_closed_poll() {
+        let state = create_mock_state();
+        let poll_id = "poll_closed".to_string();
+        let user_id = "voter1";
+
+        {
+            let mut polls = state.polls.lock().unwrap();
+            polls.insert(
+                poll_id.clone(),
+                Poll {
+                    id: poll_id.clone(),
+                    question: "Closed Q".to_string(),
+                    options: vec![
+                        PollOption {
+                            id: 1,
+                            text: "A".to_string(),
+                            votes: 0,
+                        },
+                    ],
+                    voters: HashSet::new(),
+                    is_closed: true,
+                },
+            );
+        }
+
+        let res = vote(user_id, poll_id.clone(), 1, &state);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), "Poll is closed");
     }
 }

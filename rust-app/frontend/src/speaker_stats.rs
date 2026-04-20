@@ -9,7 +9,7 @@ pub fn SpeakerStatsDialog(
 ) -> impl IntoView {
     let sorted_participants = move || {
         let mut p = participants.get();
-        p.sort_by(|a, b| b.speaking_time.cmp(&a.speaking_time));
+        p.sort_by_key(|b| std::cmp::Reverse(b.speaking_time));
         p
     };
 

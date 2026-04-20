@@ -28,13 +28,24 @@ pub fn ParticipantsList(
     on_transfer_host: Callback<String>,
     #[prop(optional)] power_statuses: Option<ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>>,
     #[prop(optional)] on_request_unmute: Option<Callback<String>>,
+    #[prop(optional)] on_broadcast_lobby: Option<Callback<String>>,
+    #[prop(optional)] on_promote: Option<Callback<String>>,
 ) -> impl IntoView {
+    let (lobby_msg, set_lobby_msg) = create_signal("".to_string());
+
     let format_time = |ms: u64| {
         let seconds = ms / 1000;
         let m = seconds / 60;
         let s = seconds % 60;
         format!("{:02}:{:02}", m, s)
     };
+
+    // Store callbacks in StoredValue for easy multi-closure access
+    let on_promote_sv = store_value(on_promote);
+    let on_mute_sv = store_value(on_mute);
+    let on_transfer_host_sv = store_value(on_transfer_host);
+    let on_kick_sv = store_value(on_kick);
+    let on_request_unmute_sv = store_value(on_request_unmute);
 
     view! {
         <div class="participants-list" style="padding: 10px; width: 100%; height: 100%;">
@@ -53,6 +64,33 @@ pub fn ParticipantsList(
                             "Allow All"
                         </button>
                     </div>
+
+                    <Show when=move || on_broadcast_lobby.is_some()>
+                        <div style="display: flex; gap: 5px; margin-bottom: 15px;">
+                            <input
+                                type="text"
+                                prop:value=lobby_msg
+                                on:input=move |ev| set_lobby_msg.set(event_target_value(&ev))
+                                placeholder="Message to lobby..."
+                                style="flex: 1; padding: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em;"
+                            />
+                            <button
+                                on:click=move |_| {
+                                    let msg = lobby_msg.get();
+                                    if !msg.is_empty() {
+                                        if let Some(cb) = on_broadcast_lobby {
+                                            cb.call(msg);
+                                            set_lobby_msg.set("".to_string());
+                                        }
+                                    }
+                                }
+                                style="background: #6c757d; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.85em;"
+                            >
+                                "Send"
+                            </button>
+                        </div>
+                    </Show>
+
                     <ul>
                         <For
                             each=move || knocking_participants.get()
@@ -105,24 +143,26 @@ pub fn ParticipantsList(
                     each=move || sort_participants(participants.get())
                     key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled)
                     children=move |p| {
-                        let id_kick = p.id.clone();
-                        let p_id_for_host = p.id.clone();
-                        let p_id_for_power = p.id.clone();
-                        // Use reactive check for host status
+                        let p_sv = store_value(p);
+
                         view! {
                             <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <div>
-                                    <span>{p.name.clone()}</span>
+                                <div style=move || if p_sv.get_value().is_visitor { "opacity: 0.7;" } else { "" }>
+                                    <span>{move || p_sv.get_value().name}</span>
+                                    {move || if p_sv.get_value().is_visitor {
+                                        view! { <span style="font-size: 0.75em; background: #eee; padding: 1px 3px; border-radius: 3px; margin-left: 5px; color: #666;">"Visitor"</span> }.into_view()
+                                    } else {
+                                        view! { <span/> }.into_view()
+                                    }}
                                     <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
-                                       " [" {format!("{:?}", p.presence)} "]"
+                                       " [" {move || format!("{:?}", p_sv.get_value().presence)} "]"
                                     </span>
-                                    <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
-                                       "(" {format_time(p.speaking_time)} ")"
-                                    </span>
-                                    <Show when={
-                                        let pid = p_id_for_host.clone();
-                                        move || host_id.get() == Some(pid.clone())
-                                    }>
+                                    <Show when=move || !p_sv.get_value().is_visitor>
+                                        <span style="font-size: 0.8em; color: #666; margin-left: 5px;">
+                                           "(" {move || format_time(p_sv.get_value().speaking_time)} ")"
+                                        </span>
+                                    </Show>
+                                    <Show when=move || host_id.get() == Some(p_sv.get_value().id)>
                                         <span style="font-size: 0.8em; color: #666; margin-left: 5px;">"(Host)"</span>
                                     </Show>
                                 </div>
@@ -130,7 +170,7 @@ pub fn ParticipantsList(
                                     {move || {
                                         if let Some(statuses) = power_statuses {
                                             let result = statuses.with(|map| {
-                                                map.get(&p_id_for_power).cloned()
+                                                map.get(&p_sv.get_value().id).cloned()
                                             });
                                             if let Some(status) = result {
                                                 let icon = if status.is_charging { "⚡" } else { "🔋" };
@@ -144,82 +184,79 @@ pub fn ParticipantsList(
                                         }
                                         view! { <span></span> }.into_view()
                                     }}
-                                    {if p.is_sharing_screen {
+                                    {move || if p_sv.get_value().is_sharing_screen {
                                         view! { <span style="margin-right: 5px;">"🖥️"</span> }.into_view()
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    {if p.is_hand_raised {
+                                    {move || if p_sv.get_value().is_hand_raised {
                                         view! { <span style="margin-right: 5px;">"✋"</span> }.into_view()
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    {if p.is_muted {
+                                    {move || if p_sv.get_value().is_muted {
                                         view! { <span style="margin-right: 5px;">"🔇"</span> }.into_view()
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    <Show when={
-                                        let id_check = id_kick.clone();
-                                        move || is_host.get() && my_id.get() != Some(id_check.clone())
-                                    }>
-                                        {
-                                            let id_kick_for_mute = id_kick.clone();
-                                            let id_kick_for_transfer = id_kick.clone();
-                                            let id_kick_for_kick = id_kick.clone();
-                                            let id_kick_for_unmute = id_kick.clone();
-                                            let is_muted = p.is_muted;
-                                            view! {
-                                                <div style="display: flex; gap: 5px;">
-                                                    <Show when=move || !is_muted>
-                                                        {
-                                                            let id_mute = id_kick_for_mute.clone();
-                                                            view! {
-                                                                <button
-                                                                    on:click=move |_| on_mute.call(id_mute.clone())
-                                                                    style="background: none; border: 1px solid #ccc; color: orange; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                                                    title="Mute Participant"
-                                                                >
-                                                                    "Mute"
-                                                                </button>
-                                                            }
+                                    <Show when=move || is_host.get() && my_id.get() != Some(p_sv.get_value().id)>
+                                        <div style="display: flex; gap: 5px;">
+                                            <Show when=move || p_sv.get_value().is_visitor>
+                                                <button
+                                                    on:click=move |_| {
+                                                        if let Some(cb) = on_promote_sv.get_value() {
+                                                            cb.call(p_sv.get_value().id);
                                                         }
-                                                    </Show>
-                                                    <button
-                                                        on:click=move |_| on_transfer_host.call(id_kick_for_transfer.clone())
-                                                        style="background: none; border: 1px solid #ccc; color: blue; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                                        title="Make Host"
-                                                    >
-                                                        "Host"
-                                                    </button>
-                                                    <button
-                                                        on:click=move |_| on_kick.call(id_kick_for_kick.clone())
-                                                        style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                                        title="Kick Participant"
-                                                    >
-                                                        "Kick"
-                                                    </button>
-                                                    <Show when=move || is_muted>
-                                                        {
-                                                            let id_unmute = id_kick_for_unmute.clone();
-                                                            view! {
-                                                                <button
-                                                                    on:click=move |_| {
-                                                                        if let Some(cb) = on_request_unmute {
-                                                                            cb.call(id_unmute.clone());
-                                                                        }
-                                                                    }
-                                                                    style="background: none; border: 1px solid #ccc; color: green; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
-                                                                    title="Request Unmute"
-                                                                >
-                                                                    "Unmute"
-                                                                </button>
-                                                            }
+                                                    }
+                                                    style="background: none; border: 1px solid #ccc; color: #007bff; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Promote to Participant"
+                                                >
+                                                    "Up"
+                                                </button>
+                                            </Show>
+                                            <Show when=move || !p_sv.get_value().is_muted && !p_sv.get_value().is_visitor>
+                                                <button
+                                                    on:click=move |_| {
+                                                        on_mute_sv.get_value().call(p_sv.get_value().id);
+                                                    }
+                                                    style="background: none; border: 1px solid #ccc; color: orange; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Mute Participant"
+                                                >
+                                                    "Mute"
+                                                </button>
+                                            </Show>
+                                            <button
+                                                on:click=move |_| {
+                                                    on_transfer_host_sv.get_value().call(p_sv.get_value().id);
+                                                }
+                                                style="background: none; border: 1px solid #ccc; color: blue; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                title="Make Host"
+                                            >
+                                                "Host"
+                                            </button>
+                                            <button
+                                                on:click=move |_| {
+                                                    on_kick_sv.get_value().call(p_sv.get_value().id);
+                                                }
+                                                style="background: none; border: 1px solid #ccc; color: red; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                title="Kick Participant"
+                                            >
+                                                "Kick"
+                                            </button>
+                                            <Show when=move || p_sv.get_value().is_muted && !p_sv.get_value().is_visitor>
+                                                <button
+                                                    on:click=move |_| {
+                                                        if let Some(cb) = on_request_unmute_sv.get_value() {
+                                                            cb.call(p_sv.get_value().id);
                                                         }
-                                                    </Show>
-                                                </div>
-                                            }
-                                        }
+                                                    }
+                                                    style="background: none; border: 1px solid #ccc; color: green; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Request Unmute"
+                                                >
+                                                    "Unmute"
+                                                </button>
+                                            </Show>
+                                        </div>
                                     </Show>
                                 </div>
                             </li>

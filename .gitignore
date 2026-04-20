@@ -123,3 +123,6 @@ test-results
 *.diff
 \n# Ignore pid files
 *.pid
+
+# Build logs
+*.log

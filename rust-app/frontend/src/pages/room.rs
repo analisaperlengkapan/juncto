@@ -7,6 +7,7 @@ use crate::components_ui::feedback::FeedbackDialog;
 use crate::components_ui::invite::InviteDialog;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::prejoin::PrejoinScreen;
+use crate::components_ui::screenshot_capture::ScreenshotCapture;
 use crate::components_ui::shared_video_dialog::SharedVideoDialog;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::connection_stats::ConnectionStats;
@@ -31,7 +32,14 @@ use crate::deeplink::DeepLinking;
 #[component]
 pub fn Room() -> impl IntoView {
     let params = use_params_map();
-    let room_id = move || params.with(|params| params.get("id").cloned().unwrap_or_default());
+    let room_id = move || {
+        params.with(|params| {
+            let id = params.get("id").cloned().unwrap_or_default();
+            urlencoding::decode(&id)
+                .map(|s| s.into_owned())
+                .unwrap_or(id)
+        })
+    };
 
     let state = use_room_state();
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
@@ -116,12 +124,13 @@ pub fn Room() -> impl IntoView {
                     />
                 }.into_view(),
                 RoomConnectionState::Lobby => view! {
-                    <LobbyScreen />
+                    <LobbyScreen announcement=state.lobby_announcement />
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
                         <PowerMonitor on_update=state.update_power_status />
                         <DeepLinking />
+                        <ScreenshotCapture />
                         <KeyboardShortcuts
                             on_toggle_mic=state.toggle_mic
                             on_toggle_camera=state.toggle_camera
@@ -173,9 +182,9 @@ pub fn Room() -> impl IntoView {
                                         "display: flex; justify-content: center; align-items: center; height: 100%;"
                                     }
                                 }>
-                                    <div>
+                                    <div id="capture-area" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                            <h2>"Meeting Room: " {room_id}</h2>
+                                            <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
                                                 {format_time}
                                             </span>
@@ -210,6 +219,9 @@ pub fn Room() -> impl IntoView {
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
                                             remote_streams=state.remote_streams
+                                            layout=state.grid_layout
+                                            on_set_layout=state.set_grid_layout
+                                            is_host=state.is_host
                                         />
                                     </div>
                                 </div>
@@ -237,6 +249,7 @@ pub fn Room() -> impl IntoView {
                                         on_draw=state.send_draw
                                         history=state.whiteboard_history
                                         my_id=state.my_id
+                                        is_visitor=state.is_visitor
                                     />
                                 </Show>
                                 <Show when=move || state.show_etherpad.get()>
@@ -250,6 +263,7 @@ pub fn Room() -> impl IntoView {
                             <Toolbox
                                 is_locked=state.is_locked
                                 is_host=state.is_host
+                                is_visitor=state.is_visitor
                                 _is_lobby_enabled=state.is_lobby_enabled
                                 class="room-toolbox"
                                 style="position: relative; z-index: 20;" // Ensure toolbox is above whiteboard
@@ -352,6 +366,7 @@ pub fn Room() -> impl IntoView {
                                     is_connected=state.is_connected
                                     my_id=state.my_id
                                     current_room_id=state.current_room_id
+                                    is_visitor=state.is_visitor
                                 />
                             </div>
                         </div>
@@ -381,6 +396,8 @@ pub fn Room() -> impl IntoView {
                                     on_transfer_host=state.transfer_host
                                     power_statuses=state.power_statuses
                                     on_request_unmute=state.request_unmute
+                                    on_broadcast_lobby=state.broadcast_to_lobby
+                                    on_promote=state.promote_visitor
                                 />
                             </div>
                         </div>
@@ -414,9 +431,11 @@ pub fn Room() -> impl IntoView {
                         <PollsDialog
                             show=state.show_polls
                             polls=state.polls
+                            is_host=state.is_host
                             on_close=Callback::new(move |_| state.set_show_polls.set(false))
                             on_create_poll=state.create_poll
                             on_vote=state.vote_poll
+                            on_close_poll=state.close_poll
                         />
                         <ShortcutsDialog
                             show=state.show_shortcuts

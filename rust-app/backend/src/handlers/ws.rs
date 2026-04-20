@@ -151,6 +151,48 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::BroadcastToLobby(text) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let _ = tx.send(ServerMessage::LobbyAnnouncement(text));
+                                        }
+                                    }
+                                },
+                                ClientMessage::PromoteVisitor(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let updated_p = {
+                                                let mut participants = participants_mutex.lock().unwrap();
+                                                if let Some(p) = participants.get_mut(&target_id) {
+                                                    p.is_visitor = false;
+                                                    Some(p.clone())
+                                                } else {
+                                                    None
+                                                }
+                                            };
+                                            if let Some(p) = updated_p {
+                                                let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                                let _ = tx.send(ServerMessage::VisitorPromoted(target_id));
+                                            }
+                                        }
+                                    }
+                                },
+                                ClientMessage::FollowMe(layout) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let _ = tx.send(ServerMessage::FollowMe(layout));
+                                        }
+                                    }
+                                },
                                 ClientMessage::UpdatePowerStatus(mut status) => {
                                     if let Some(uid) = &my_id {
                                         // Rate limit: reuse the analytics rate limiter to
@@ -423,7 +465,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::Join(name) => {
+                                ClientMessage::Join { name, is_visitor } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Check if room is locked or lobby is enabled
@@ -446,7 +488,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_muted: false,
                                         speaking_time: 0,
                                         presence: shared::PresenceStatus::Connected,
-                                        is_visitor: false,
+                                        is_visitor,
                                         e2ee_enabled: false,
                                     };
 
@@ -464,21 +506,53 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let knocking_mutex_clone = knocking_mutex.clone();
                                         let tx_clone = tx.clone();
                                         let id_clone = id.clone();
+                                        let mut rx = tx.subscribe();
+                                        let forward_tx = internal_tx.clone();
 
                                         tokio::spawn(async move {
-                                            match tokio::time::timeout(std::time::Duration::from_secs(120), r).await {
-                                                Ok(Ok(true)) => {
-                                                    let _ = control_tx_clone.send(true).await;
-                                                },
-                                                _ => {
-                                                    let removed = {
-                                                        let mut knocking = knocking_mutex_clone.lock().unwrap();
-                                        knocking.remove(&id_clone).is_some()
-                                    };
-                                    if removed {
-                                        let _ = tx_clone.send(ServerMessage::KnockingParticipantLeft(id_clone));
+                                            let mut r_fused = r;
+                                            let timeout = tokio::time::sleep(std::time::Duration::from_secs(120));
+                                            tokio::pin!(timeout);
+                                            loop {
+                                                tokio::select! {
+                                                    res = &mut r_fused => {
+                                                        match res {
+                                                            Ok(true) => {
+                                                                let _ = control_tx_clone.send(true).await;
+                                                            },
+                                                            _ => {
+                                                                let removed = {
+                                                                    let mut knocking = knocking_mutex_clone.lock().unwrap();
+                                                                    knocking.remove(&id_clone).is_some()
+                                                                };
+                                                                if removed {
+                                                                    let _ = tx_clone.send(ServerMessage::KnockingParticipantLeft(id_clone));
+                                                                }
+                                                                let _ = control_tx_clone.send(false).await;
+                                                            }
+                                                        }
+                                                        break;
+                                                    },
+                                                    msg_res = rx.recv() => {
+                                                        match msg_res {
+                                                            Ok(ServerMessage::LobbyAnnouncement(text)) => {
+                                                                let _ = forward_tx.send(ServerMessage::LobbyAnnouncement(text)).await;
+                                                            },
+                                                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                                                            _ => {} // Ignore other messages and Lagged errors
+                                                        }
+                                                    },
+                                                    _ = &mut timeout => {
+                                                        let removed = {
+                                                            let mut knocking = knocking_mutex_clone.lock().unwrap();
+                                                            knocking.remove(&id_clone).is_some()
+                                                        };
+                                                        if removed {
+                                                            let _ = tx_clone.send(ServerMessage::KnockingParticipantLeft(id_clone));
+                                                        }
+                                                        let _ = control_tx_clone.send(false).await;
+                                                        break;
                                                     }
-                                                    let _ = control_tx_clone.send(false).await;
                                                 }
                                             }
                                         });
@@ -498,7 +572,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     config.host_id = None;
                                                 }
                                             }
-                                            let assigned = if config.host_id.is_none() {
+                                            let assigned = if config.host_id.is_none() && !me.is_visitor {
                                                 config.host_id = Some(id.clone());
                                                 true
                                             } else {
@@ -728,6 +802,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Chat { content, recipient_id, attachment, room_id } => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot send chat messages".to_string())).await;
+                                            continue;
+                                        }
+
                                         // Security: Only allow the client to send a chat message if the room_id they provided
                                         // matches the room_id the server believes they are currently in.
                                         let is_authorized = room_id == my_room_id;
@@ -787,6 +869,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::CreatePoll(poll) => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot create polls".to_string())).await;
+                                            continue;
+                                        }
                                         match polls::create_poll(uid, poll, &state) {
                                             Ok(msg) => { let _ = tx.send(msg); },
                                             Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
@@ -795,7 +884,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Vote { poll_id, option_id } => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot vote".to_string())).await;
+                                            continue;
+                                        }
                                         match polls::vote(uid, poll_id, option_id, &state) {
+                                            Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
+                                ClientMessage::ClosePoll(poll_id) => {
+                                    if let Some(uid) = &my_id {
+                                        match polls::close_poll(uid, poll_id, &state) {
                                             Ok(msg) => { let _ = tx.send(msg); },
                                             Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
@@ -803,12 +907,26 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Draw(action) => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot draw on the whiteboard".to_string())).await;
+                                            continue;
+                                        }
                                         let msg = whiteboard::process_draw_action(uid, action, &state);
                                         let _ = tx.send(msg);
                                     }
                                 },
                                 ClientMessage::Reaction(emoji) => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot send reactions".to_string())).await;
+                                            continue;
+                                        }
                                         let _ = tx.send(ServerMessage::Reaction {
                                             sender_id: uid.clone(),
                                             emoji,
@@ -834,6 +952,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleScreenShare => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot share screen".to_string())).await;
+                                            continue;
+                                        }
                                         let updated_participant = {
                                             let mut participants = participants_mutex.lock().unwrap();
                                             if let Some(p) = participants.get_mut(uid) {
@@ -851,6 +976,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::ToggleRaiseHand => {
                                     if let Some(uid) = &my_id {
+                                        let is_visitor = {
+                                            participants_mutex.lock().unwrap().get(uid).map(|p| p.is_visitor).unwrap_or(false)
+                                        };
+                                        if is_visitor {
+                                            let _ = internal_tx.send(ServerMessage::Error("Visitors cannot raise hand".to_string())).await;
+                                            continue;
+                                        }
                                         let updated_participant = {
                                             let mut participants = participants_mutex.lock().unwrap();
                                             if let Some(p) = participants.get_mut(uid) {
@@ -1113,6 +1245,24 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 participants.contains_key(&target_id)
                                             };
                                             if target_exists {
+                                                // Auto-promote visitor when transferring host to them
+                                                let promoted = {
+                                                    let mut participants = participants_mutex.lock().unwrap();
+                                                    if let Some(p) = participants.get_mut(&target_id) {
+                                                        if p.is_visitor {
+                                                            p.is_visitor = false;
+                                                            Some(p.clone())
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                };
+                                                if let Some(p) = promoted {
+                                                    let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                                    let _ = tx.send(ServerMessage::VisitorPromoted(target_id.clone()));
+                                                }
                                                 let new_config = {
                                                     let mut config = room_config_mutex.lock().unwrap();
                                                     config.host_id = Some(target_id);
@@ -1191,7 +1341,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             config.host_id = None;
                                         }
                                     }
-                                    let assigned = if config.host_id.is_none() {
+                                    let assigned = if config.host_id.is_none() && !me.is_visitor {
                                         config.host_id = Some(id.clone());
                                         true
                                     } else {
@@ -1467,7 +1617,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let mut config = room_config_mutex.lock().unwrap();
             if config.host_id == Some(id.clone()) {
                 // Host left, assign new host if any participants remain
-                if let Some(new_host) = participants.keys().next() {
+                if let Some(new_host) = participants.values().find(|p| !p.is_visitor).map(|p| p.id.clone()) {
                     config.host_id = Some(new_host.clone());
                     true
                 } else {

@@ -62,6 +62,7 @@ pub fn Chat(
     is_connected: ReadSignal<bool>,
     my_id: ReadSignal<Option<String>>,
     current_room_id: ReadSignal<Option<String>>,
+    is_visitor: Signal<bool>,
 ) -> impl IntoView {
     let (input_value, set_input_value) = create_signal("".to_string());
     let (recipient, set_recipient) = create_signal(None::<String>); // None = Everyone
@@ -80,6 +81,7 @@ pub fn Chat(
     let last_typing_sent = create_rw_signal(0.0);
 
     let handle_input = move |ev: web_sys::Event| {
+        if is_visitor.get_untracked() { return; }
         set_input_value.set(event_target_value(&ev));
 
         let now = js_sys::Date::now();
@@ -105,6 +107,7 @@ pub fn Chat(
     let file_reader_closure = store_value(None::<Closure<dyn FnMut(web_sys::Event)>>);
 
     let handle_file_change = move |ev: web_sys::Event| {
+        if is_visitor.get_untracked() { return; }
         let input: web_sys::HtmlInputElement = event_target(&ev);
         if let Some(files) = input.files() {
             if let Some(file) = files.get(0) {
@@ -152,6 +155,7 @@ pub fn Chat(
     };
 
     let send = move |_| {
+        if is_visitor.get_untracked() { return; }
         let content = input_value.get();
         let target = recipient.get();
         let attachment = selected_file.get();
@@ -296,39 +300,45 @@ pub fn Chat(
                 }}
             </div>
             <div class="input-area" style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; gap: 5px;">
-                    <input
-                        type="text"
-                        prop:value=input_value
-                        on:input=handle_input
-                        placeholder="Type a message..."
-                        style="flex: 1;"
-                    />
-                    <button
-                        on:click=send
-                        disabled=move || !is_connected.get()
-                        style="width: 60px;">
-                        {move || if is_connected.get() { "Send" } else { "..." }}
-                    </button>
-                    <button
-                        on:click=move |_| set_show_giphy.update(|v| *v = !*v)
-                        style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        "GIF"
-                    </button>
-                </div>
-                <div>
-                     <input
-                        type="file"
-                        node_ref=file_input_ref
-                        on:change=handle_file_change
-                        style="width: 100%; font-size: 0.8em;"
-                     />
-                     {move || if let Some(f) = selected_file.get() {
-                         view! { <small style="color: green;">" Selected: " {f.filename}</small> }.into_view()
-                     } else {
-                         view! { <span/> }.into_view()
-                     }}
-                </div>
+                <Show when=move || !is_visitor.get() fallback=|| view! {
+                    <div style="padding: 10px; background: #eee; border-radius: 4px; color: #666; text-align: center;">
+                        "Visitor Mode: Read-only"
+                    </div>
+                }>
+                    <div style="display: flex; gap: 5px;">
+                        <input
+                            type="text"
+                            prop:value=input_value
+                            on:input=handle_input
+                            placeholder="Type a message..."
+                            style="flex: 1;"
+                        />
+                        <button
+                            on:click=send
+                            disabled=move || !is_connected.get()
+                            style="width: 60px;">
+                            {move || if is_connected.get() { "Send" } else { "..." }}
+                        </button>
+                        <button
+                            on:click=move |_| set_show_giphy.update(|v| *v = !*v)
+                            style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            "GIF"
+                        </button>
+                    </div>
+                    <div>
+                         <input
+                            type="file"
+                            node_ref=file_input_ref
+                            on:change=handle_file_change
+                            style="width: 100%; font-size: 0.8em;"
+                         />
+                         {move || if let Some(f) = selected_file.get() {
+                             view! { <small style="color: green;">" Selected: " {f.filename}</small> }.into_view()
+                         } else {
+                             view! { <span/> }.into_view()
+                         }}
+                    </div>
+                </Show>
             </div>
         </div>
     }

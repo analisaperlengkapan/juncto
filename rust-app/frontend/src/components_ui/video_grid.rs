@@ -51,10 +51,12 @@ pub fn VideoGrid(
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
     remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
+    layout: ReadSignal<String>,
+    on_set_layout: Callback<String>,
+    is_host: Signal<bool>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
-    let (layout, set_layout) = create_signal("grid"); // "grid" or "spotlight"
 
     create_effect(move |_| {
         if let Some(stream) = local_stream.get() {
@@ -96,10 +98,12 @@ pub fn VideoGrid(
         <div class="video-grid-container" style="display: flex; flex-direction: column; width: 100%; height: 100%; position: relative;">
             <div class="layout-controls" style="position: absolute; top: 10px; right: 10px; z-index: 100;">
                 <button
-                    on:click=move |_| set_layout.update(|l| *l = if *l == "grid" { "spotlight" } else { "grid" })
+                    on:click=move |_| on_set_layout.call(if layout.get() == "grid" { "spotlight".to_string() } else { "grid".to_string() })
                     style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
                 >
-                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
+                    <Show when=move || is_host.get() fallback=|| "Switch View">
+                        {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
+                    </Show>
                 </button>
             </div>
 

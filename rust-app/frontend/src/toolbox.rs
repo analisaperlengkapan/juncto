@@ -4,6 +4,7 @@ use leptos::*;
 pub fn Toolbox(
     is_locked: ReadSignal<bool>,
     is_host: Signal<bool>,
+    is_visitor: Signal<bool>,
     #[prop(optional)] _is_lobby_enabled: Option<ReadSignal<bool>>,
     is_recording: ReadSignal<bool>,
     is_subtitles_enabled: ReadSignal<bool>,
@@ -105,24 +106,26 @@ pub fn Toolbox(
             >
                 "Invite"
             </button>
-            <button
-                on:click=move |_| on_toggle_camera.call(())
-                style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
-            >
-                "Toggle Camera"
-            </button>
-            <button
-                on:click=move |_| on_toggle_mic.call(())
-                style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_muted.get() { "#dc3545" } else { "#28a745" })
-            >
-                {move || if is_muted.get() { "Unmute" } else { "Mute" }}
-            </button>
-            <button
-                on:click=move |_| on_screen_share.call(())
-                style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
-            >
-                "Share Screen"
-            </button>
+            <Show when=move || !is_visitor.get()>
+                <button
+                    on:click=move |_| on_toggle_camera.call(())
+                    style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                >
+                    "Toggle Camera"
+                </button>
+                <button
+                    on:click=move |_| on_toggle_mic.call(())
+                    style=move || format!("padding: 8px 16px; background-color: {}; color: white; border: none; cursor: pointer; border-radius: 4px;", if is_muted.get() { "#dc3545" } else { "#28a745" })
+                >
+                    {move || if is_muted.get() { "Unmute" } else { "Mute" }}
+                </button>
+                <button
+                    on:click=move |_| on_screen_share.call(())
+                    style="padding: 8px 16px; background-color: #6610f2; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                >
+                    "Share Screen"
+                </button>
+            </Show>
             <Show when=move || is_host.get() fallback=|| ()>
                 <button
                     on:click=move |_| {
@@ -143,12 +146,14 @@ pub fn Toolbox(
             >
                 "Whiteboard"
             </button>
-            <button
-                on:click=move |_| on_raise_hand.call(())
-                style="padding: 8px 16px; background-color: #ffc107; color: black; border: none; cursor: pointer; border-radius: 4px;"
-            >
-                "Raise Hand"
-            </button>
+            <Show when=move || !is_visitor.get()>
+                <button
+                    on:click=move |_| on_raise_hand.call(())
+                    style="padding: 8px 16px; background-color: #ffc107; color: black; border: none; cursor: pointer; border-radius: 4px;"
+                >
+                    "Raise Hand"
+                </button>
+            </Show>
             <Show when=move || !is_host.get()>
                 <div style="padding: 8px 16px; background-color: #ccc; color: white; border-radius: 4px;">
                     {move || if is_locked.get() { "Locked" } else { "Unlocked" }}
@@ -218,6 +223,18 @@ pub fn Toolbox(
                 "Polls"
             </button>
             <button
+                on:click=move |_| {
+                    if let Some(window) = web_sys::window() {
+                        let event = web_sys::Event::new("screenshot_trigger").unwrap();
+                        let _ = window.dispatch_event(&event);
+                    }
+                }
+                style="padding: 8px 16px; background-color: #20c997; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                title="Capture Screenshot"
+            >
+                "📷 Capture"
+            </button>
+            <button
                 on:click=move |_| on_auth_dialog.call(())
                 style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
             >
@@ -236,11 +253,13 @@ pub fn Toolbox(
             >
                 "?"
             </button>
-            <div class="reactions" style="display: flex; gap: 5px;">
-                <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>
-                <button on:click=move |_| on_reaction.call("👏".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👏"</button>
-                <button on:click=move |_| on_reaction.call("😂".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"😂"</button>
-            </div>
+            <Show when=move || !is_visitor.get()>
+                <div class="reactions" style="display: flex; gap: 5px;">
+                    <button on:click=move |_| on_reaction.call("👍".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👍"</button>
+                    <button on:click=move |_| on_reaction.call("👏".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"👏"</button>
+                    <button on:click=move |_| on_reaction.call("😂".to_string()) style="cursor: pointer; border: none; background: none; font-size: 20px;">"😂"</button>
+                </div>
+            </Show>
             <div class="presence-selector" style="display: flex; gap: 5px; align-items: center;">
                 <label for="presence-select" style="font-size: 0.9em;">"Presence:"</label>
                 <select
