@@ -103,6 +103,9 @@ pub fn VideoGrid(
                 if let Some(p) = list.iter().find(|p| p.id == sid) {
                     if Some(p.id.clone()) != my_id_val {
                         items.push(GridItem::User(p.clone()));
+                        if p.is_sharing_screen {
+                            items.push(GridItem::RemoteScreen(p.clone()));
+                        }
                     }
                 }
             }
