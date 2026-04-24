@@ -103,6 +103,9 @@ pub fn VideoGrid(
                 if let Some(p) = list.iter().find(|p| p.id == sid) {
                     if Some(p.id.clone()) != my_id_val {
                         items.push(GridItem::User(p.clone()));
+                        if p.is_sharing_screen {
+                            items.push(GridItem::RemoteScreen(p.clone()));
+                        }
                     }
                 }
             }
@@ -227,7 +230,20 @@ pub fn VideoGrid(
                     "Me"
                 </div>
                 <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                    <AudioLevelIndicator audio_level=my_audio_level />
+                    <Show when=move || {
+                        local_stream.get()
+                            .map(|s| {
+                                let tracks = s.get_audio_tracks();
+                                (0..tracks.length()).any(|i| {
+                                    tracks.get(i).dyn_ref::<web_sys::MediaStreamTrack>()
+                                        .map(|t| t.enabled())
+                                        .unwrap_or(false)
+                                })
+                            })
+                            .unwrap_or(false)
+                    }>
+                        <AudioLevelIndicator audio_level=my_audio_level />
+                    </Show>
                 </div>
             </div>
 
