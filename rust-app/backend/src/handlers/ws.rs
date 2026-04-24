@@ -524,6 +524,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         presence: shared::PresenceStatus::Connected,
                                         is_visitor,
                                         e2ee_enabled: false,
+                                        hand_raised_at: None,
                                     };
 
                                     if is_lobby && host_exists {
@@ -1021,6 +1022,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let mut participants = participants_mutex.lock().unwrap();
                                             if let Some(p) = participants.get_mut(uid) {
                                                 p.is_hand_raised = !p.is_hand_raised;
+                                                if p.is_hand_raised {
+                                                    p.hand_raised_at = Some(chrono::Utc::now().timestamp_millis() as u64);
+                                                } else {
+                                                    p.hand_raised_at = None;
+                                                }
                                                 Some(p.clone())
                                             } else {
                                                 None

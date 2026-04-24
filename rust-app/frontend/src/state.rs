@@ -79,6 +79,7 @@ pub struct RoomState {
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
+    pub audio_level: ReadSignal<f64>,
     pub remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     pub selected_camera_id: ReadSignal<Option<String>>,
     pub selected_mic_id: ReadSignal<Option<String>>,
@@ -91,6 +92,7 @@ pub struct RoomState {
     pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
     pub is_recording_locally: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
+    pub dominant_speaker: ReadSignal<Option<String>>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -114,6 +116,7 @@ pub struct RoomState {
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
     pub toggle_e2ee: Callback<()>,
+    pub toggle_participant_e2ee: Callback<bool>,
     pub toggle_etherpad: Callback<Option<String>>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
@@ -154,11 +157,22 @@ pub struct RoomState {
 pub fn use_room_state() -> RoomState {
     let settings = load_settings();
     let toast_ctx = use_toast();
+
+    // Initialize room ID from URL parameters
+    let params = leptos_router::use_params_map();
+    let initial_room_id = params.with_untracked(|p| {
+        p.get("id").map(|id| {
+            urlencoding::decode(id)
+                .map(|s| s.into_owned())
+                .unwrap_or_else(|_| id.clone())
+        })
+    });
+
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
     let (breakout_rooms, set_breakout_rooms) = create_signal(Vec::<shared::BreakoutRoom>::new());
-    let (current_room_id, set_current_room_id) = create_signal(None::<String>);
+    let (current_room_id, set_current_room_id) = create_signal(initial_room_id);
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) =
         create_signal(Vec::<Participant>::new());
@@ -196,6 +210,7 @@ pub fn use_room_state() -> RoomState {
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (show_feedback, set_show_feedback) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
+    let (audio_level, set_audio_level) = create_signal(0.0);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
     let (selected_camera_id, set_selected_camera_id) = create_signal(settings.camera_id);
     let (selected_mic_id, set_selected_mic_id) = create_signal(settings.mic_id);
@@ -205,6 +220,7 @@ pub fn use_room_state() -> RoomState {
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
     let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
+    let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -478,6 +494,30 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    create_effect({
+        let toast_ctx = toast_ctx;
+        move |_| {
+            if let Some(window) = web_sys::window() {
+                let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                    toast_ctx.add_advanced(
+                        "High background noise detected. Consider enabling Noise Suppression in Settings.".to_string(),
+                        ToastType::Warning,
+                        false,
+                        1,
+                    );
+                }) as Box<dyn FnMut(_)>);
+
+                let _ = window.add_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+
+                on_cleanup(move || {
+                    if let Some(win) = web_sys::window() {
+                        let _ = win.remove_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+                    }
+                });
+            }
+        }
+    });
+
     let add_toast = move |msg: String, type_: ToastType| {
         toast_ctx.add(msg, type_);
     };
@@ -541,9 +581,14 @@ pub fn use_room_state() -> RoomState {
                     add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
+                let on_level = Box::new(move |level: f64| {
+                    set_audio_level.set(level);
+                });
+
             if let Ok(monitor) = AudioMonitor::new(
                 &stream,
                 on_speaking,
+                Some(on_level as Box<dyn FnMut(f64)>),
                 Some(on_no_audio as Box<dyn FnMut()>),
                 is_noise_suppression_enabled.get_untracked(),
             ) {
@@ -555,6 +600,14 @@ pub fn use_room_state() -> RoomState {
             }
             }
         });
+    });
+
+    // Reactive Noise Suppression Update
+    create_effect(move |_| {
+        let peers = speaking_peers.get();
+        if let Some(speaker) = peers.iter().next() {
+            set_dominant_speaker.set(Some(speaker.clone()));
+        }
     });
 
     // Reactive Noise Suppression Update
@@ -767,6 +820,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_participant_e2ee = Callback::new(move |enabled: bool| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdateE2EE(enabled);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let toggle_etherpad = Callback::new(move |url: Option<String>| {
         if let Some(url_str) = &url {
             if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
@@ -957,6 +1019,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let current_room_for_join = current_room_id;
     let join_meeting = Callback::new(move |options: JoinOptions| {
         // Persist settings
         let display_name_clone = options.display_name.clone();
@@ -968,6 +1031,13 @@ pub fn use_room_state() -> RoomState {
             s.camera_id = cam_id_clone;
             s.mic_id = mic_id_clone;
         });
+
+        // Add to recent rooms if in a breakout room or main room
+        // Actually we want the meeting room name from the URL usually.
+        // But for simplicity, we'll use the ID from the state if available.
+        if let Some(rid) = current_room_for_join.get_untracked() {
+             crate::storage::add_recent_room(rid);
+        }
 
         // Set initial state
         set_is_muted.set(!options.mic_enabled);
@@ -1448,6 +1518,7 @@ pub fn use_room_state() -> RoomState {
         show_virtual_background,
         show_feedback,
         rtt,
+        audio_level,
         remote_streams,
         selected_camera_id,
         selected_mic_id,
@@ -1460,6 +1531,7 @@ pub fn use_room_state() -> RoomState {
         power_statuses,
         is_recording_locally,
         lobby_announcement,
+        dominant_speaker,
         set_input_devices,
         set_background_mode,
         set_grid_layout,
@@ -1480,6 +1552,7 @@ pub fn use_room_state() -> RoomState {
         send_message,
         toggle_lock,
         toggle_e2ee,
+        toggle_participant_e2ee,
         toggle_etherpad,
         toggle_lobby,
         toggle_recording,

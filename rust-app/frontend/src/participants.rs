@@ -3,9 +3,12 @@ use shared::Participant;
 
 fn sort_participants(mut participants: Vec<Participant>) -> Vec<Participant> {
     participants.sort_by(|a, b| {
-        // Sort by hand raised (desc), then name (asc)
+        // Sort by hand raised (desc), then by hand_raised_at (asc - earliest first), then name (asc)
         if a.is_hand_raised != b.is_hand_raised {
             b.is_hand_raised.cmp(&a.is_hand_raised)
+        } else if a.is_hand_raised && a.hand_raised_at != b.hand_raised_at {
+            // Both hands raised, earliest first
+            a.hand_raised_at.cmp(&b.hand_raised_at)
         } else {
             a.name.cmp(&b.name)
         }
@@ -313,7 +316,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -324,7 +327,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -335,7 +338,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

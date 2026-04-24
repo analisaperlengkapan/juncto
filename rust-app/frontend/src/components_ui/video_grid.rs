@@ -47,9 +47,11 @@ pub fn VideoGrid(
     participants: ReadSignal<Vec<Participant>>,
     local_stream: ReadSignal<Option<MediaStream>>,
     local_screen_stream: ReadSignal<Option<MediaStream>>,
+    my_audio_level: Signal<f64>,
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
+    dominant_speaker: ReadSignal<Option<String>>,
     remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     layout: ReadSignal<String>,
     on_set_layout: Callback<String>,
@@ -82,12 +84,35 @@ pub fn VideoGrid(
         if let Some(url) = shared_video_url.get() {
             items.push(GridItem::SharedVideo(url));
         }
+
+        let is_spotlight = layout.get() == "spotlight";
+        let dominant = dominant_speaker.get();
         let my_id_val = my_id.get();
-        for p in participants.get() {
-            if my_id_val != Some(p.id.clone()) {
-                items.push(GridItem::User(p.clone()));
-                if p.is_sharing_screen {
-                    items.push(GridItem::RemoteScreen(p.clone()));
+
+        let list = participants.get();
+
+        if is_spotlight {
+            // Find dominant speaker or first participant
+            let spotlight_id = dominant.or_else(|| {
+                list.iter()
+                    .find(|p| Some(p.id.clone()) != my_id_val)
+                    .map(|p| p.id.clone())
+            });
+
+            if let Some(sid) = spotlight_id {
+                if let Some(p) = list.iter().find(|p| p.id == sid) {
+                    if Some(p.id.clone()) != my_id_val {
+                        items.push(GridItem::User(p.clone()));
+                    }
+                }
+            }
+        } else {
+            for p in list {
+                if my_id_val != Some(p.id.clone()) {
+                    items.push(GridItem::User(p.clone()));
+                    if p.is_sharing_screen {
+                        items.push(GridItem::RemoteScreen(p.clone()));
+                    }
                 }
             }
         }
@@ -201,6 +226,9 @@ pub fn VideoGrid(
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
                 </div>
+                <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                    <AudioLevelIndicator audio_level=my_audio_level />
+                </div>
             </div>
 
             // Remote Items
@@ -286,6 +314,16 @@ pub fn VideoGrid(
                                     ps.iter()
                                         .find(|pp| pp.id == p_id_for_hand)
                                         .map(|pp| pp.is_hand_raised)
+                                        .unwrap_or(false)
+                                })
+                            });
+
+                            let p_id_for_e2ee = p.id.clone();
+                            let is_p_e2ee_enabled = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_e2ee)
+                                        .map(|pp| pp.e2ee_enabled)
                                         .unwrap_or(false)
                                 })
                             });
@@ -458,6 +496,9 @@ pub fn VideoGrid(
 
 
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                        <Show when=move || is_p_e2ee_enabled.get() && !is_screen>
+                                            <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                                        </Show>
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
@@ -490,7 +531,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
 
         let item_user = GridItem::User(p.clone());

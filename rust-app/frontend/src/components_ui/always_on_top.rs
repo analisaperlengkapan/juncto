@@ -5,6 +5,7 @@ use crate::i18n::t;
 pub fn AlwaysOnTop(
     #[prop(into)] is_video_muted: Signal<bool>,
     #[prop(into)] is_audio_muted: Signal<bool>,
+    #[prop(optional)] audio_level: Option<Signal<f64>>,
     on_toggle_video: Callback<()>,
     on_toggle_audio: Callback<()>,
     on_leave: Callback<()>,
@@ -28,25 +29,34 @@ pub fn AlwaysOnTop(
             "
         >
             <div class="toolbox-content-items always-on-top-toolbox">
-                <button
-                    on:click=move |_| on_toggle_audio.call(())
-                    class=move || format!("toolbar-btn {}", if is_audio_muted.get() { "muted" } else { "" })
-                    style=move || format!("
-                        background: {};
-                        color: white;
-                        border: none;
-                        border-radius: 50%;
-                        width: 40px;
-                        height: 40px;
-                        cursor: pointer;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                    ", if is_audio_muted.get() { "#dc3545" } else { "#444" })
-                    title=move || if is_audio_muted.get() { t("unmute") } else { t("mute") }
-                >
-                    {move || if is_audio_muted.get() { "🔇" } else { "🎤" }}
-                </button>
+                <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+                    <button
+                        on:click=move |_| on_toggle_audio.call(())
+                        class=move || format!("toolbar-btn {}", if is_audio_muted.get() { "muted" } else { "" })
+                        style=move || format!("
+                            background: {};
+                            color: white;
+                            border: none;
+                            border-radius: 50%;
+                            width: 40px;
+                            height: 40px;
+                            cursor: pointer;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                        ", if is_audio_muted.get() { "#dc3545" } else { "#444" })
+                        title=move || if is_audio_muted.get() { t("unmute") } else { t("mute") }
+                    >
+                        {move || if is_audio_muted.get() { "🔇" } else { "🎤" }}
+                    </button>
+                    <Show when=move || !is_audio_muted.get()>
+                        {move || audio_level.map(|l| view! {
+                            <div style="position: absolute; bottom: -15px;">
+                                <crate::components_ui::audio_level_indicator::AudioLevelIndicator audio_level=l />
+                            </div>
+                        })}
+                    </Show>
+                </div>
 
                 <button
                     on:click=move |_| on_toggle_video.call(())

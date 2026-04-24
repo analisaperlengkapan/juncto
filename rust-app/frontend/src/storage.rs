@@ -9,6 +9,8 @@ pub struct UserSettings {
     pub camera_id: Option<String>,
     pub mic_id: Option<String>,
     pub resolution: Option<String>,
+    #[serde(default)]
+    pub recent_rooms: Vec<String>,
 }
 
 pub fn load_settings() -> UserSettings {
@@ -54,6 +56,18 @@ pub fn save_settings(settings: &UserSettings) {
     }
 }
 
+pub fn add_recent_room(room_id: String) {
+    update_setting(move |s| {
+        if let Some(pos) = s.recent_rooms.iter().position(|r| r == &room_id) {
+            s.recent_rooms.remove(pos);
+        }
+        s.recent_rooms.insert(0, room_id);
+        if s.recent_rooms.len() > 5 {
+            s.recent_rooms.truncate(5);
+        }
+    });
+}
+
 pub fn update_setting<F>(update_fn: F)
 where
     F: FnOnce(&mut UserSettings),
@@ -74,10 +88,42 @@ mod tests {
             camera_id: Some("cam123".to_string()),
             mic_id: None,
             resolution: Some("hd".to_string()),
+            recent_rooms: vec!["room1".to_string()],
         };
         let json = serde_json::to_string(&settings).unwrap();
         let decoded: UserSettings = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.display_name, settings.display_name);
         assert_eq!(decoded.camera_id, settings.camera_id);
+        assert_eq!(decoded.recent_rooms, settings.recent_rooms);
+    }
+
+    #[test]
+    fn test_add_recent_room_logic() {
+        let mut settings = UserSettings::default();
+
+        let add_to_vec = |room: &str, vec: &mut Vec<String>| {
+            if let Some(pos) = vec.iter().position(|r| r == room) {
+                vec.remove(pos);
+            }
+            vec.insert(0, room.to_string());
+            if vec.len() > 5 {
+                vec.truncate(5);
+            }
+        };
+
+        add_to_vec("room1", &mut settings.recent_rooms);
+        assert_eq!(settings.recent_rooms, vec!["room1"]);
+
+        add_to_vec("room2", &mut settings.recent_rooms);
+        assert_eq!(settings.recent_rooms, vec!["room2", "room1"]);
+
+        add_to_vec("room1", &mut settings.recent_rooms);
+        assert_eq!(settings.recent_rooms, vec!["room1", "room2"]); // room1 moved to front
+
+        for i in 3..10 {
+            add_to_vec(&format!("room{}", i), &mut settings.recent_rooms);
+        }
+        assert_eq!(settings.recent_rooms.len(), 5);
+        assert_eq!(settings.recent_rooms[0], "room9");
     }
 }

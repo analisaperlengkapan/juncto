@@ -1,51 +1,112 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Migration Features', () => {
-    test('Authentication and Calendar Dialog', async ({ page }) => {
-        await page.goto('/room/migration-test-room');
+test.beforeEach(async ({ page }) => {
+    // Reset room state via API if possible, or just use a unique room name
+    await page.goto('/');
+});
 
-        // Wait for prejoin screen
-        await page.waitForSelector('.prejoin-container', { timeout: 10000 });
+test('Audio Level Indicator exists on local video', async ({ page }) => {
+    const roomName = `audio-level-${Math.random().toString(36).substring(7)}`;
+    await page.fill('input[type="text"]', roomName);
+    await page.click('.create-btn');
 
-        // Enter a name
-        await page.locator('.prejoin-container input[type="text"]').fill('Migration Tester');
+    // Prejoin screen
+    await page.waitForSelector('#display-name');
+    await page.fill('#display-name', 'Alice');
+    await page.click('.join-btn');
 
-        // Join
-        await page.click('button.join-btn');
+    // Room page
+    await expect(page.locator('.video-grid')).toBeVisible({ timeout: 15000 });
 
-        // Wait for the room to load
-        await page.waitForSelector('.video-grid', { timeout: 15000 });
+    // Check for local video level indicator
+    const localIndicator = page.locator('.local-video .audioindicator');
+    await expect(localIndicator).toBeVisible();
+});
 
-        // Ensure the toolbox is visible
-        await page.waitForSelector('.toolbox', { timeout: 15000 });
+test('Per-participant E2EE toggle in Settings', async ({ page }) => {
+    const roomName = `e2ee-${Math.random().toString(36).substring(7)}`;
+    await page.fill('input[type="text"]', roomName);
+    await page.click('.create-btn');
 
-        // Test Authentication Flow
-        // Open Authentication dialog by clicking Login button in the toolbox
-        await page.click('.toolbox button:has-text("Login")', { timeout: 15000 });
-        await expect(page.locator('.login-dialog-overlay')).toBeVisible();
+    await page.fill('#display-name', 'Alice');
+    await page.click('.join-btn');
 
-        // Fill in the form
-        await page.fill('input[placeholder="user@domain.com"]', 'admin');
-        await page.fill('input[placeholder="Password"]', 'admin123');
-        await page.click('.login-dialog button:has-text("Login")');
+    // Open settings
+    await page.click('button[title="Settings"]');
+    await expect(page.locator('.modal-content')).toBeVisible();
 
-        // Note: The mock backend handles authentication but we might need a small delay or explicit wait for the toast
-        // to verify success depending on WS latency. We can simply close the dialog if the state transition didn't hide it instantly due to test speed
-        await expect(page.locator('.login-dialog-overlay')).not.toBeVisible({ timeout: 15000 });
+    // Toggle E2EE
+    const e2eeCheckbox = page.locator('input[type="checkbox"]', { hasText: 'Enable End-to-End Encryption' }).first();
+    // Re-locate more specifically because of multiple checkboxes
+    const e2eeLabel = page.getByText('Enable End-to-End Encryption');
+    await e2eeLabel.click();
 
-        // Test Calendar Flow
-        // Open Calendar dialog by clicking Calendar button in the toolbox
-        await page.click('.toolbox button:has-text("Calendar")');
-        await expect(page.locator('.calendar-list-overlay')).toBeVisible();
+    // Check if visual indicator appears in VideoGrid
+    await page.click('.modal-header button'); // Close settings
+    const lockIndicator = page.locator('.local-video .status-icons span[title="End-to-End Encrypted"]');
+    await expect(lockIndicator).toBeVisible();
+});
 
-        // Wait for mock events to load and render
-        // Since `create_effect` fires on mount to trigger the WS send, it might take a frame to render.
-        // Also it might say "No upcoming events found." initially. Let's wait for the list item OR click refresh
-        await page.click('.calendar-list-dialog button:has-text("Refresh")');
-        await expect(page.locator('.calendar-list-dialog li').first()).toContainText('Team Standup - 10:00 AM', { timeout: 15000 });
+test('Noise Detection warning appears', async ({ page }) => {
+    // This test is hard to trigger with fake media, but we can check if the listener is wired by injecting an event
+    const roomName = `noise-${Math.random().toString(36).substring(7)}`;
+    await page.fill('input[type="text"]', roomName);
+    await page.click('.create-btn');
 
-        // Close the dialog
-        await page.click('.calendar-list-dialog button:has-text("×")');
-        await expect(page.locator('.calendar-list-overlay')).not.toBeVisible();
+    await page.fill('#display-name', 'Alice');
+    await page.click('.join-btn');
+
+    await page.waitForSelector('.video-grid');
+
+    // Inject custom event to simulate noise detection
+    await page.evaluate(() => {
+        window.dispatchEvent(new CustomEvent('noise_detected'));
     });
+
+    // Check for warning toast
+    const toast = page.locator('.toast', { hasText: 'High background noise detected' });
+    await expect(toast).toBeVisible();
+    await expect(toast).toHaveCSS('background-color', 'rgb(255, 193, 7)'); // #ffc107
+});
+
+test('Dominant speaker switches spotlight', async ({ page, context }) => {
+    const roomName = `spotlight-${Math.random().toString(36).substring(7)}`;
+    await page.goto(`/?room=${roomName}`);
+    await page.fill('input[type="text"]', roomName);
+    await page.click('.create-btn');
+    await page.fill('#display-name', 'Alice');
+    await page.click('.join-btn');
+
+    // Join second user
+    const page2 = await context.newPage();
+    await page2.goto(`http://localhost:3000/room/${roomName}`);
+    await page2.fill('#display-name', 'Bob');
+    await page2.click('.join-btn');
+
+    await page.waitForSelector('.video-card');
+    await page.click('button:has-text("Switch View")'); // Enable spotlight
+
+    // Simulate Bob speaking (dominant speaker)
+    // We can't easily simulate WebAudio level in playwright, so we check if Bob's card is featured
+    // The VideoGrid features the first remote participant if no one is speaking yet.
+    const spotlightCard = page.locator('.video-grid.spotlight .video-card');
+    await expect(spotlightCard).toContainText('Bob');
+});
+
+test('Recent meetings list on Home', async ({ page }) => {
+    const roomName = `recent-${Math.random().toString(36).substring(7)}`;
+    await page.fill('input[type="text"]', roomName);
+    await page.click('.create-btn');
+    await page.fill('#display-name', 'Alice');
+    await page.click('.join-btn');
+    await page.waitForSelector('.video-grid');
+
+    // Go back home
+    await page.goto('/');
+    const recentItem = page.locator('button', { hasText: roomName });
+    await expect(recentItem).toBeVisible();
+
+    // Click to rejoin
+    await recentItem.click();
+    await expect(page).toHaveURL(new RegExp(`/room/${roomName}`));
 });

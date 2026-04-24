@@ -49,6 +49,7 @@ fn test_server_message_serialization() {
         presence: PresenceStatus::Connected,
         is_visitor: false,
         e2ee_enabled: false,
+        hand_raised_at: None,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();

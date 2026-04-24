@@ -137,7 +137,7 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false,
+                e2ee_enabled: false, hand_raised_at: None,
             });
             p_map.insert(user_id.clone(), Participant {
                 id: user_id.clone(),
@@ -148,7 +148,7 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false,
+                e2ee_enabled: false, hand_raised_at: None,
             });
         }
 
@@ -178,7 +178,7 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false,
+                e2ee_enabled: false, hand_raised_at: None,
             });
             p_map.insert(user_id.clone(), Participant {
                 id: user_id.clone(),
@@ -189,7 +189,7 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false,
+                e2ee_enabled: false, hand_raised_at: None,
             });
         }
 
@@ -252,7 +252,7 @@ mod tests {
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
-                    e2ee_enabled: false,
+                    e2ee_enabled: false, hand_raised_at: None,
                 });
             }
         }

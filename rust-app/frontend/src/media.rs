@@ -266,6 +266,7 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
 
     let constraints = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&constraints, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+    let _ = js_sys::Reflect::set(&constraints, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
 
     let func_val = js_sys::Reflect::get(&media_devices, &"getDisplayMedia".into())?;
     let func = func_val.dyn_into::<js_sys::Function>()?;
@@ -282,16 +283,12 @@ pub struct AudioMonitor {
     context: AudioContext,
     #[allow(dead_code)]
     analyser: AnalyserNode,
-    #[allow(dead_code)]
     _source: web_sys::MediaStreamAudioSourceNode,
-    #[allow(dead_code)]
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
     is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
-    #[allow(dead_code)]
     is_noise_suppression_enabled: std::rc::Rc<std::cell::RefCell<bool>>,
     isolated_stream: MediaStream,
-    #[allow(dead_code)]
     compressor: Option<DynamicsCompressorNode>,
 }
 
@@ -299,6 +296,7 @@ impl AudioMonitor {
     pub fn new(
         stream: &MediaStream,
         on_talking: Box<dyn FnMut(bool)>,
+        on_level: Option<Box<dyn FnMut(f64)>>,
         mut on_no_audio: Option<Box<dyn FnMut()>>,
         noise_suppression: bool,
     ) -> Result<Self, JsValue> {
@@ -347,6 +345,7 @@ impl AudioMonitor {
         }
 
         let mut callback = on_talking;
+        let mut level_callback = on_level;
         let mut was_talking = false;
         let buffer_len = analyser.frequency_bin_count() as usize;
         let data_array = vec![0u8; buffer_len];
@@ -363,6 +362,8 @@ impl AudioMonitor {
         let mut has_ever_talked = false;
         let mut talk_while_muted_counter = 0;
         let mut toast_fired_for_this_mute_cycle = false;
+        let mut noise_counter = 0;
+        let mut noise_triggered = false;
 
         let closure = Closure::wrap(Box::new(move || {
             let mut array = data_array.clone();
@@ -373,6 +374,13 @@ impl AudioMonitor {
 
             // Threshold for talking
             let is_talking = avg > 20.0;
+
+            // Normalize average for level indicator (0.0 to 1.0)
+            // Average byte frequency value is 0-255. 100.0 is a reasonable "loud" threshold.
+            let normalized_level = (avg / 100.0).clamp(0.0, 1.0);
+            if let Some(ref mut cb) = level_callback {
+                cb(normalized_level);
+            }
 
             // Do not analyze or trigger callbacks while explicitly muted
             if *is_muted_clone.borrow() {
@@ -413,6 +421,25 @@ impl AudioMonitor {
             if is_talking != was_talking {
                 was_talking = is_talking;
                 callback(is_talking);
+            }
+
+            // Noise detection: Persistent moderate sound when not "talking" (avg > 10.0 but not > 20.0)
+            // or very persistent moderate sound (noise suppression might be needed).
+            if avg > 12.0 && avg < 30.0 && !is_talking {
+                noise_counter += 1;
+                if noise_counter > 50 && !noise_triggered { // 5 seconds of consistent noise
+                    noise_triggered = true;
+                    if let Some(window) = web_sys::window() {
+                        if let Ok(event) = web_sys::CustomEvent::new("noise_detected") {
+                            let _ = window.dispatch_event(&event);
+                        }
+                    }
+                }
+            } else if is_talking {
+                noise_counter = 0;
+                noise_triggered = false; // Reset when actually talking
+            } else if avg < 5.0 {
+                 noise_counter = 0;
             }
 
             // If audio level is practically zero for a long time, and we haven't triggered yet
