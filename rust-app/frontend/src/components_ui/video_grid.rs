@@ -48,6 +48,7 @@ pub fn VideoGrid(
     local_stream: ReadSignal<Option<MediaStream>>,
     local_screen_stream: ReadSignal<Option<MediaStream>>,
     my_audio_level: Signal<f64>,
+    is_audio_muted: Signal<bool>,
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
@@ -230,18 +231,10 @@ pub fn VideoGrid(
                     "Me"
                 </div>
                 <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                    <Show when=move || {
-                        local_stream.get()
-                            .map(|s| {
-                                let tracks = s.get_audio_tracks();
-                                (0..tracks.length()).any(|i| {
-                                    tracks.get(i).dyn_ref::<web_sys::MediaStreamTrack>()
-                                        .map(|t| t.enabled())
-                                        .unwrap_or(false)
-                                })
-                            })
-                            .unwrap_or(false)
-                    }>
+                    <Show when=move || !is_audio_muted.get() && local_stream.get()
+                        .map(|s| s.get_audio_tracks().length() > 0)
+                        .unwrap_or(false)
+                    >
                         <AudioLevelIndicator audio_level=my_audio_level />
                     </Show>
                 </div>

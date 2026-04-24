@@ -217,6 +217,7 @@ pub fn Room() -> impl IntoView {
                                             local_stream=state.local_stream
                                             local_screen_stream=state.local_screen_stream
                                             my_audio_level=state.audio_level.into()
+                                            is_audio_muted=state.is_audio_muted.into()
                                             my_id=state.my_id
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
