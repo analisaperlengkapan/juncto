@@ -41,7 +41,7 @@ impl ToastContext {
                 priority,
             });
             // Sort by priority (descending)
-            t.sort_by(|a, b| b.priority.cmp(&a.priority));
+            t.sort_by_key(|b| std::cmp::Reverse(b.priority));
         });
 
         #[cfg(target_arch = "wasm32")]

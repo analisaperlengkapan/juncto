@@ -158,10 +158,9 @@ pub fn use_room_state() -> RoomState {
     let settings = load_settings();
     let toast_ctx = use_toast();
 
-    // Meeting room name from URL (used for recent rooms tracking).
-    // Note: this is separate from `current_room_id` which tracks breakout room membership.
+    // Initialize room ID from URL parameters
     let params = leptos_router::use_params_map();
-    let meeting_room_name = params.with_untracked(|p| {
+    let initial_room_id = params.with_untracked(|p| {
         p.get("id").map(|id| {
             urlencoding::decode(id)
                 .map(|s| s.into_owned())
@@ -173,7 +172,7 @@ pub fn use_room_state() -> RoomState {
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
     let (breakout_rooms, set_breakout_rooms) = create_signal(Vec::<shared::BreakoutRoom>::new());
-    let (current_room_id, set_current_room_id) = create_signal(None::<String>);
+    let (current_room_id, set_current_room_id) = create_signal(initial_room_id);
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) =
         create_signal(Vec::<Participant>::new());
@@ -496,11 +495,11 @@ pub fn use_room_state() -> RoomState {
     });
 
     create_effect({
-        let toast_ctx = toast_ctx;
+        let toast_ctx_inner = toast_ctx;
         move |_| {
             if let Some(window) = web_sys::window() {
                 let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
-                    toast_ctx.add_advanced(
+                    toast_ctx_inner.add_advanced(
                         "High background noise detected. Consider enabling Noise Suppression in Settings.".to_string(),
                         ToastType::Warning,
                         false,
@@ -603,13 +602,11 @@ pub fn use_room_state() -> RoomState {
         });
     });
 
-    // Dominant Speaker Update
+    // Reactive Noise Suppression Update
     create_effect(move |_| {
         let peers = speaking_peers.get();
         if let Some(speaker) = peers.iter().next() {
             set_dominant_speaker.set(Some(speaker.clone()));
-        } else {
-            set_dominant_speaker.set(None);
         }
     });
 
@@ -1022,7 +1019,7 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let current_room_for_join = meeting_room_name.clone();
+    let current_room_for_join = current_room_id;
     let join_meeting = Callback::new(move |options: JoinOptions| {
         // Persist settings
         let display_name_clone = options.display_name.clone();
@@ -1038,7 +1035,7 @@ pub fn use_room_state() -> RoomState {
         // Add to recent rooms if in a breakout room or main room
         // Actually we want the meeting room name from the URL usually.
         // But for simplicity, we'll use the ID from the state if available.
-        if let Some(rid) = current_room_for_join.clone() {
+        if let Some(rid) = current_room_for_join.get_untracked() {
              crate::storage::add_recent_room(rid);
         }
 
