@@ -79,7 +79,7 @@ test('Dominant speaker switches spotlight', async ({ page, context }) => {
 
     // Join second user
     const page2 = await context.newPage();
-    await page2.goto(`http://localhost:3000/room/${roomName}`);
+    await page2.goto(`/room/${roomName}`);
     await page2.fill('#display-name', 'Bob');
     await page2.click('.join-btn');
 

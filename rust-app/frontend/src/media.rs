@@ -264,15 +264,34 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     let navigator = window.navigator();
     let media_devices = navigator.media_devices()?;
 
-    let constraints = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&constraints, &"video".into(), &wasm_bindgen::JsValue::TRUE);
-    let _ = js_sys::Reflect::set(&constraints, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
-
     let func_val = js_sys::Reflect::get(&media_devices, &"getDisplayMedia".into())?;
     let func = func_val.dyn_into::<js_sys::Function>()?;
-    let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints))?;
 
-    let result: JsValue = JsFuture::from(js_sys::Promise::from(promise)).await?;
+    // First attempt with audio: true. Some browsers/surfaces (e.g. Firefox,
+    // application windows on macOS) may reject audio capture, so fall back
+    // to video-only on failure rather than failing the whole screen share.
+    let constraints_with_audio = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&constraints_with_audio, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+    let _ = js_sys::Reflect::set(&constraints_with_audio, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
+
+    let result: JsValue = match func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_with_audio)) {
+        Ok(promise) => match JsFuture::from(js_sys::Promise::from(promise)).await {
+            Ok(r) => r,
+            Err(_) => {
+                // Retry video-only
+                let constraints_video_only = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+                let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
+                JsFuture::from(js_sys::Promise::from(promise)).await?
+            }
+        },
+        Err(_) => {
+            let constraints_video_only = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+            let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
+            JsFuture::from(js_sys::Promise::from(promise)).await?
+        }
+    };
 
     result
         .dyn_into::<MediaStream>()
