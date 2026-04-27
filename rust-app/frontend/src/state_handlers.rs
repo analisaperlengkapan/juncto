@@ -81,6 +81,23 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             // Track join
             ctx.analytics.track_join(&id);
 
+            // Persist the meeting room to recent rooms only after the server
+            // confirms the join. This avoids adding rooms that rejected the
+            // join attempt (locked, full, denied, etc.) to the user's list.
+            if let Some(window) = web_sys::window() {
+                if let Ok(pathname) = window.location().pathname() {
+                    if let Some(rest) = pathname.strip_prefix("/room/") {
+                        let room_id = rest.split('/').next().unwrap_or(rest);
+                        if !room_id.is_empty() {
+                            let decoded = urlencoding::decode(room_id)
+                                .map(|s| s.into_owned())
+                                .unwrap_or_else(|_| room_id.to_string());
+                            crate::storage::add_recent_room(decoded);
+                        }
+                    }
+                }
+            }
+
             // Auto-start media if requested from prejoin
             if ctx.start_media_on_join.get_untracked() {
                 ctx.start_media_stream.call(ctx.initial_cam_on.get_untracked());

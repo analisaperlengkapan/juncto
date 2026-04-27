@@ -584,8 +584,16 @@ pub fn use_room_state() -> RoomState {
                     add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
+                // Only push a new value when it meaningfully differs from the
+                // previous one. The AudioMonitor fires this callback every
+                // 100ms; most ticks while idle/muted report 0.0 and an
+                // unconditional `set` would trigger ~10 reactive updates
+                // per second for no visible change.
                 let on_level = Box::new(move |level: f64| {
-                    set_audio_level.set(level);
+                    let prev = audio_level.get_untracked();
+                    if (prev - level).abs() > 0.01 {
+                        set_audio_level.set(level);
+                    }
                 });
 
             if let Ok(monitor) = AudioMonitor::new(
@@ -1042,10 +1050,11 @@ pub fn use_room_state() -> RoomState {
             s.mic_id = mic_id_clone;
         });
 
-        // Add the meeting room (from URL) to the recent rooms list
-        if let Some(rid) = meeting_room_name_for_join.clone() {
-             crate::storage::add_recent_room(rid);
-        }
+        // Note: the meeting room is added to the recent rooms list only
+        // after the server confirms the join via `ServerMessage::Welcome`,
+        // so rooms that reject the join (locked, full, etc.) do not end
+        // up in the user's recent rooms. See `state_handlers.rs`.
+        let _ = meeting_room_name_for_join.clone();
 
         // Set initial state
         set_is_muted.set(!options.mic_enabled);

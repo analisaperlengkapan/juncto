@@ -427,6 +427,14 @@ impl AudioMonitor {
                     talk_while_muted_counter = 0;
                 }
 
+                // Reset noise-detection state while muted so moderate background
+                // audio captured on the isolated (always-enabled) analysis stream
+                // does not accumulate toward the noise threshold and fire a
+                // warning the user cannot act on. Also clear `noise_triggered`
+                // so a legitimate noise warning can fire after unmuting.
+                noise_counter = 0;
+                noise_triggered = false;
+
                 // If we are muted, we don't count silence towards the broken mic timeout.
                 // We also ensure the "was_talking" state is cleanly suppressed.
                 if was_talking {
