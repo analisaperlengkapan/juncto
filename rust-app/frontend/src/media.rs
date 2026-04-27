@@ -377,12 +377,7 @@ impl AudioMonitor {
 
             // Normalize average for level indicator (0.0 to 1.0)
             // Average byte frequency value is 0-255. 100.0 is a reasonable "loud" threshold.
-            // Report 0.0 while muted so consumers don't see real mic levels behind a mute UI.
-            let normalized_level = if *is_muted_clone.borrow() {
-                0.0
-            } else {
-                (avg / 100.0).clamp(0.0, 1.0)
-            };
+            let normalized_level = (avg / 100.0).clamp(0.0, 1.0);
             if let Some(ref mut cb) = level_callback {
                 cb(normalized_level);
             }

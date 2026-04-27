@@ -1,0 +1,16 @@
+.always-on-top-container {
+    transition: opacity 0.3s;
+}
+.audioindicator {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px;
+}
+.audioindicator span {
+    width: 6px;
+    height: 6px;
+    background: #28a745;
+    border-radius: 50%;
+    display: block;
+}
