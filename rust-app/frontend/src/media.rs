@@ -375,9 +375,15 @@ impl AudioMonitor {
             // Threshold for talking
             let is_talking = avg > 20.0;
 
-            // Normalize average for level indicator (0.0 to 1.0)
-            // Average byte frequency value is 0-255. 100.0 is a reasonable "loud" threshold.
-            let normalized_level = (avg / 100.0).clamp(0.0, 1.0);
+            // Normalize average for level indicator (0.0 to 1.0).
+            // Report 0.0 when muted so the indicator and any consumers
+            // do not display real microphone activity from the isolated
+            // analysis stream while the user is muted.
+            let normalized_level = if *is_muted_clone.borrow() {
+                0.0
+            } else {
+                (avg / 100.0).clamp(0.0, 1.0)
+            };
             if let Some(ref mut cb) = level_callback {
                 cb(normalized_level);
             }
