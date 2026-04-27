@@ -231,6 +231,13 @@ pub fn VideoGrid(
                     "Me"
                 </div>
                 <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                    <Show when=move || {
+                        my_id.get()
+                            .and_then(|me| participants.with(|ps| ps.iter().find(|p| p.id == me).map(|p| p.e2ee_enabled)))
+                            .unwrap_or(false)
+                    }>
+                        <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                    </Show>
                     <Show when=move || !is_audio_muted.get() && local_stream.get()
                         .map(|s| s.get_audio_tracks().length() > 0)
                         .unwrap_or(false)
