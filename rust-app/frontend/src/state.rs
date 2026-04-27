@@ -585,7 +585,12 @@ pub fn use_room_state() -> RoomState {
                 });
 
                 let on_level = Box::new(move |level: f64| {
-                    set_audio_level.set(level);
+                    // Avoid spamming subscribers when the value hasn't changed
+                    // (e.g. repeated 0.0 while muted). The monitor fires this
+                    // callback ~10 times per second.
+                    if (audio_level.get_untracked() - level).abs() > f64::EPSILON {
+                        set_audio_level.set(level);
+                    }
                 });
 
             if let Ok(monitor) = AudioMonitor::new(
@@ -605,17 +610,21 @@ pub fn use_room_state() -> RoomState {
         });
     });
 
-    // Dominant Speaker Update: pick the first remote speaking peer.
+    // Dominant Speaker Update: pick a remote speaking peer deterministically.
     // Excludes the local user (the server echoes PeerSpeaking back to the
     // sender) so spotlight mode, which filters out the local tile, always
     // has a remote participant to display. Clears to None when nobody is
     // speaking so the spotlight fallback (`or_else`) can kick in.
+    // `speaking_peers` is a HashSet whose iteration order is non-deterministic;
+    // pick the lexicographically smallest remote ID for stable selection
+    // across reactive updates when multiple peers speak simultaneously.
     create_effect(move |_| {
         let peers = speaking_peers.get();
         let me = my_id.get();
         let speaker = peers
             .iter()
-            .find(|id| me.as_ref() != Some(*id))
+            .filter(|id| me.as_ref() != Some(*id))
+            .min()
             .cloned();
         set_dominant_speaker.set(speaker);
     });
