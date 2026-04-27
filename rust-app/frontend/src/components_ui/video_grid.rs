@@ -99,14 +99,31 @@ pub fn VideoGrid(
                     .map(|p| p.id.clone())
             });
 
-            if let Some(sid) = spotlight_id {
-                if let Some(p) = list.iter().find(|p| p.id == sid) {
+            // Push the spotlighted participant first (rendered as the main tile),
+            // then push the remaining remote participants so they appear as
+            // thumbnails. Without this, switching to spotlight would hide every
+            // other participant, which is confusing for users.
+            if let Some(sid) = &spotlight_id {
+                if let Some(p) = list.iter().find(|p| &p.id == sid) {
                     if Some(p.id.clone()) != my_id_val {
                         items.push(GridItem::User(p.clone()));
                         if p.is_sharing_screen {
                             items.push(GridItem::RemoteScreen(p.clone()));
                         }
                     }
+                }
+            }
+
+            for p in &list {
+                if my_id_val.as_ref() == Some(&p.id) {
+                    continue;
+                }
+                if spotlight_id.as_ref() == Some(&p.id) {
+                    continue;
+                }
+                items.push(GridItem::User(p.clone()));
+                if p.is_sharing_screen {
+                    items.push(GridItem::RemoteScreen(p.clone()));
                 }
             }
         } else {

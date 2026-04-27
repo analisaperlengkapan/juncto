@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Always On Top Feature', () => {
-    test('Always on top toolbar should be hidden in main meeting view', async ({ page, context }) => {
+    test('Always on top toolbar should be visible in main meeting view when connected', async ({ page, context }) => {
         // Grant permissions just in case
         await context.grantPermissions(['camera', 'microphone']);
 
@@ -15,9 +15,9 @@ test.describe('Always On Top Feature', () => {
         // Wait until we are in the room
         await expect(page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
 
-        // The widget was hidden from the active meeting UI in recent PR feedback to prevent duplicating the main toolbox
-        // We verify that it does not appear when connected.
+        // The always-on-top controls are rendered once the user is connected so that
+        // mute/camera/leave actions are always reachable. Verify it appears.
         const aotContainer = page.locator('.always-on-top-container');
-        await expect(aotContainer).not.toBeVisible();
+        await expect(aotContainer).toBeVisible();
     });
 });

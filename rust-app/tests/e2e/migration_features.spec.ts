@@ -84,7 +84,9 @@ test('Dominant speaker switches spotlight', async ({ page, context }) => {
     await page2.click('.join-btn');
 
     await page.waitForSelector('.video-card');
-    await page.click('button:has-text("Switch View")'); // Enable spotlight
+    // The room creator is host, so the toggle label is "Switch to Spotlight"
+    // (see VideoGrid layout-controls; non-host users see "Switch View").
+    await page.click('button:has-text("Switch to Spotlight")'); // Enable spotlight
 
     // Simulate Bob speaking (dominant speaker)
     // We can't easily simulate WebAudio level in playwright, so we check if Bob's card is featured
