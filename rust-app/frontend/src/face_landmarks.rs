@@ -1,14 +1,10 @@
 use leptos::*;
-use leptos::leptos_dom::helpers::IntervalHandle;
 use shared::{ClientMessage, FaceExpression};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct FaceLandmarksService {
     send_signal: Callback<ClientMessage>,
     pub active: RwSignal<bool>,
-    interval: Rc<RefCell<Option<IntervalHandle>>>,
 }
 
 impl FaceLandmarksService {
@@ -16,7 +12,6 @@ impl FaceLandmarksService {
         Self {
             send_signal,
             active: create_rw_signal(false),
-            interval: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -27,10 +22,16 @@ impl FaceLandmarksService {
         self.active.set(true);
 
         let send_signal = self.send_signal;
+        let active = self.active;
 
         // Mock detection loop
-        if let Ok(handle) = set_interval_with_handle(
+        set_interval(
             move || {
+                if !active.get_untracked() {
+                    return;
+                }
+
+                // Randomly send an expression every few seconds for demonstration
                 let expressions = ["happy", "sad", "surprised", "neutral"];
                 let idx = (js_sys::Math::random() * expressions.len() as f64) as usize;
 
@@ -41,16 +42,11 @@ impl FaceLandmarksService {
                 send_signal.call(msg);
             },
             std::time::Duration::from_secs(5),
-        ) {
-            *self.interval.borrow_mut() = Some(handle);
-        }
+        );
     }
 
     pub fn stop(&self) {
         self.active.set(false);
-        if let Some(handle) = self.interval.borrow_mut().take() {
-            handle.clear();
-        }
     }
 }
 

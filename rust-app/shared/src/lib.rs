@@ -344,17 +344,16 @@ pub enum ServerMessage {
         target_id: String,
     },
     RemoteControlAllowed {
-        requester_id: String, // The person who originally requested control
-        target_id: String, // The person who granted (or denied) it
+        requester_id: String,
+        target_id: String, // The person who granted it
         allowed: bool,
     },
     RemoteControlStopped {
         sender_id: String,
-        peer_id: String, // The other peer in the session (recipient of this message)
     },
     RemoteControlAction {
         requester_id: String,
-        target_id: String, // The participant whose screen is being controlled (recipient)
+        target_id: String,
         action: RemoteControlAction,
     },
     LobbyAnnouncement(String),

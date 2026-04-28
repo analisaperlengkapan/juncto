@@ -769,6 +769,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
                                                             *target_id == my_id_clone
                                                         },
+                                                        ServerMessage::RemoteControlRequest { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlAllowed { requester_id, .. } => {
+                                                            *requester_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlStopped { .. } => {
+                                                            true // Broadcast to all in room? Or target?
+                                                            // For now broadcast all, client filters
+                                                        },
+                                                        ServerMessage::RemoteControlAction { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
                                                             let my_loc = locs.get(&my_id_clone).cloned().flatten();
@@ -787,23 +800,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 let source_loc = locs.get(user_id).cloned().flatten();
                                                                 my_loc == source_loc
                                                             }
-                                                        },
-                                                        // Remote control messages are point-to-point: only
-                                                        // deliver to the intended recipient. Without these
-                                                        // filters every participant would activate the
-                                                        // remote control overlay and receive every mouse
-                                                        // /key event during a session.
-                                                        ServerMessage::RemoteControlRequest { target_id, .. } => {
-                                                            *target_id == my_id_clone
-                                                        },
-                                                        ServerMessage::RemoteControlAllowed { requester_id, .. } => {
-                                                            *requester_id == my_id_clone
-                                                        },
-                                                        ServerMessage::RemoteControlStopped { peer_id, .. } => {
-                                                            *peer_id == my_id_clone
-                                                        },
-                                                        ServerMessage::RemoteControlAction { target_id, .. } => {
-                                                            *target_id == my_id_clone
                                                         },
                                                         _ => true,
                                                     };
@@ -1553,6 +1549,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     my_loc == source_loc
                                                 },
                                                 ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                    *target_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlRequest { target_id, .. } => {
+                                                    *target_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlAllowed { requester_id, .. } => {
+                                                    *requester_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlStopped { .. } => {
+                                                    true
+                                                },
+                                                ServerMessage::RemoteControlAction { target_id, .. } => {
                                                     *target_id == my_id_clone
                                                 },
                                                 ServerMessage::Transcription { user_id, .. } => {
