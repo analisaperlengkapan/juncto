@@ -315,6 +315,34 @@ pub fn VideoGrid(
                             let id_clone = p.id.clone();
                             let id_clone_2 = id_clone.clone();
 
+                            // Determine whether this tile should be visually
+                            // "featured" (large) in spotlight mode. The
+                            // featured tile is the dominant speaker, falling
+                            // back to the first remote participant when no
+                            // one has been promoted yet — mirroring the
+                            // selection logic in `grid_items` above. Screen
+                            // shares are always rendered large in spotlight.
+                            let p_id_for_spot = p.id.clone();
+                            let is_spotlighted = Signal::derive(move || {
+                                if layout.get() != "spotlight" {
+                                    return false;
+                                }
+                                if is_screen {
+                                    return true;
+                                }
+                                if let Some(d) = dominant_speaker.get() {
+                                    return d == p_id_for_spot;
+                                }
+                                // Fallback: feature the first remote participant.
+                                let me = my_id.get();
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| Some(pp.id.clone()) != me)
+                                        .map(|pp| pp.id == p_id_for_spot)
+                                        .unwrap_or(false)
+                                })
+                            });
+
                             // Derive reactive participant properties using the `participants` signal
                             let p_id_for_props = p.id.clone();
                             let p_name = Signal::derive(move || {
@@ -479,7 +507,24 @@ pub fn VideoGrid(
                             });
 
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking_memo.get() { "3px" } else { "1px" }, if is_speaking_memo.get() { "#28a745" } else { "#444" })>
+                                <div class=move || if is_spotlighted.get() { "video-card spotlighted" } else { "video-card" } style=move || {
+                                    let border = if is_speaking_memo.get() { "3px solid #28a745" } else { "1px solid #444" };
+                                    if is_spotlighted.get() {
+                                        // Featured tile: take the full width
+                                        // and a large share of the spotlight
+                                        // column so the dominant speaker is
+                                        // visually prominent.
+                                        format!("width: 100%; flex: 1 1 auto; min-height: 0; height: 60vh; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    } else if layout.get() == "spotlight" {
+                                        // Thumbnail tile in spotlight mode:
+                                        // smaller fixed height so multiple
+                                        // remote participants fit alongside
+                                        // the featured tile.
+                                        format!("width: 100%; flex: 0 0 auto; height: 120px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    } else {
+                                        format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    }
+                                }>
                                     <Show when=move || stream_signal.get().is_some() fallback=move || {
                                         if is_screen {
                                             view! {
