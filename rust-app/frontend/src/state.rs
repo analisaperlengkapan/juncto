@@ -622,6 +622,13 @@ pub fn use_room_state() -> RoomState {
     create_effect(move |_| {
         let peers = speaking_peers.get();
         let me = my_id.get();
+        // Track `participants` reactively so the effect re-runs when a
+        // participant leaves the room. Without this, a stale dominant
+        // speaker ID would persist after the speaker leaves while nobody
+        // else is currently speaking, leaving spotlight mode unable to
+        // resolve the featured tile (VideoGrid's `or_else` fallback only
+        // runs when `dominant_speaker` is `None`).
+        let participants_list = participants.get();
         let now = js_sys::Date::now();
 
         let mut starts = speaker_starts.borrow_mut();
@@ -658,8 +665,8 @@ pub fn use_room_state() -> RoomState {
             None => {
                 let prev = dominant_speaker.get_untracked();
                 if let Some(prev_id) = prev {
-                    let still_present = participants
-                        .with_untracked(|ps| ps.iter().any(|p| p.id == prev_id));
+                    let still_present =
+                        participants_list.iter().any(|p| p.id == prev_id);
                     if !still_present {
                         set_dominant_speaker.set(None);
                     }
