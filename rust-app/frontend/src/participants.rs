@@ -40,6 +40,7 @@ pub fn ParticipantsList(
     #[prop(optional)] on_request_unmute: Option<Callback<String>>,
     #[prop(optional)] on_broadcast_lobby: Option<Callback<String>>,
     #[prop(optional)] on_promote: Option<Callback<String>>,
+    #[prop(optional)] on_request_remote_control: Option<Callback<String>>,
 ) -> impl IntoView {
     let (lobby_msg, set_lobby_msg) = create_signal("".to_string());
 
@@ -57,6 +58,7 @@ pub fn ParticipantsList(
     let on_transfer_host_sv = store_value(on_transfer_host);
     let on_kick_sv = store_value(on_kick);
     let on_request_unmute_sv = store_value(on_request_unmute);
+    let on_request_remote_control_sv = store_value(on_request_remote_control);
 
     view! {
         <div class="participants-list" style="padding: 10px; width: 100%; height: 100%;">
@@ -291,6 +293,19 @@ pub fn ParticipantsList(
                                                     title="Request Unmute"
                                                 >
                                                     "Unmute"
+                                                </button>
+                                            </Show>
+                                            <Show when=move || on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
+                                                <button
+                                                    on:click=move |_| {
+                                                        if let Some(cb) = on_request_remote_control_sv.get_value() {
+                                                            cb.call(p_sv.get_value().id);
+                                                        }
+                                                    }
+                                                    style="background: none; border: 1px solid #ccc; color: #007bff; padding: 2px 5px; cursor: pointer; border-radius: 3px; font-size: 0.8em;"
+                                                    title="Request Remote Control"
+                                                >
+                                                    "RC"
                                                 </button>
                                             </Show>
                                         </div>

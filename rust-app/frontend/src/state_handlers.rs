@@ -6,6 +6,7 @@ use crate::components_ui::toast::{ToastType};
 use crate::analytics::AnalyticsService;
 use crate::webrtc::WebRTCManager;
 use crate::media::AudioMonitor;
+use crate::remote_control::RemoteControlService;
 use crate::state::RoomConnectionState;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -70,6 +71,8 @@ pub struct HandlerContext {
     pub set_auth_error: WriteSignal<Option<String>>,
     pub set_calendar_events: WriteSignal<Vec<String>>,
     pub set_lobby_announcement: WriteSignal<Option<String>>,
+    pub set_face_expression: WriteSignal<Option<(String, String, u64)>>,
+    pub remote_control: RemoteControlService,
 }
 
 pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
@@ -387,6 +390,44 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::FollowMe(layout) => {
             ctx.set_grid_layout_sig.set(layout);
+        }
+        ServerMessage::FaceExpression { sender_id, expression } => {
+            ctx.set_face_expression.set(Some((sender_id, expression.expression, expression.timestamp)));
+        }
+        ServerMessage::RemoteControlRequest { requester_id, target_id } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == target_id {
+                    let rc = ctx.remote_control.clone();
+                    let add_toast = ctx.add_toast;
+                    let parts = ctx.participants.get_untracked();
+                    let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id.clone());
+
+                    add_toast.call((format!("{} requested remote control. Granting (demo auto-grant)...", name), ToastType::Info));
+
+                    // Demo: auto-grant after 1s
+                    set_timeout(move || {
+                        rc.send_signal.call(ClientMessage::GrantRemoteControl(requester_id));
+                    }, std::time::Duration::from_secs(1));
+                }
+            }
+        }
+        ServerMessage::RemoteControlAllowed { target_id, allowed } => {
+            if allowed {
+                ctx.remote_control.set_controlled_peer(Some(target_id));
+                ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Success));
+            } else {
+                ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Error));
+            }
+        }
+        ServerMessage::RemoteControlStopped { sender_id } => {
+            if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id) {
+                ctx.remote_control.set_controlled_peer(None);
+                ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+            }
+        }
+        ServerMessage::RemoteControlAction { requester_id: _, action: _ } => {
+            // In a real app we'd simulate the event locally if we are the target
+            // web_sys doesn't allow easy event injection for security, so this is mostly protocol-level here
         }
         ServerMessage::PollsList(list) => {
             ctx.set_polls.set(list);

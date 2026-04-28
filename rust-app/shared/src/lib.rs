@@ -143,6 +143,22 @@ pub struct Poll {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FaceExpression {
+    pub expression: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "payload")]
+pub enum RemoteControlAction {
+    MouseMove { x: f64, y: f64 },
+    MouseDown { button: u8 },
+    MouseUp { button: u8 },
+    KeyDown { key: String },
+    KeyUp { key: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "payload")]
 pub enum ClientMessage {
     CreatePoll(Poll),
@@ -197,6 +213,15 @@ pub enum ClientMessage {
     ToggleLocalRecording(bool),
     FollowMe(String), // Layout name (e.g., "grid", "spotlight")
     ClosePoll(String), // Poll ID
+    FaceExpression(FaceExpression),
+    RequestRemoteControl(String), // Target ID
+    GrantRemoteControl(String),   // Requester ID
+    DenyRemoteControl(String),    // Requester ID
+    StopRemoteControl(String),    // Peer ID
+    RemoteControlAction {
+        target_id: String,
+        action: RemoteControlAction,
+    },
     /// Update this participant's per-user E2EE status. The server handler
     /// exists (`ws.rs: UpdateE2EE`) but no frontend UI sends this message yet.
     /// Kept for protocol completeness; wire up when the E2EE settings panel
@@ -310,6 +335,25 @@ pub enum ServerMessage {
     },
     FollowMe(String), // Layout name
     PollClosed(String), // Poll ID
+    FaceExpression {
+        sender_id: String,
+        expression: FaceExpression,
+    },
+    RemoteControlRequest {
+        requester_id: String,
+        target_id: String,
+    },
+    RemoteControlAllowed {
+        target_id: String, // The person who granted it
+        allowed: bool,
+    },
+    RemoteControlStopped {
+        sender_id: String,
+    },
+    RemoteControlAction {
+        requester_id: String,
+        action: RemoteControlAction,
+    },
     LobbyAnnouncement(String),
     CameraMutedByHost(String), // Target ID
     VisitorPromoted(String), // ID

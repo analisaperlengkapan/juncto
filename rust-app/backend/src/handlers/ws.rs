@@ -1,6 +1,7 @@
 use super::breakout;
 use super::chat;
 use super::moderation;
+use super::remote_control;
 use super::polls;
 use super::whiteboard;
 use crate::AppState;
@@ -149,6 +150,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
+                                    }
+                                },
+                                ClientMessage::FaceExpression(expression) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::FaceExpression {
+                                            sender_id: uid.clone(),
+                                            expression,
+                                        });
                                     }
                                 },
                                 ClientMessage::MuteCameraParticipant(target_id) => {
@@ -1353,6 +1362,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             sdp_mid,
                                             sdp_m_line_index,
                                         });
+                                    }
+                                },
+                                ClientMessage::RequestRemoteControl(_)
+                                | ClientMessage::GrantRemoteControl(_)
+                                | ClientMessage::DenyRemoteControl(_)
+                                | ClientMessage::StopRemoteControl(_)
+                                | ClientMessage::RemoteControlAction { .. } => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = remote_control::handle_remote_control(uid, client_msg, &state);
+                                        for m in msgs {
+                                            let _ = tx.send(m);
+                                        }
                                     }
                                 }
                             }
