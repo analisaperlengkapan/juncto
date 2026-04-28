@@ -270,6 +270,21 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     // First attempt with audio: true. Some browsers/surfaces (e.g. Firefox,
     // application windows on macOS) may reject audio capture, so fall back
     // to video-only on failure rather than failing the whole screen share.
+    //
+    // Important: only fall back when the browser indicates the audio
+    // constraint was the problem. If the user explicitly cancels the
+    // screen-share picker, the promise rejects with NotAllowedError /
+    // AbortError, and retrying would pop a second picker dialog forcing
+    // the user to cancel twice. Propagate cancellation errors as-is.
+    fn is_user_cancellation(err: &JsValue) -> bool {
+        if let Ok(name) = js_sys::Reflect::get(err, &"name".into()) {
+            if let Some(name) = name.as_string() {
+                return name == "NotAllowedError" || name == "AbortError";
+            }
+        }
+        false
+    }
+
     let constraints_with_audio = js_sys::Object::new();
     let _ = js_sys::Reflect::set(&constraints_with_audio, &"video".into(), &wasm_bindgen::JsValue::TRUE);
     let _ = js_sys::Reflect::set(&constraints_with_audio, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
@@ -277,15 +292,21 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     let result: JsValue = match func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_with_audio)) {
         Ok(promise) => match JsFuture::from(js_sys::Promise::from(promise)).await {
             Ok(r) => r,
-            Err(_) => {
-                // Retry video-only
+            Err(e) => {
+                if is_user_cancellation(&e) {
+                    return Err(e);
+                }
+                // Retry video-only for capability errors (e.g. NotSupportedError)
                 let constraints_video_only = js_sys::Object::new();
                 let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
                 let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
                 JsFuture::from(js_sys::Promise::from(promise)).await?
             }
         },
-        Err(_) => {
+        Err(e) => {
+            if is_user_cancellation(&e) {
+                return Err(e);
+            }
             let constraints_video_only = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
             let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
