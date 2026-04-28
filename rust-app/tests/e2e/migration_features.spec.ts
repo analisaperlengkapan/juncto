@@ -89,8 +89,9 @@ test('Dominant speaker switches spotlight', async ({ page, context }) => {
     await page2.click('.join-btn');
 
     await page.waitForSelector('.video-card');
-    // The room creator is host, so the toggle label is "Switch to Spotlight"
-    // (see VideoGrid layout-controls; non-host users see "Switch View").
+    // The layout toggle label is now unified for all users (see video_grid.rs
+    // layout-controls): "Switch to Spotlight" when in grid, "Switch to Grid"
+    // when in spotlight — regardless of host status.
     await page.click('button:has-text("Switch to Spotlight")'); // Enable spotlight
 
     // Simulate Bob speaking (dominant speaker)

@@ -55,7 +55,6 @@ pub fn VideoGrid(
     remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     layout: ReadSignal<String>,
     on_set_layout: Callback<String>,
-    is_host: Signal<bool>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -146,9 +145,7 @@ pub fn VideoGrid(
                     on:click=move |_| on_set_layout.call(if layout.get() == "grid" { "spotlight".to_string() } else { "grid".to_string() })
                     style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
                 >
-                    <Show when=move || is_host.get() fallback=|| "Switch View">
-                        {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
-                    </Show>
+                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
                 </button>
             </div>
 

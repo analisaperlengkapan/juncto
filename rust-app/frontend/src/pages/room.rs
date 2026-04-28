@@ -224,7 +224,6 @@ pub fn Room() -> impl IntoView {
                                             remote_streams=state.remote_streams
                                             layout=state.grid_layout
                                             on_set_layout=state.set_grid_layout
-                                            is_host=state.is_host
                                         />
                                     </div>
                                 </div>
