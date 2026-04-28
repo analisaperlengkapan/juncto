@@ -578,7 +578,7 @@ pub fn use_room_state() -> RoomState {
                 // per second for no visible change.
                 let on_level = Box::new(move |level: f64| {
                     let prev = audio_level.get_untracked();
-                    if level == 0.0 || (prev - level).abs() > 0.01 {
+                    if (level == 0.0 && prev != 0.0) || (level != 0.0 && (prev - level).abs() > 0.01) {
                         set_audio_level.set(level);
                     }
                 });
