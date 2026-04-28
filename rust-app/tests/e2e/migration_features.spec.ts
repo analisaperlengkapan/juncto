@@ -91,7 +91,7 @@ test('Dominant speaker switches spotlight', async ({ page, context }) => {
     // Simulate Bob speaking (dominant speaker)
     // We can't easily simulate WebAudio level in playwright, so we check if Bob's card is featured
     // The VideoGrid features the first remote participant if no one is speaking yet.
-    const spotlightCard = page.locator('.video-grid.spotlight .video-card');
+    const spotlightCard = page.locator('.video-grid.spotlight .video-card:not(.local-video)').first();
     await expect(spotlightCard).toContainText('Bob');
 });
 
