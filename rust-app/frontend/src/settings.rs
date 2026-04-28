@@ -21,8 +21,10 @@ pub fn SettingsDialog(
     #[prop(optional)] is_locked: Option<ReadSignal<bool>>,
     #[prop(optional)] is_e2ee_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
+    #[prop(optional)] is_participant_e2ee_enabled: Option<Signal<bool>>,
     #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_participant_e2ee: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
 ) -> impl IntoView {
     let toast_ctx = use_toast();
@@ -203,6 +205,21 @@ pub fn SettingsDialog(
 
                     <div class="tab-content">
                         <Show when=move || active_tab.get() == "profile">
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 10px;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || is_participant_e2ee_enabled.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |ev| {
+                                            if let Some(cb) = on_toggle_participant_e2ee {
+                                                cb.call(event_target_checked(&ev));
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Enable End-to-End Encryption"
+                                </label>
+                            </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 5px;">{move || t("display_name")}</label>
                                 <input

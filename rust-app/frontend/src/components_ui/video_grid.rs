@@ -47,13 +47,14 @@ pub fn VideoGrid(
     participants: ReadSignal<Vec<Participant>>,
     local_stream: ReadSignal<Option<MediaStream>>,
     local_screen_stream: ReadSignal<Option<MediaStream>>,
+    my_audio_level: Signal<f64>,
     my_id: ReadSignal<Option<String>>,
     shared_video_url: ReadSignal<Option<String>>,
     speaking_peers: ReadSignal<HashSet<String>>,
+    dominant_speaker: ReadSignal<Option<String>>,
     remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     layout: ReadSignal<String>,
     on_set_layout: Callback<String>,
-    is_host: Signal<bool>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -82,12 +83,55 @@ pub fn VideoGrid(
         if let Some(url) = shared_video_url.get() {
             items.push(GridItem::SharedVideo(url));
         }
+
+        let is_spotlight = layout.get() == "spotlight";
+        let dominant = dominant_speaker.get();
         let my_id_val = my_id.get();
-        for p in participants.get() {
-            if my_id_val != Some(p.id.clone()) {
+
+        let list = participants.get();
+
+        if is_spotlight {
+            // Find dominant speaker or first participant
+            let spotlight_id = dominant.or_else(|| {
+                list.iter()
+                    .find(|p| Some(p.id.clone()) != my_id_val)
+                    .map(|p| p.id.clone())
+            });
+
+            // Push the spotlighted participant first (rendered as the main tile),
+            // then push the remaining remote participants so they appear as
+            // thumbnails. Without this, switching to spotlight would hide every
+            // other participant, which is confusing for users.
+            if let Some(sid) = &spotlight_id {
+                if let Some(p) = list.iter().find(|p| &p.id == sid) {
+                    if Some(p.id.clone()) != my_id_val {
+                        items.push(GridItem::User(p.clone()));
+                        if p.is_sharing_screen {
+                            items.push(GridItem::RemoteScreen(p.clone()));
+                        }
+                    }
+                }
+            }
+
+            for p in &list {
+                if my_id_val.as_ref() == Some(&p.id) {
+                    continue;
+                }
+                if spotlight_id.as_ref() == Some(&p.id) {
+                    continue;
+                }
                 items.push(GridItem::User(p.clone()));
                 if p.is_sharing_screen {
                     items.push(GridItem::RemoteScreen(p.clone()));
+                }
+            }
+        } else {
+            for p in list {
+                if my_id_val != Some(p.id.clone()) {
+                    items.push(GridItem::User(p.clone()));
+                    if p.is_sharing_screen {
+                        items.push(GridItem::RemoteScreen(p.clone()));
+                    }
                 }
             }
         }
@@ -101,9 +145,7 @@ pub fn VideoGrid(
                     on:click=move |_| on_set_layout.call(if layout.get() == "grid" { "spotlight".to_string() } else { "grid".to_string() })
                     style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
                 >
-                    <Show when=move || is_host.get() fallback=|| "Switch View">
-                        {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
-                    </Show>
+                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
                 </button>
             </div>
 
@@ -201,6 +243,24 @@ pub fn VideoGrid(
                 <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
                     "Me"
                 </div>
+                <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                    <Show when=move || {
+                        my_id.get().map(|id| {
+                            participants.with(|ps| {
+                                ps.iter().find(|p| p.id == id).map(|p| p.e2ee_enabled).unwrap_or(false)
+                            })
+                        }).unwrap_or(false)
+                    }>
+                        <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                    </Show>
+                    // The AudioMonitor reports 0.0 while muted, so guarding on
+                    // a non-zero level avoids rendering invisible indicator dots
+                    // when there is no signal to display. This mirrors the
+                    // explicit mute guard used by the AlwaysOnTop toolbar.
+                    <Show when=move || (my_audio_level.get() > 0.0)>
+                        <AudioLevelIndicator audio_level=my_audio_level />
+                    </Show>
+                </div>
             </div>
 
             // Remote Items
@@ -252,6 +312,34 @@ pub fn VideoGrid(
                             let id_clone = p.id.clone();
                             let id_clone_2 = id_clone.clone();
 
+                            // Determine whether this tile should be visually
+                            // "featured" (large) in spotlight mode. The
+                            // featured tile is the dominant speaker, falling
+                            // back to the first remote participant when no
+                            // one has been promoted yet — mirroring the
+                            // selection logic in `grid_items` above. Screen
+                            // shares are always rendered large in spotlight.
+                            let p_id_for_spot = p.id.clone();
+                            let is_spotlighted = Signal::derive(move || {
+                                if layout.get() != "spotlight" {
+                                    return false;
+                                }
+                                if is_screen {
+                                    return true;
+                                }
+                                if let Some(d) = dominant_speaker.get() {
+                                    return d == p_id_for_spot;
+                                }
+                                // Fallback: feature the first remote participant.
+                                let me = my_id.get();
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| Some(pp.id.clone()) != me)
+                                        .map(|pp| pp.id == p_id_for_spot)
+                                        .unwrap_or(false)
+                                })
+                            });
+
                             // Derive reactive participant properties using the `participants` signal
                             let p_id_for_props = p.id.clone();
                             let p_name = Signal::derive(move || {
@@ -286,6 +374,16 @@ pub fn VideoGrid(
                                     ps.iter()
                                         .find(|pp| pp.id == p_id_for_hand)
                                         .map(|pp| pp.is_hand_raised)
+                                        .unwrap_or(false)
+                                })
+                            });
+
+                            let p_id_for_e2ee = p.id.clone();
+                            let is_p_e2ee_enabled = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_e2ee)
+                                        .map(|pp| pp.e2ee_enabled)
                                         .unwrap_or(false)
                                 })
                             });
@@ -406,7 +504,24 @@ pub fn VideoGrid(
                             });
 
                             view! {
-                                <div class="video-card" style=move || format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {} solid {}; overflow: hidden;", if is_speaking_memo.get() { "3px" } else { "1px" }, if is_speaking_memo.get() { "#28a745" } else { "#444" })>
+                                <div class=move || if is_spotlighted.get() { "video-card spotlighted" } else { "video-card" } style=move || {
+                                    let border = if is_speaking_memo.get() { "3px solid #28a745" } else { "1px solid #444" };
+                                    if is_spotlighted.get() {
+                                        // Featured tile: take the full width
+                                        // and a large share of the spotlight
+                                        // column so the dominant speaker is
+                                        // visually prominent.
+                                        format!("width: 100%; flex: 1 1 auto; min-height: 0; height: 60vh; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    } else if layout.get() == "spotlight" {
+                                        // Thumbnail tile in spotlight mode:
+                                        // smaller fixed height so multiple
+                                        // remote participants fit alongside
+                                        // the featured tile.
+                                        format!("width: 100%; flex: 0 0 auto; height: 120px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    } else {
+                                        format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
+                                    }
+                                }>
                                     <Show when=move || stream_signal.get().is_some() fallback=move || {
                                         if is_screen {
                                             view! {
@@ -458,6 +573,9 @@ pub fn VideoGrid(
 
 
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                        <Show when=move || is_p_e2ee_enabled.get() && !is_screen>
+                                            <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                                        </Show>
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
@@ -490,7 +608,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
 
         let item_user = GridItem::User(p.clone());

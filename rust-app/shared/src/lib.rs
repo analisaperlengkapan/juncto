@@ -120,6 +120,8 @@ pub struct Participant {
     /// expose a UI toggle for this field.
     #[serde(default)]
     pub e2ee_enabled: bool,
+    #[serde(default)]
+    pub hand_raised_at: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

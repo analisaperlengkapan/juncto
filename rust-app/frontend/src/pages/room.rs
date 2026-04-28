@@ -202,10 +202,11 @@ pub fn Room() -> impl IntoView {
                                                 "🔒 E2EE (indicator)"
                                             </div>
                                         </Show>
-                                        <Show when=move || !state.is_connected.get()>
+                                        <Show when=move || state.is_connected.get()>
                                             <AlwaysOnTop
                                                 is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
                                                 is_audio_muted=Signal::derive(move || state.is_muted.get())
+                                                audio_level=state.audio_level.into()
                                                 on_toggle_video=state.toggle_camera
                                                 on_toggle_audio=state.toggle_mic
                                                 on_leave=leave_room
@@ -215,13 +216,14 @@ pub fn Room() -> impl IntoView {
                                             participants=state.participants
                                             local_stream=state.local_stream
                                             local_screen_stream=state.local_screen_stream
+                                            my_audio_level=state.audio_level.into()
                                             my_id=state.my_id
                                             shared_video_url=state.shared_video_url
                                             speaking_peers=state.speaking_peers
+                                            dominant_speaker=state.dominant_speaker
                                             remote_streams=state.remote_streams
                                             layout=state.grid_layout
                                             on_set_layout=state.set_grid_layout
-                                            is_host=state.is_host
                                         />
                                     </div>
                                 </div>
@@ -421,8 +423,19 @@ pub fn Room() -> impl IntoView {
                             is_locked=state.is_locked
                             is_e2ee_enabled=state.is_e2ee_enabled
                             is_lobby_enabled=state.is_lobby_enabled
+                            is_participant_e2ee_enabled=Signal::derive({
+                                let state = state.clone();
+                                move || {
+                                    if let Some(me_id) = state.my_id.get() {
+                                        state.participants.get().iter().find(|p| p.id == me_id).map(|p| p.e2ee_enabled).unwrap_or(false)
+                                    } else {
+                                        false
+                                    }
+                                }
+                            })
                             on_toggle_lock=state.toggle_lock
                             on_toggle_e2ee=state.toggle_e2ee
+                            on_toggle_participant_e2ee=state.toggle_participant_e2ee
                             on_toggle_lobby=state.toggle_lobby
                         />
                         <SharedVideoDialog

@@ -146,7 +146,7 @@ pub fn PrejoinScreen(
                         let on_speaking = Box::new(move |speaking: bool| {
                             set_is_speaking.set(speaking);
                         });
-                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None, false) {
+                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None, None, false) {
                             set_audio_monitor.set(Some(monitor));
                         }
                     }
@@ -272,6 +272,7 @@ pub fn PrejoinScreen(
                     <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Display Name"</label>
                     <input
                         type="text"
+                        id="display-name"
                         prop:value=display_name
                         on:input=move |ev| set_display_name.set(event_target_value(&ev))
                         style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"

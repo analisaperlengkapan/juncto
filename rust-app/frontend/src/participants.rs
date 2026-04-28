@@ -3,9 +3,17 @@ use shared::Participant;
 
 fn sort_participants(mut participants: Vec<Participant>) -> Vec<Participant> {
     participants.sort_by(|a, b| {
-        // Sort by hand raised (desc), then name (asc)
+        // Sort by hand raised (desc), then by hand_raised_at (asc - earliest first), then name (asc).
+        // `Option` orders `None < Some(_)` by default, which would place participants
+        // missing a timestamp (e.g. older clients or backends that didn't populate
+        // `hand_raised_at`) ahead of those with real timestamps. Treat missing
+        // timestamps as "latest" so well-formed FIFO entries are preferred.
         if a.is_hand_raised != b.is_hand_raised {
             b.is_hand_raised.cmp(&a.is_hand_raised)
+        } else if a.is_hand_raised && a.hand_raised_at != b.hand_raised_at {
+            let a_ts = a.hand_raised_at.unwrap_or(u64::MAX);
+            let b_ts = b.hand_raised_at.unwrap_or(u64::MAX);
+            a_ts.cmp(&b_ts)
         } else {
             a.name.cmp(&b.name)
         }
@@ -313,7 +321,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -324,7 +332,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -335,7 +343,7 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false,
+            e2ee_enabled: false, hand_raised_at: None,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

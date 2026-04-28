@@ -264,14 +264,67 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     let navigator = window.navigator();
     let media_devices = navigator.media_devices()?;
 
-    let constraints = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&constraints, &"video".into(), &wasm_bindgen::JsValue::TRUE);
-
     let func_val = js_sys::Reflect::get(&media_devices, &"getDisplayMedia".into())?;
     let func = func_val.dyn_into::<js_sys::Function>()?;
-    let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints))?;
 
-    let result: JsValue = JsFuture::from(js_sys::Promise::from(promise)).await?;
+    // First attempt with audio: true. Some browsers/surfaces (e.g. Firefox,
+    // application windows on macOS) may reject audio capture, so fall back
+    // to video-only on failure rather than failing the whole screen share.
+    //
+    // Important: never retry on a *promise rejection*. By the time the
+    // promise rejects, the browser has already shown the picker and the
+    // user has interacted with it (either selecting a surface or
+    // cancelling). Retrying here would force the user to interact with a
+    // second picker dialog — even for capability errors like
+    // `NotSupportedError` that some browsers raise asynchronously after
+    // the picker is shown.
+    //
+    // We only retry on a *synchronous throw* from `call1`. That happens
+    // before the picker is shown (e.g. the browser rejects the
+    // constraints object as invalid, typically as a `TypeError`), so
+    // retrying with the relaxed video-only constraints does not produce
+    // a duplicate picker.
+    fn is_audio_capability_error(err: &JsValue) -> bool {
+        if let Ok(name) = js_sys::Reflect::get(err, &"name".into()) {
+            if let Some(name) = name.as_string() {
+                return matches!(
+                    name.as_str(),
+                    "NotSupportedError"
+                        | "TypeError"
+                        | "OverconstrainedError"
+                        | "NotFoundError"
+                );
+            }
+        }
+        false
+    }
+
+    let constraints_with_audio = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&constraints_with_audio, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+    let _ = js_sys::Reflect::set(&constraints_with_audio, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
+
+    let result: JsValue = match func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_with_audio)) {
+        Ok(promise) => {
+            // The picker has been (or will be) shown by the browser. Any
+            // error from awaiting this promise — including capability
+            // errors raised after surface selection — is propagated as-is
+            // to avoid showing a second picker dialog on retry.
+            JsFuture::from(js_sys::Promise::from(promise)).await?
+        }
+        Err(e) => {
+            // Synchronous throw from `call1`: the picker has not been
+            // shown yet, so retrying with relaxed constraints is safe.
+            // Only retry on errors that look like audio-constraint
+            // rejections; other synchronous errors (rare) are propagated.
+            if !is_audio_capability_error(&e) {
+                return Err(e);
+            }
+            let constraints_video_only = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
+            let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
+            JsFuture::from(js_sys::Promise::from(promise)).await?
+        }
+    };
 
     result
         .dyn_into::<MediaStream>()
@@ -282,16 +335,12 @@ pub struct AudioMonitor {
     context: AudioContext,
     #[allow(dead_code)]
     analyser: AnalyserNode,
-    #[allow(dead_code)]
     _source: web_sys::MediaStreamAudioSourceNode,
-    #[allow(dead_code)]
     _closure: Closure<dyn FnMut()>,
     interval_id: i32,
     is_muted: std::rc::Rc<std::cell::RefCell<bool>>,
-    #[allow(dead_code)]
     is_noise_suppression_enabled: std::rc::Rc<std::cell::RefCell<bool>>,
     isolated_stream: MediaStream,
-    #[allow(dead_code)]
     compressor: Option<DynamicsCompressorNode>,
 }
 
@@ -299,6 +348,7 @@ impl AudioMonitor {
     pub fn new(
         stream: &MediaStream,
         on_talking: Box<dyn FnMut(bool)>,
+        on_level: Option<Box<dyn FnMut(f64)>>,
         mut on_no_audio: Option<Box<dyn FnMut()>>,
         noise_suppression: bool,
     ) -> Result<Self, JsValue> {
@@ -347,6 +397,7 @@ impl AudioMonitor {
         }
 
         let mut callback = on_talking;
+        let mut level_callback = on_level;
         let mut was_talking = false;
         let buffer_len = analyser.frequency_bin_count() as usize;
         let data_array = vec![0u8; buffer_len];
@@ -363,6 +414,8 @@ impl AudioMonitor {
         let mut has_ever_talked = false;
         let mut talk_while_muted_counter = 0;
         let mut toast_fired_for_this_mute_cycle = false;
+        let mut noise_counter = 0;
+        let mut noise_triggered = false;
 
         let closure = Closure::wrap(Box::new(move || {
             let mut array = data_array.clone();
@@ -373,6 +426,19 @@ impl AudioMonitor {
 
             // Threshold for talking
             let is_talking = avg > 20.0;
+
+            // Normalize average for level indicator (0.0 to 1.0).
+            // Report 0.0 when muted so the indicator and any consumers
+            // do not display real microphone activity from the isolated
+            // analysis stream while the user is muted.
+            let normalized_level = if *is_muted_clone.borrow() {
+                0.0
+            } else {
+                (avg / 100.0).clamp(0.0, 1.0)
+            };
+            if let Some(ref mut cb) = level_callback {
+                cb(normalized_level);
+            }
 
             // Do not analyze or trigger callbacks while explicitly muted
             if *is_muted_clone.borrow() {
@@ -394,6 +460,14 @@ impl AudioMonitor {
                     talk_while_muted_counter = 0;
                 }
 
+                // Reset noise-detection state while muted so moderate background
+                // audio captured on the isolated (always-enabled) analysis stream
+                // does not accumulate toward the noise threshold and fire a
+                // warning the user cannot act on. Also clear `noise_triggered`
+                // so a legitimate noise warning can fire after unmuting.
+                noise_counter = 0;
+                noise_triggered = false;
+
                 // If we are muted, we don't count silence towards the broken mic timeout.
                 // We also ensure the "was_talking" state is cleanly suppressed.
                 if was_talking {
@@ -413,6 +487,37 @@ impl AudioMonitor {
             if is_talking != was_talking {
                 was_talking = is_talking;
                 callback(is_talking);
+            }
+
+            // Noise detection: Persistent moderate sound in the (12, 20] band
+            // while the user is not "talking" (talking threshold is avg > 20.0).
+            // This range targets background noise loud enough to be annoying
+            // but not loud enough to be intentional speech. Since `!is_talking`
+            // already constrains `avg <= 20.0`, an explicit upper bound check
+            // here would be redundant.
+            //
+            // The counter accumulates only during the noise-sample band.
+            // Anything outside that band (talking above 20, or quieter-than-
+            // noise audio at or below 12) resets the counter so we require
+            // *continuous* noise rather than letting intermittent episodes
+            // separated by quieter gaps add up to the 5-second threshold.
+            if avg > 12.0 && !is_talking {
+                noise_counter += 1;
+                if noise_counter > 50 && !noise_triggered { // 5 seconds of consistent noise
+                    noise_triggered = true;
+                    if let Some(window) = web_sys::window() {
+                        if let Ok(event) = web_sys::CustomEvent::new("noise_detected") {
+                            let _ = window.dispatch_event(&event);
+                        }
+                    }
+                }
+            } else if is_talking {
+                noise_counter = 0;
+                noise_triggered = false; // Reset when actually talking
+            } else {
+                // avg <= 12 and not talking — below the noise band.
+                // Treat as a break in consistent noise.
+                noise_counter = 0;
             }
 
             // If audio level is practically zero for a long time, and we haven't triggered yet

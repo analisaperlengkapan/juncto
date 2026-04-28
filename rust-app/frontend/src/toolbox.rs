@@ -199,6 +199,7 @@ pub fn Toolbox(
             <button
                 on:click=move |_| on_settings.call(())
                 style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                title="Settings"
             >
                 "Settings"
             </button>

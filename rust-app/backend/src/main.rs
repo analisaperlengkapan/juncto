@@ -73,8 +73,10 @@ async fn main() {
     // Define the router
     let serve_dir =
         ServeDir::new("frontend/pkg").not_found_service(ServeFile::new("frontend/pkg/index.html"));
+    let serve_static = ServeDir::new("backend/static");
 
     let app = Router::new()
+        .nest_service("/static", serve_static)
         .route("/api/rooms", post(api::create_room))
         .route("/api/feedback", post(api::submit_feedback))
         .route("/health", get(api::health_check))

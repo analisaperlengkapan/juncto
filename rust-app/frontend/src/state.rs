@@ -79,6 +79,7 @@ pub struct RoomState {
     pub show_virtual_background: ReadSignal<bool>,
     pub show_feedback: ReadSignal<bool>,
     pub rtt: ReadSignal<u64>,
+    pub audio_level: ReadSignal<f64>,
     pub remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     pub selected_camera_id: ReadSignal<Option<String>>,
     pub selected_mic_id: ReadSignal<Option<String>>,
@@ -91,6 +92,7 @@ pub struct RoomState {
     pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
     pub is_recording_locally: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
+    pub dominant_speaker: ReadSignal<Option<String>>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -114,6 +116,7 @@ pub struct RoomState {
     pub stop_share_video: Callback<()>,
     pub toggle_lock: Callback<()>,
     pub toggle_e2ee: Callback<()>,
+    pub toggle_participant_e2ee: Callback<bool>,
     pub toggle_etherpad: Callback<Option<String>>,
     pub toggle_lobby: Callback<()>,
     pub toggle_recording: Callback<()>,
@@ -154,6 +157,7 @@ pub struct RoomState {
 pub fn use_room_state() -> RoomState {
     let settings = load_settings();
     let toast_ctx = use_toast();
+
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
@@ -196,6 +200,7 @@ pub fn use_room_state() -> RoomState {
     let (show_virtual_background, set_show_virtual_background) = create_signal(false);
     let (show_feedback, set_show_feedback) = create_signal(false);
     let (rtt, set_rtt) = create_signal(0u64);
+    let (audio_level, set_audio_level) = create_signal(0.0);
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
     let (selected_camera_id, set_selected_camera_id) = create_signal(settings.camera_id);
     let (selected_mic_id, set_selected_mic_id) = create_signal(settings.mic_id);
@@ -205,6 +210,7 @@ pub fn use_room_state() -> RoomState {
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
     let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
+    let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -478,6 +484,30 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    create_effect({
+        let toast_ctx_inner = toast_ctx;
+        move |_| {
+            if let Some(window) = web_sys::window() {
+                let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                    toast_ctx_inner.add_advanced(
+                        "High background noise detected. Consider enabling Noise Suppression in Settings.".to_string(),
+                        ToastType::Warning,
+                        false,
+                        1,
+                    );
+                }) as Box<dyn FnMut(_)>);
+
+                let _ = window.add_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+
+                on_cleanup(move || {
+                    if let Some(win) = web_sys::window() {
+                        let _ = win.remove_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+                    }
+                });
+            }
+        }
+    });
+
     let add_toast = move |msg: String, type_: ToastType| {
         toast_ctx.add(msg, type_);
     };
@@ -541,9 +571,22 @@ pub fn use_room_state() -> RoomState {
                     add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
                 });
 
+                // Only push a new value when it meaningfully differs from the
+                // previous one. The AudioMonitor fires this callback every
+                // 100ms; most ticks while idle/muted report 0.0 and an
+                // unconditional `set` would trigger ~10 reactive updates
+                // per second for no visible change.
+                let on_level = Box::new(move |level: f64| {
+                    let prev = audio_level.get_untracked();
+                    if (level == 0.0 && prev != 0.0) || (level != 0.0 && (prev - level).abs() > 0.01) {
+                        set_audio_level.set(level);
+                    }
+                });
+
             if let Ok(monitor) = AudioMonitor::new(
                 &stream,
                 on_speaking,
+                Some(on_level as Box<dyn FnMut(f64)>),
                 Some(on_no_audio as Box<dyn FnMut()>),
                 is_noise_suppression_enabled.get_untracked(),
             ) {
@@ -555,6 +598,82 @@ pub fn use_room_state() -> RoomState {
             }
             }
         });
+    });
+
+    // Dominant Speaker Update: pick the remote peer who has been
+    // continuously speaking the longest in the current session. The
+    // server only reports binary speaking/not-speaking via `PeerSpeaking`
+    // (no volume), so we approximate "most active" by tracking when each
+    // peer's current speaking session began and picking the earliest.
+    //
+    // This produces a naturally sticky spotlight: once a peer becomes
+    // dominant they stay dominant as long as they keep speaking, even
+    // when other peers briefly join in. Lexicographic ordering by id is
+    // used only as a final tiebreaker for peers that started in the same
+    // tick.
+    //
+    // When no one is currently speaking, we retain the previous dominant
+    // speaker (as long as they are still in the room) so the spotlight
+    // doesn't visually shift to an arbitrary participant during natural
+    // pauses in conversation. The signal is only cleared when the last
+    // dominant speaker leaves the room.
+    let speaker_starts: Rc<RefCell<HashMap<String, f64>>> =
+        Rc::new(RefCell::new(HashMap::new()));
+    create_effect(move |_| {
+        let peers = speaking_peers.get();
+        let me = my_id.get();
+        // Track `participants` reactively so the effect re-runs when a
+        // participant leaves the room. Without this, a stale dominant
+        // speaker ID would persist after the speaker leaves while nobody
+        // else is currently speaking, leaving spotlight mode unable to
+        // resolve the featured tile (VideoGrid's `or_else` fallback only
+        // runs when `dominant_speaker` is `None`).
+        let participants_list = participants.get();
+        let now = js_sys::Date::now();
+
+        let mut starts = speaker_starts.borrow_mut();
+        // Record the start time for any new speakers in this tick.
+        for p in peers.iter() {
+            starts.entry(p.clone()).or_insert(now);
+        }
+        // Drop entries for peers who are no longer speaking so a future
+        // speaking session is treated as a fresh start.
+        starts.retain(|k, _| peers.contains(k));
+
+        // Pick the remote peer with the earliest start time. `f64` is not
+        // Ord, so compare manually with NaN-safe ordering. Falls back to
+        // id ordering when start times are equal.
+        let speaker = peers
+            .iter()
+            .filter(|id| me.as_ref() != Some(*id))
+            .min_by(|a, b| {
+                let ta = starts.get(*a).copied().unwrap_or(f64::INFINITY);
+                let tb = starts.get(*b).copied().unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.cmp(b))
+            })
+            .cloned();
+
+        match speaker {
+            // A remote peer is currently speaking — they become the
+            // dominant speaker.
+            Some(s) => set_dominant_speaker.set(Some(s)),
+            // No remote peer is speaking. Keep the previous dominant
+            // speaker featured if they are still in the room; otherwise
+            // clear the signal so VideoGrid's fallback can take over.
+            None => {
+                let prev = dominant_speaker.get_untracked();
+                if let Some(prev_id) = prev {
+                    let still_present =
+                        participants_list.iter().any(|p| p.id == prev_id);
+                    if !still_present {
+                        set_dominant_speaker.set(None);
+                    }
+                    // else: leave the existing value untouched (sticky).
+                }
+            }
+        }
     });
 
     // Reactive Noise Suppression Update
@@ -767,6 +886,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_participant_e2ee = Callback::new(move |enabled: bool| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdateE2EE(enabled);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let toggle_etherpad = Callback::new(move |url: Option<String>| {
         if let Some(url_str) = &url {
             if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
@@ -968,6 +1096,11 @@ pub fn use_room_state() -> RoomState {
             s.camera_id = cam_id_clone;
             s.mic_id = mic_id_clone;
         });
+
+        // Note: the meeting room is added to the recent rooms list only
+        // after the server confirms the join via `ServerMessage::Welcome`,
+        // so rooms that reject the join (locked, full, etc.) do not end
+        // up in the user's recent rooms. See `state_handlers.rs`.
 
         // Set initial state
         set_is_muted.set(!options.mic_enabled);
@@ -1448,6 +1581,7 @@ pub fn use_room_state() -> RoomState {
         show_virtual_background,
         show_feedback,
         rtt,
+        audio_level,
         remote_streams,
         selected_camera_id,
         selected_mic_id,
@@ -1460,6 +1594,7 @@ pub fn use_room_state() -> RoomState {
         power_statuses,
         is_recording_locally,
         lobby_announcement,
+        dominant_speaker,
         set_input_devices,
         set_background_mode,
         set_grid_layout,
@@ -1480,6 +1615,7 @@ pub fn use_room_state() -> RoomState {
         send_message,
         toggle_lock,
         toggle_e2ee,
+        toggle_participant_e2ee,
         toggle_etherpad,
         toggle_lobby,
         toggle_recording,

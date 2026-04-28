@@ -4,7 +4,7 @@ use leptos::*;
 pub enum ToastType {
     Info,
     Error,
-    #[allow(dead_code)]
+    Warning,
     Success,
 }
 
@@ -13,6 +13,8 @@ pub struct Toast {
     pub id: u64,
     pub message: String,
     pub toast_type: ToastType,
+    pub persistent: bool,
+    pub priority: u8, // Higher is more important
 }
 
 #[derive(Clone, Copy)]
@@ -23,7 +25,11 @@ pub struct ToastContext {
 
 impl ToastContext {
     pub fn add(&self, message: String, toast_type: ToastType) {
-        let id = self.counter.get() + 1;
+        self.add_advanced(message, toast_type, false, 0);
+    }
+
+    pub fn add_advanced(&self, message: String, toast_type: ToastType, persistent: bool, priority: u8) {
+        let id = self.counter.get_untracked() + 1;
         self.counter.set(id);
 
         self.toasts.update(|t| {
@@ -31,16 +37,23 @@ impl ToastContext {
                 id,
                 message,
                 toast_type,
-            })
+                persistent,
+                priority,
+            });
+            // Sort by priority (descending)
+            t.sort_by_key(|b| std::cmp::Reverse(b.priority));
         });
 
-        let toasts = self.toasts;
-        set_timeout(
-            move || {
-                toasts.update(|t| t.retain(|item| item.id != id));
-            },
-            std::time::Duration::from_secs(3),
-        );
+        #[cfg(target_arch = "wasm32")]
+        if !persistent {
+            let toasts = self.toasts;
+            set_timeout(
+                move || {
+                    toasts.update(|t| t.retain(|item| item.id != id));
+                },
+                std::time::Duration::from_secs(if priority > 0 { 6 } else { 3 }),
+            );
+        }
     }
 
     pub fn remove(&self, id: u64) {
@@ -72,6 +85,7 @@ pub fn ToastContainer() -> impl IntoView {
                     let style = match t.toast_type {
                         ToastType::Info => "background: #007bff; color: white;",
                         ToastType::Error => "background: #dc3545; color: white;",
+                        ToastType::Warning => "background: #ffc107; color: black;",
                         ToastType::Success => "background: #28a745; color: white;",
                     };
                     let id = t.id;
@@ -99,7 +113,29 @@ mod tests {
         let t1 = ToastType::Info;
         let t2 = ToastType::Error;
         let t3 = ToastType::Success;
+        let t4 = ToastType::Warning;
         assert_ne!(t1, t2);
         assert_ne!(t2, t3);
+        assert_ne!(t3, t4);
+    }
+
+    #[test]
+    fn test_toast_context_logic() {
+        let _runtime = create_runtime();
+        let ctx = ToastContext {
+            toasts: create_rw_signal(Vec::new()),
+            counter: create_rw_signal(0),
+        };
+
+        ctx.add_advanced("Msg 1".to_string(), ToastType::Info, false, 0);
+        ctx.add_advanced("Msg 2".to_string(), ToastType::Error, true, 10);
+
+        let toasts = ctx.toasts.get();
+        assert_eq!(toasts.len(), 2);
+        // Should be sorted by priority
+        assert_eq!(toasts[0].message, "Msg 2");
+        assert_eq!(toasts[1].message, "Msg 1");
+        assert!(toasts[0].persistent);
+        assert!(!toasts[1].persistent);
     }
 }
