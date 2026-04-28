@@ -271,15 +271,26 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     // application windows on macOS) may reject audio capture, so fall back
     // to video-only on failure rather than failing the whole screen share.
     //
-    // Important: only fall back when the browser indicates the audio
-    // constraint was the problem. If the user explicitly cancels the
-    // screen-share picker, the promise rejects with NotAllowedError /
-    // AbortError, and retrying would pop a second picker dialog forcing
-    // the user to cancel twice. Propagate cancellation errors as-is.
-    fn is_user_cancellation(err: &JsValue) -> bool {
+    // Important: only fall back on errors that indicate the browser rejected
+    // the *audio constraint itself* before showing the picker (e.g.
+    // NotSupportedError, TypeError, OverconstrainedError, NotFoundError).
+    // These are raised synchronously or very early, so retrying does not
+    // produce a second picker dialog.
+    //
+    // Any other error — including user cancellation (NotAllowedError /
+    // AbortError) and unknown errors that may surface *after* the user
+    // already selected a screen — is propagated as-is. Retrying on those
+    // would force the user to interact with a second picker dialog.
+    fn is_audio_capability_error(err: &JsValue) -> bool {
         if let Ok(name) = js_sys::Reflect::get(err, &"name".into()) {
             if let Some(name) = name.as_string() {
-                return name == "NotAllowedError" || name == "AbortError";
+                return matches!(
+                    name.as_str(),
+                    "NotSupportedError"
+                        | "TypeError"
+                        | "OverconstrainedError"
+                        | "NotFoundError"
+                );
             }
         }
         false
@@ -293,10 +304,12 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
         Ok(promise) => match JsFuture::from(js_sys::Promise::from(promise)).await {
             Ok(r) => r,
             Err(e) => {
-                if is_user_cancellation(&e) {
+                if !is_audio_capability_error(&e) {
+                    // User cancellation, permission denial, or an unknown
+                    // error raised after the picker — do not retry.
                     return Err(e);
                 }
-                // Retry video-only for capability errors (e.g. NotSupportedError)
+                // Retry video-only for audio-capability errors only.
                 let constraints_video_only = js_sys::Object::new();
                 let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
                 let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
@@ -304,7 +317,7 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
             }
         },
         Err(e) => {
-            if is_user_cancellation(&e) {
+            if !is_audio_capability_error(&e) {
                 return Err(e);
             }
             let constraints_video_only = js_sys::Object::new();
