@@ -158,19 +158,6 @@ pub fn use_room_state() -> RoomState {
     let settings = load_settings();
     let toast_ctx = use_toast();
 
-    // Extract the meeting room name from URL parameters for use in the
-    // recent rooms feature. Note: this is NOT the breakout room id —
-    // `current_room_id` below tracks breakout-room membership and must
-    // remain `None` until the user explicitly joins a breakout room.
-    let params = leptos_router::use_params_map();
-    let meeting_room_name = params.with_untracked(|p| {
-        p.get("id").map(|id| {
-            urlencoding::decode(id)
-                .map(|s| s.into_owned())
-                .unwrap_or_else(|_| id.clone())
-        })
-    });
-
     let (current_state, set_current_state) = create_signal(RoomConnectionState::Prejoin);
     let (messages, set_messages) = create_signal(Vec::<ChatMessage>::new());
     let (typing_users, set_typing_users) = create_signal(HashSet::<String>::new());
@@ -613,17 +600,46 @@ pub fn use_room_state() -> RoomState {
         });
     });
 
-    // Dominant Speaker Update: pick the lowest-id remote speaker for
-    // deterministic ordering across runs (HashSet iteration is unspecified).
-    // Always update the signal so it clears to None when nobody speaks and
-    // never gets stuck on the local user.
+    // Dominant Speaker Update: pick the remote peer who has been
+    // continuously speaking the longest in the current session. The
+    // server only reports binary speaking/not-speaking via `PeerSpeaking`
+    // (no volume), so we approximate "most active" by tracking when each
+    // peer's current speaking session began and picking the earliest.
+    //
+    // This produces a naturally sticky spotlight: once a peer becomes
+    // dominant they stay dominant as long as they keep speaking, even
+    // when other peers briefly join in. Lexicographic ordering by id is
+    // used only as a final tiebreaker for peers that started in the same
+    // tick.
+    let speaker_starts: Rc<RefCell<HashMap<String, f64>>> =
+        Rc::new(RefCell::new(HashMap::new()));
     create_effect(move |_| {
         let peers = speaking_peers.get();
         let me = my_id.get();
+        let now = js_sys::Date::now();
+
+        let mut starts = speaker_starts.borrow_mut();
+        // Record the start time for any new speakers in this tick.
+        for p in peers.iter() {
+            starts.entry(p.clone()).or_insert(now);
+        }
+        // Drop entries for peers who are no longer speaking so a future
+        // speaking session is treated as a fresh start.
+        starts.retain(|k, _| peers.contains(k));
+
+        // Pick the remote peer with the earliest start time. `f64` is not
+        // Ord, so compare manually with NaN-safe ordering. Falls back to
+        // id ordering when start times are equal.
         let speaker = peers
             .iter()
             .filter(|id| me.as_ref() != Some(*id))
-            .min()
+            .min_by(|a, b| {
+                let ta = starts.get(*a).copied().unwrap_or(f64::INFINITY);
+                let tb = starts.get(*b).copied().unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.cmp(b))
+            })
             .cloned();
         set_dominant_speaker.set(speaker);
     });
@@ -1037,7 +1053,6 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let meeting_room_name_for_join = meeting_room_name.clone();
     let join_meeting = Callback::new(move |options: JoinOptions| {
         // Persist settings
         let display_name_clone = options.display_name.clone();
@@ -1054,7 +1069,6 @@ pub fn use_room_state() -> RoomState {
         // after the server confirms the join via `ServerMessage::Welcome`,
         // so rooms that reject the join (locked, full, etc.) do not end
         // up in the user's recent rooms. See `state_handlers.rs`.
-        let _ = meeting_room_name_for_join.clone();
 
         // Set initial state
         set_is_muted.set(!options.mic_enabled);

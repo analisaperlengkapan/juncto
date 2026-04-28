@@ -477,14 +477,16 @@ impl AudioMonitor {
                 callback(is_talking);
             }
 
-            // Noise detection: Persistent moderate sound when not "talking" (avg > 10.0 but not > 20.0)
-            // or very persistent moderate sound (noise suppression might be needed).
+            // Noise detection: Persistent moderate sound in the 12..30 band
+            // while the user is not "talking" (talking threshold is avg > 20.0).
+            // This range targets background noise loud enough to be annoying
+            // but not loud enough to be intentional speech.
             //
-            // The counter accumulates only during the noise-sample band. Anything
-            // outside that band (talking, silence, or the moderate gap between
-            // 5 and 12) resets the counter so we require *continuous* noise
-            // rather than letting intermittent episodes separated by quieter
-            // gaps add up to the 5-second threshold.
+            // The counter accumulates only during the noise-sample band.
+            // Anything outside that band (talking above 20, or quieter-than-
+            // noise audio at or below 12) resets the counter so we require
+            // *continuous* noise rather than letting intermittent episodes
+            // separated by quieter gaps add up to the 5-second threshold.
             if avg > 12.0 && avg < 30.0 && !is_talking {
                 noise_counter += 1;
                 if noise_counter > 50 && !noise_triggered { // 5 seconds of consistent noise
@@ -499,8 +501,8 @@ impl AudioMonitor {
                 noise_counter = 0;
                 noise_triggered = false; // Reset when actually talking
             } else {
-                // Either silence (avg < 5) or moderate gap (5 <= avg <= 12).
-                // Treat both as a break in consistent noise.
+                // avg <= 12 and not talking — below the noise band.
+                // Treat as a break in consistent noise.
                 noise_counter = 0;
             }
 
