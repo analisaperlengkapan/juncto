@@ -271,16 +271,19 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     // application windows on macOS) may reject audio capture, so fall back
     // to video-only on failure rather than failing the whole screen share.
     //
-    // Important: only fall back on errors that indicate the browser rejected
-    // the *audio constraint itself* before showing the picker (e.g.
-    // NotSupportedError, TypeError, OverconstrainedError, NotFoundError).
-    // These are raised synchronously or very early, so retrying does not
-    // produce a second picker dialog.
+    // Important: never retry on a *promise rejection*. By the time the
+    // promise rejects, the browser has already shown the picker and the
+    // user has interacted with it (either selecting a surface or
+    // cancelling). Retrying here would force the user to interact with a
+    // second picker dialog — even for capability errors like
+    // `NotSupportedError` that some browsers raise asynchronously after
+    // the picker is shown.
     //
-    // Any other error — including user cancellation (NotAllowedError /
-    // AbortError) and unknown errors that may surface *after* the user
-    // already selected a screen — is propagated as-is. Retrying on those
-    // would force the user to interact with a second picker dialog.
+    // We only retry on a *synchronous throw* from `call1`. That happens
+    // before the picker is shown (e.g. the browser rejects the
+    // constraints object as invalid, typically as a `TypeError`), so
+    // retrying with the relaxed video-only constraints does not produce
+    // a duplicate picker.
     fn is_audio_capability_error(err: &JsValue) -> bool {
         if let Ok(name) = js_sys::Reflect::get(err, &"name".into()) {
             if let Some(name) = name.as_string() {
@@ -301,22 +304,18 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     let _ = js_sys::Reflect::set(&constraints_with_audio, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
 
     let result: JsValue = match func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_with_audio)) {
-        Ok(promise) => match JsFuture::from(js_sys::Promise::from(promise)).await {
-            Ok(r) => r,
-            Err(e) => {
-                if !is_audio_capability_error(&e) {
-                    // User cancellation, permission denial, or an unknown
-                    // error raised after the picker — do not retry.
-                    return Err(e);
-                }
-                // Retry video-only for audio-capability errors only.
-                let constraints_video_only = js_sys::Object::new();
-                let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
-                let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
-                JsFuture::from(js_sys::Promise::from(promise)).await?
-            }
-        },
+        Ok(promise) => {
+            // The picker has been (or will be) shown by the browser. Any
+            // error from awaiting this promise — including capability
+            // errors raised after surface selection — is propagated as-is
+            // to avoid showing a second picker dialog on retry.
+            JsFuture::from(js_sys::Promise::from(promise)).await?
+        }
         Err(e) => {
+            // Synchronous throw from `call1`: the picker has not been
+            // shown yet, so retrying with relaxed constraints is safe.
+            // Only retry on errors that look like audio-constraint
+            // rejections; other synchronous errors (rare) are propagated.
             if !is_audio_capability_error(&e) {
                 return Err(e);
             }
