@@ -788,6 +788,23 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                                 my_loc == source_loc
                                                             }
                                                         },
+                                                        // Remote control messages are point-to-point: only
+                                                        // deliver to the intended recipient. Without these
+                                                        // filters every participant would activate the
+                                                        // remote control overlay and receive every mouse
+                                                        // /key event during a session.
+                                                        ServerMessage::RemoteControlRequest { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlAllowed { requester_id, .. } => {
+                                                            *requester_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlStopped { peer_id, .. } => {
+                                                            *peer_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlAction { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
                                                         _ => true,
                                                     };
 

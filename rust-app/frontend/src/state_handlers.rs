@@ -411,7 +411,14 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             }
         }
-        ServerMessage::RemoteControlAllowed { target_id, allowed } => {
+        ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+            // Defense in depth: only the original requester should react to
+            // this grant/deny. Without this check, every participant who
+            // received the broadcast would activate the remote control
+            // overlay against the grantor.
+            if ctx.my_id.get_untracked().as_deref() != Some(requester_id.as_str()) {
+                return;
+            }
             if allowed {
                 ctx.remote_control.set_controlled_peer(Some(target_id));
                 ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Success));
@@ -419,13 +426,21 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Error));
             }
         }
-        ServerMessage::RemoteControlStopped { sender_id } => {
+        ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+            // Only the other peer in the session should react.
+            if ctx.my_id.get_untracked().as_deref() != Some(peer_id.as_str()) {
+                return;
+            }
             if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id) {
                 ctx.remote_control.set_controlled_peer(None);
                 ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
             }
         }
-        ServerMessage::RemoteControlAction { requester_id: _, action: _ } => {
+        ServerMessage::RemoteControlAction { requester_id: _, target_id, action: _ } => {
+            // Only the targeted participant should process the action.
+            if ctx.my_id.get_untracked().as_deref() != Some(target_id.as_str()) {
+                return;
+            }
             // In a real app we'd simulate the event locally if we are the target
             // web_sys doesn't allow easy event injection for security, so this is mostly protocol-level here
         }

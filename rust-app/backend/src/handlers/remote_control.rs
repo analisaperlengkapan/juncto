@@ -10,26 +10,30 @@ pub fn handle_remote_control(uid: &str, msg: ClientMessage, _state: &Arc<AppStat
                 target_id,
             }]
         }
-        ClientMessage::GrantRemoteControl(_requester_id) => {
+        ClientMessage::GrantRemoteControl(requester_id) => {
             vec![ServerMessage::RemoteControlAllowed {
+                requester_id,
                 target_id: uid.to_string(),
                 allowed: true,
             }]
         }
-        ClientMessage::DenyRemoteControl(_requester_id) => {
+        ClientMessage::DenyRemoteControl(requester_id) => {
             vec![ServerMessage::RemoteControlAllowed {
+                requester_id,
                 target_id: uid.to_string(),
                 allowed: false,
             }]
         }
-        ClientMessage::StopRemoteControl(_peer_id) => {
+        ClientMessage::StopRemoteControl(peer_id) => {
             vec![ServerMessage::RemoteControlStopped {
                 sender_id: uid.to_string(),
+                peer_id,
             }]
         }
-        ClientMessage::RemoteControlAction { target_id: _, action } => {
+        ClientMessage::RemoteControlAction { target_id, action } => {
             vec![ServerMessage::RemoteControlAction {
                 requester_id: uid.to_string(),
+                target_id,
                 action,
             }]
         }
