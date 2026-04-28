@@ -611,6 +611,12 @@ pub fn use_room_state() -> RoomState {
     // when other peers briefly join in. Lexicographic ordering by id is
     // used only as a final tiebreaker for peers that started in the same
     // tick.
+    //
+    // When no one is currently speaking, we retain the previous dominant
+    // speaker (as long as they are still in the room) so the spotlight
+    // doesn't visually shift to an arbitrary participant during natural
+    // pauses in conversation. The signal is only cleared when the last
+    // dominant speaker leaves the room.
     let speaker_starts: Rc<RefCell<HashMap<String, f64>>> =
         Rc::new(RefCell::new(HashMap::new()));
     create_effect(move |_| {
@@ -641,7 +647,26 @@ pub fn use_room_state() -> RoomState {
                     .then_with(|| a.cmp(b))
             })
             .cloned();
-        set_dominant_speaker.set(speaker);
+
+        match speaker {
+            // A remote peer is currently speaking — they become the
+            // dominant speaker.
+            Some(s) => set_dominant_speaker.set(Some(s)),
+            // No remote peer is speaking. Keep the previous dominant
+            // speaker featured if they are still in the room; otherwise
+            // clear the signal so VideoGrid's fallback can take over.
+            None => {
+                let prev = dominant_speaker.get_untracked();
+                if let Some(prev_id) = prev {
+                    let still_present = participants
+                        .with_untracked(|ps| ps.iter().any(|p| p.id == prev_id));
+                    if !still_present {
+                        set_dominant_speaker.set(None);
+                    }
+                    // else: leave the existing value untouched (sticky).
+                }
+            }
+        }
     });
 
     // Reactive Noise Suppression Update
