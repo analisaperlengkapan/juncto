@@ -477,17 +477,19 @@ impl AudioMonitor {
                 callback(is_talking);
             }
 
-            // Noise detection: Persistent moderate sound in the 12..30 band
+            // Noise detection: Persistent moderate sound in the (12, 20] band
             // while the user is not "talking" (talking threshold is avg > 20.0).
             // This range targets background noise loud enough to be annoying
-            // but not loud enough to be intentional speech.
+            // but not loud enough to be intentional speech. Since `!is_talking`
+            // already constrains `avg <= 20.0`, an explicit upper bound check
+            // here would be redundant.
             //
             // The counter accumulates only during the noise-sample band.
             // Anything outside that band (talking above 20, or quieter-than-
             // noise audio at or below 12) resets the counter so we require
             // *continuous* noise rather than letting intermittent episodes
             // separated by quieter gaps add up to the 5-second threshold.
-            if avg > 12.0 && avg < 30.0 && !is_talking {
+            if avg > 12.0 && !is_talking {
                 noise_counter += 1;
                 if noise_counter > 50 && !noise_triggered { // 5 seconds of consistent noise
                     noise_triggered = true;

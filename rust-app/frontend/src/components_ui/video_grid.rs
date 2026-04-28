@@ -256,7 +256,13 @@ pub fn VideoGrid(
                     }>
                         <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
                     </Show>
-                    <AudioLevelIndicator audio_level=my_audio_level />
+                    // The AudioMonitor reports 0.0 while muted, so guarding on
+                    // a non-zero level avoids rendering invisible indicator dots
+                    // when there is no signal to display. This mirrors the
+                    // explicit mute guard used by the AlwaysOnTop toolbar.
+                    <Show when=move || my_audio_level.get() > 0.0>
+                        <AudioLevelIndicator audio_level=my_audio_level />
+                    </Show>
                 </div>
             </div>
 
