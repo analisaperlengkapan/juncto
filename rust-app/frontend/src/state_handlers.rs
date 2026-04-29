@@ -6,6 +6,7 @@ use crate::components_ui::toast::{ToastType};
 use crate::analytics::AnalyticsService;
 use crate::webrtc::WebRTCManager;
 use crate::media::AudioMonitor;
+use crate::remote_control::RemoteControlService;
 use crate::state::RoomConnectionState;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -70,6 +71,8 @@ pub struct HandlerContext {
     pub set_auth_error: WriteSignal<Option<String>>,
     pub set_calendar_events: WriteSignal<Vec<String>>,
     pub set_lobby_announcement: WriteSignal<Option<String>>,
+    pub set_face_expression: WriteSignal<Option<(String, String, u64)>>,
+    pub remote_control: RemoteControlService,
 }
 
 pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
@@ -213,6 +216,32 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_power_statuses.update(|map| {
                 map.remove(&id);
             });
+            // If we were remote-controlling this peer, clear the overlay so
+            // we don't keep capturing input for a peer that no longer exists.
+            if ctx.remote_control.controlled_peer.get_untracked().as_deref() == Some(&id) {
+                ctx.remote_control.set_controlled_peer(None);
+                ctx.add_toast.call((
+                    "Remote control session ended (peer disconnected)".to_string(),
+                    ToastType::Info,
+                ));
+            }
+            // If we were being controlled by this peer, clear the banner so
+            // the user isn't left with a stale "you are being controlled"
+            // indicator after the controller disconnects.
+            if ctx.remote_control.controlling_peer.get_untracked().as_deref() == Some(&id) {
+                ctx.remote_control.set_controlling_peer(None);
+                ctx.add_toast.call((
+                    "Remote control session ended (controller disconnected)".to_string(),
+                    ToastType::Info,
+                ));
+            }
+            // If a pending incoming request from this peer is still on screen,
+            // dismiss the consent modal — there's no one left to grant access to.
+            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+                if requester_id == id {
+                    ctx.remote_control.pending_incoming_request.set(None);
+                }
+            }
             ctx.webrtc_manager.handle_participant_left(&id);
             ctx.set_remote_streams.update(|map| {
                 map.remove(&id);
@@ -220,6 +249,36 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::ParticipantList(list) => {
             ctx.set_participants.set(list.clone());
+
+            // If we switched rooms (e.g. joined a breakout) and the peer we were
+            // controlling — or the peer whose consent we were awaiting — is not
+            // present in the new room's participant list, dismiss the overlay
+            // and modal. Without this, the overlay would stay active because
+            // `ParticipantLeft` for that peer is filtered to the old room and
+            // never delivered to us in the new one.
+            if let Some(controlled) = ctx.remote_control.controlled_peer.get_untracked() {
+                if !list.iter().any(|p| p.id == controlled) {
+                    ctx.remote_control.set_controlled_peer(None);
+                    ctx.add_toast.call((
+                        "Remote control session ended (peer not in this room)".to_string(),
+                        ToastType::Info,
+                    ));
+                }
+            }
+            if let Some(controller) = ctx.remote_control.controlling_peer.get_untracked() {
+                if !list.iter().any(|p| p.id == controller) {
+                    ctx.remote_control.set_controlling_peer(None);
+                    ctx.add_toast.call((
+                        "Remote control session ended (controller not in this room)".to_string(),
+                        ToastType::Info,
+                    ));
+                }
+            }
+            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+                if !list.iter().any(|p| p.id == requester_id) {
+                    ctx.remote_control.pending_incoming_request.set(None);
+                }
+            }
 
             if let Some(me) = ctx.my_id.get_untracked() {
                 for p in list {
@@ -387,6 +446,67 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::FollowMe(layout) => {
             ctx.set_grid_layout_sig.set(layout);
+        }
+        ServerMessage::FaceExpression { sender_id, expression } => {
+            ctx.set_face_expression.set(Some((sender_id, expression.expression, expression.timestamp)));
+        }
+        ServerMessage::RemoteControlRequest { requester_id, target_id } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == target_id {
+                    let parts = ctx.participants.get_untracked();
+                    let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or_else(|| requester_id.clone());
+
+                    // Set a signal that drives a non-blocking in-app modal in
+                    // `RemoteControlLayer`. We deliberately avoid
+                    // `window.confirm()` here because it blocks the JS event
+                    // loop, which would freeze WebSocket message processing
+                    // (chat, signaling, heartbeats) for as long as the dialog
+                    // is open.
+                    ctx.remote_control.set_pending_incoming_request(requester_id, name);
+                }
+            }
+        }
+        ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == requester_id {
+                    if allowed {
+                        ctx.remote_control.set_controlled_peer(Some(target_id));
+                        ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Success));
+                    } else {
+                        ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Error));
+                    }
+                } else if allowed && my == target_id {
+                    // We are the controlled party; the server confirmed our
+                    // grant. Show the "being controlled" banner so we have a
+                    // visible indicator and an explicit way to stop the
+                    // session. Driving this reactively (rather than
+                    // optimistically when the user clicks Allow) ensures the
+                    // banner doesn't appear if the server rejected the grant.
+                    ctx.remote_control.set_controlling_peer(Some(requester_id));
+                }
+            }
+        }
+        ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+            // Clear the overlay if we're the controller and the controlled
+            // party ended the session.
+            if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id.clone()) {
+                ctx.remote_control.set_controlled_peer(None);
+                ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+            } else if let Some(my) = ctx.my_id.get_untracked() {
+                // If we're the controlled party (i.e. `peer_id` identifies us
+                // and the controller stopped the session), clear the banner
+                // and notify us too. Also covers server-side rejections of
+                // grants (e.g. target already controlled by another peer)
+                // where we optimistically set `controlling_peer` on grant.
+                if my == peer_id && my != sender_id {
+                    ctx.remote_control.set_controlling_peer(None);
+                    ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+                }
+            }
+        }
+        ServerMessage::RemoteControlAction { .. } => {
+            // In a real app we'd simulate the event locally if we are the target
+            // web_sys doesn't allow easy event injection for security, so this is mostly protocol-level here
         }
         ServerMessage::PollsList(list) => {
             ctx.set_polls.set(list);

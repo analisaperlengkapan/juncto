@@ -1,6 +1,7 @@
 use super::breakout;
 use super::chat;
 use super::moderation;
+use super::remote_control;
 use super::polls;
 use super::whiteboard;
 use crate::AppState;
@@ -77,6 +78,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Rate limiting for analytics events: max 10 events per second per connection
     let mut analytics_count: u32 = 0;
     let mut analytics_window_start = std::time::Instant::now();
+    // Separate rate limiter for high-frequency `RemoteControlAction`
+    // messages (max 30/sec) so an active session does not starve other
+    // analytics-class messages (UpdatePowerStatus, ToggleLocalRecording,
+    // AnalyticsEvent) sharing the analytics counter.
+    let mut rc_count: u32 = 0;
+    let mut rc_window_start = std::time::Instant::now();
+    // Dedicated rate limiter for `FaceExpression` messages (max 10/sec)
+    // so they don't share a budget with UpdatePowerStatus / ToggleLocalRecording
+    // / AnalyticsEvent. If the mock detection frequency is ever increased,
+    // this prevents face expressions from starving toast-bearing messages
+    // like ToggleLocalRecording.
+    let mut face_count: u32 = 0;
+    let mut face_window_start = std::time::Instant::now();
     // Track the last recording state sent by this client to prevent
     // redundant broadcasts (and toast spam) from repeated identical
     // ToggleLocalRecording messages.
@@ -143,12 +157,47 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
                                                 locations.remove(&target_id);
                                             }
+                                            // 3b. Clean up any remote-control sessions and pending
+                                            // requests involving the kicked participant so stale
+                                            // entries do not authorize future actions across rooms
+                                            // (e.g. on UUID collision) and so leaked sessions don't
+                                            // accumulate.
+                                            {
+                                                let mut sessions = state.remote_control_sessions.lock().unwrap();
+                                                sessions.remove(&target_id);
+                                                sessions.retain(|_, controlled| controlled != &target_id);
+                                            }
+                                            {
+                                                let mut pending = state.pending_remote_control_requests.lock().unwrap();
+                                                pending.retain(|(req, tgt)| req != &target_id && tgt != &target_id);
+                                            }
                                             // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked { target_id: target_id.clone(), room_id: target_loc.clone() });
 
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
+                                    }
+                                },
+                                ClientMessage::FaceExpression(expression) => {
+                                    if let Some(uid) = &my_id {
+                                        // Rate limit with a dedicated counter (max 10/sec
+                                        // per connection) so face expressions do not share
+                                        // a budget with UpdatePowerStatus / ToggleLocalRecording
+                                        // / AnalyticsEvent.
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(face_window_start) >= std::time::Duration::from_secs(1) {
+                                            face_count = 0;
+                                            face_window_start = now;
+                                        }
+                                        face_count += 1;
+                                        if face_count > 10 {
+                                            continue;
+                                        }
+                                        let _ = tx.send(ServerMessage::FaceExpression {
+                                            sender_id: uid.clone(),
+                                            expression,
+                                        });
                                     }
                                 },
                                 ClientMessage::MuteCameraParticipant(target_id) => {
@@ -448,6 +497,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             {
                                                 let mut vid = state.shared_video_url.lock().unwrap();
                                                 *vid = None;
+                                            }
+                                            {
+                                                let mut rc = state.remote_control_sessions.lock().unwrap();
+                                                rc.clear();
+                                            }
+                                            {
+                                                let mut pending = state.pending_remote_control_requests.lock().unwrap();
+                                                pending.clear();
                                             }
                                         }
                                     }
@@ -759,6 +816,39 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         },
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
                                                             *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlRequest { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+                                                            // Deliver to the requester always so they see
+                                                            // grant/deny outcome. Also deliver to the
+                                                            // target on a successful grant so the
+                                                            // controlled-party banner can reactively
+                                                            // appear (and on a server-side rejection,
+                                                            // so the target's modal-dismissed state stays
+                                                            // consistent — we still skip in that case
+                                                            // since the target never had `controlling_peer`
+                                                            // set yet).
+                                                            *requester_id == my_id_clone
+                                                                || (*allowed && *target_id == my_id_clone)
+                                                        },
+                                                        ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+                                                            // Targeted delivery: the peer being controlled
+                                                            // and the controller both need to know the
+                                                            // session ended.
+                                                            *sender_id == my_id_clone || *peer_id == my_id_clone
+                                                        },
+                                                        ServerMessage::RemoteControlAction { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::FaceExpression { sender_id, .. } => {
+                                                            // Scope to the same breakout room as the sender,
+                                                            // consistent with PeerSpeaking / Transcription.
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(sender_id).cloned().flatten();
+                                                            my_loc == source_loc
                                                         },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1354,6 +1444,34 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             sdp_m_line_index,
                                         });
                                     }
+                                },
+                                ClientMessage::RequestRemoteControl(_)
+                                | ClientMessage::GrantRemoteControl(_)
+                                | ClientMessage::DenyRemoteControl(_)
+                                | ClientMessage::StopRemoteControl(_)
+                                | ClientMessage::RemoteControlAction { .. } => {
+                                    if let Some(uid) = &my_id {
+                                        // Rate limit RemoteControlAction (high-frequency,
+                                        // driven by mouse/keyboard events) to protect the
+                                        // broadcast channel even if the client throttle is
+                                        // bypassed. Lifecycle messages (request/grant/deny/
+                                        // stop) are infrequent and not rate-limited here.
+                                        if matches!(client_msg, ClientMessage::RemoteControlAction { .. }) {
+                                            let now = std::time::Instant::now();
+                                            if now.duration_since(rc_window_start) >= std::time::Duration::from_secs(1) {
+                                                rc_count = 0;
+                                                rc_window_start = now;
+                                            }
+                                            rc_count += 1;
+                                            if rc_count > 30 {
+                                                continue;
+                                            }
+                                        }
+                                        let msgs = remote_control::handle_remote_control(uid, client_msg, &state);
+                                        for m in msgs {
+                                            let _ = tx.send(m);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1516,6 +1634,29 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 },
                                                 ServerMessage::UnmuteRequested { target_id, .. } => {
                                                     *target_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlRequest { target_id, .. } => {
+                                                    *target_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+                                                    // Deliver to the requester always; also to the target
+                                                    // on a successful grant so their controlled-party
+                                                    // banner appears reactively. See the equivalent arm
+                                                    // in the direct-join broadcast filter for context.
+                                                    *requester_id == my_id_clone
+                                                        || (*allowed && *target_id == my_id_clone)
+                                                },
+                                                ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+                                                    *sender_id == my_id_clone || *peer_id == my_id_clone
+                                                },
+                                                ServerMessage::RemoteControlAction { target_id, .. } => {
+                                                    *target_id == my_id_clone
+                                                },
+                                                ServerMessage::FaceExpression { sender_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(sender_id).cloned().flatten();
+                                                    my_loc == source_loc
                                                 },
                                                 ServerMessage::Transcription { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();
@@ -1691,6 +1832,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         {
             let mut locations = participant_locations_mutex.lock().unwrap();
             locations.remove(&id);
+        }
+        // Clean up any remote-control sessions and pending requests
+        // involving the disconnecting participant. Without this, sessions
+        // leak across reconnections and could authorize a future client
+        // (in the unlikely event of a UUID collision) to inject actions.
+        {
+            let mut sessions = state.remote_control_sessions.lock().unwrap();
+            sessions.remove(&id);
+            sessions.retain(|_, controlled| controlled != &id);
+        }
+        {
+            let mut pending = state.pending_remote_control_requests.lock().unwrap();
+            pending.retain(|(req, tgt)| req != &id && tgt != &id);
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking

@@ -28,6 +28,7 @@ use wasm_bindgen::JsCast;
 
 use crate::power_monitor::PowerMonitor;
 use crate::deeplink::DeepLinking;
+use crate::remote_control::RemoteControlLayer;
 
 #[component]
 pub fn Room() -> impl IntoView {
@@ -128,6 +129,7 @@ pub fn Room() -> impl IntoView {
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
                     <div class="room-container" style="display: flex; height: 100vh;">
+                        <RemoteControlLayer />
                         <PowerMonitor on_update=state.update_power_status />
                         <DeepLinking />
                         <ScreenshotCapture />
@@ -402,6 +404,10 @@ pub fn Room() -> impl IntoView {
                                     on_request_unmute=state.request_unmute
                                     on_broadcast_lobby=state.broadcast_to_lobby
                                     on_promote=state.promote_visitor
+                                    on_request_remote_control=Callback::new({
+                                        let state = state.clone();
+                                        move |id| state.remote_control.request_control(id)
+                                    })
                                 />
                             </div>
                         </div>
@@ -433,6 +439,7 @@ pub fn Room() -> impl IntoView {
                                     }
                                 }
                             })
+                            is_face_landmarks_enabled=state.is_face_landmarks_enabled
                             on_toggle_lock=state.toggle_lock
                             on_toggle_e2ee=state.toggle_e2ee
                             on_toggle_participant_e2ee=state.toggle_participant_e2ee

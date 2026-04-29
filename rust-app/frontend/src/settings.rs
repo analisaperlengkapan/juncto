@@ -22,6 +22,7 @@ pub fn SettingsDialog(
     #[prop(optional)] is_e2ee_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_participant_e2ee_enabled: Option<Signal<bool>>,
+    #[prop(optional)] is_face_landmarks_enabled: Option<RwSignal<bool>>,
     #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_participant_e2ee: Option<Callback<bool>>,
@@ -193,6 +194,12 @@ pub fn SettingsDialog(
                         >
                             {move || t("integrations")}
                         </button>
+                        <button
+                            on:click=move |_| set_active_tab.set("more")
+                            style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "more" { "#007bff" } else { "transparent" })
+                        >
+                            "More"
+                        </button>
                         <Show when=move || is_host.map(|h| h.get()).unwrap_or(false)>
                             <button
                                 on:click=move |_| set_active_tab.set("moderator")
@@ -358,6 +365,23 @@ pub fn SettingsDialog(
                                 >
                                     {move || t("apply_devices")}
                                 </button>
+                            </div>
+                        </Show>
+                        <Show when=move || active_tab.get() == "more">
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        prop:checked=move || is_face_landmarks_enabled.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |ev| {
+                                            if let Some(sig) = is_face_landmarks_enabled {
+                                                sig.set(event_target_checked(&ev));
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Enable Face Landmarks (Expressions)"
+                                </label>
                             </div>
                         </Show>
                         <Show when=move || active_tab.get() == "integrations">

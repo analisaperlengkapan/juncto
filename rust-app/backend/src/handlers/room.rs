@@ -54,6 +54,14 @@ pub async fn create_room(
         let mut s = state.speaking_start_times.lock().unwrap();
         s.clear();
     }
+    {
+        let mut rc = state.remote_control_sessions.lock().unwrap();
+        rc.clear();
+    }
+    {
+        let mut pending = state.pending_remote_control_requests.lock().unwrap();
+        pending.clear();
+    }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
@@ -96,6 +104,8 @@ mod tests {
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
             speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             feedback: Arc::new(std::sync::Mutex::new(Vec::new())),
+            remote_control_sessions: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            pending_remote_control_requests: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         });
 
         let config = RoomConfig {

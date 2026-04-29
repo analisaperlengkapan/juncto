@@ -4,6 +4,8 @@ mod giphy;
 mod components_ui;
 mod connection_stats;
 mod deeplink;
+mod face_landmarks;
+mod remote_control;
 mod i18n;
 mod media;
 mod media_recorder;

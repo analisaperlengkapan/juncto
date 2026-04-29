@@ -1,4 +1,6 @@
 use crate::analytics::{provide_analytics_context, use_analytics, AnalyticsService};
+use crate::face_landmarks::{provide_face_landmarks_context, use_face_landmarks, FaceLandmarksService};
+use crate::remote_control::{provide_remote_control_context, use_remote_control, RemoteControlService};
 use crate::state_handlers::{handle_server_message, HandlerContext};
 use crate::storage::{load_settings, update_setting};
 use crate::components_ui::toast::{use_toast, ToastType};
@@ -93,6 +95,8 @@ pub struct RoomState {
     pub is_recording_locally: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
     pub dominant_speaker: ReadSignal<Option<String>>,
+    pub _last_face_expression: ReadSignal<Option<(String, String, u64)>>,
+    pub is_face_landmarks_enabled: RwSignal<bool>,
     // Setters or Actions
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
@@ -152,6 +156,8 @@ pub struct RoomState {
     pub promote_visitor: Callback<String>,
     #[allow(dead_code)]
     pub analytics: AnalyticsService,
+    pub _face_landmarks: FaceLandmarksService,
+    pub remote_control: RemoteControlService,
 }
 
 pub fn use_room_state() -> RoomState {
@@ -170,6 +176,7 @@ pub fn use_room_state() -> RoomState {
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
     let (is_e2ee_enabled, set_is_e2ee_enabled) = create_signal(false);
+    let (_e2ee_key, set_e2ee_key) = create_signal(None::<String>);
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
     let (is_recording, set_is_recording) = create_signal(false);
     let (is_subtitles_enabled, set_is_subtitles_enabled) = create_signal(false);
@@ -211,6 +218,8 @@ pub fn use_room_state() -> RoomState {
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
     let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
     let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
+    let (_last_face_expression, set_face_expression) = create_signal(None::<(String, String, u64)>);
+    let is_face_landmarks_enabled = create_rw_signal(false);
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -379,6 +388,21 @@ pub fn use_room_state() -> RoomState {
     // Provide Analytics context
     provide_analytics_context(Callback::new(send_signal_cb));
     let analytics = use_analytics();
+    provide_face_landmarks_context(Callback::new(send_signal_cb));
+    let face_landmarks = use_face_landmarks();
+    provide_remote_control_context(Callback::new(send_signal_cb));
+    let remote_control = use_remote_control();
+
+    create_effect({
+        let face_landmarks = face_landmarks.clone();
+        move |_| {
+            if is_face_landmarks_enabled.get() {
+                face_landmarks.start();
+            } else {
+                face_landmarks.stop();
+            }
+        }
+    });
 
     let on_track_cb_clone = set_remote_streams;
     let on_track_cb = move |peer_id: String, stream: MediaStream| {
@@ -701,143 +725,130 @@ pub fn use_room_state() -> RoomState {
     });
 
     // Initialize WebSocket
-    let webrtc_manager_for_ws = webrtc_manager.clone();
-    let analytics_for_ws = analytics.clone();
-    let local_recorder_for_ws = local_recorder.clone();
-    let pending_recorders_for_ws = pending_recorders.clone();
-    let recording_stream_id_for_ws = recording_stream_id.clone();
-    create_effect(move |_| {
-        let analytics = analytics_for_ws.clone();
-        let local_recorder_for_cleanup = local_recorder_for_ws.clone();
-        let pending_recorders_for_cleanup = pending_recorders_for_ws.clone();
-        let recording_stream_id_for_cleanup = recording_stream_id_for_ws.clone();
-        let set_messages = set_messages;
-        let set_participants = set_participants;
-        let set_typing_users = set_typing_users;
-        let set_speaking_peers = set_speaking_peers;
-        let set_knocking_participants = set_knocking_participants;
-        let set_polls = set_polls;
-        let set_whiteboard_history = set_whiteboard_history;
-        let set_subtitles = set_subtitles;
-        let set_rtt = set_rtt;
+    create_effect({
+        let analytics_for_ws = analytics.clone();
+        let local_recorder_for_cleanup = local_recorder.clone();
+        let pending_recorders_for_cleanup = pending_recorders.clone();
+        let recording_stream_id_for_cleanup = recording_stream_id.clone();
+        let webrtc_manager_for_ws = webrtc_manager.clone();
+        let remote_control = remote_control.clone();
+        move |_| {
+            let analytics = analytics_for_ws.clone();
+            let remote_control_for_effect = remote_control.clone();
+            let local_recorder_for_cleanup = local_recorder_for_cleanup.clone();
+            let pending_recorders_for_cleanup = pending_recorders_for_cleanup.clone();
+            let recording_stream_id_for_cleanup = recording_stream_id_for_cleanup.clone();
+            set_my_id.set(None);
+            set_room_config.set(shared::RoomConfig::default());
 
-        // Ensure my_id is reset on new connection logic if needed, but here we just connect.
-        // Actually, if we reconnect, we might get a new ID.
-        set_my_id.set(None);
-        // Default config has host_id = None.
-        set_room_config.set(shared::RoomConfig::default());
+            let location = web_sys::window().unwrap().location();
+            let protocol = if location.protocol().unwrap() == "https:" {
+                "wss:"
+            } else {
+                "ws:"
+            };
+            let host = location.host().unwrap();
+            let url = format!("{}//{}/ws/chat", protocol, host);
 
-        // Reset host signal to false until we get new data
-        // Derived signal updates automatically based on deps.
-
-        let location = web_sys::window().unwrap().location();
-        let protocol = if location.protocol().unwrap() == "https:" {
-            "wss:"
-        } else {
-            "ws:"
-        };
-        let host = location.host().unwrap();
-        let url = format!("{}//{}/ws/chat", protocol, host);
-
-        if let Ok(socket) = WebSocket::new(&url) {
-            // Handle incoming messages
-            let webrtc_manager = webrtc_manager_for_ws.clone();
-            let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
-                if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-                    let txt: String = txt.into();
-                    if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
-                        let ctx = HandlerContext {
-                            set_my_id,
-                            set_current_state,
-                            analytics: analytics.clone(),
-                            start_media_on_join,
-                            initial_cam_on,
-                            start_media_stream,
-                            set_start_media_on_join,
-                            is_muted,
-                            ws,
-                            local_stream,
-                            raw_local_stream,
-                            add_toast: Callback::new(move |(msg, t)| add_toast(msg, t)),
-                            set_is_camera_off,
-                            room_config,
-                            set_show_etherpad,
-                            set_is_locked,
-                            set_is_e2ee_enabled,
-                            is_recording,
-                            set_is_recording,
-                            set_is_lobby_enabled,
-                            is_subtitles_enabled,
-                            set_is_subtitles_enabled,
-                            set_subtitles,
-                            set_room_config,
-                            current_room_id,
-                            set_messages,
-                            set_is_connected,
-                            set_knocking_participants,
-                            set_participants,
-                            my_id,
-                            webrtc_manager: webrtc_manager.clone(),
-                            set_typing_users,
-                            set_speaking_peers,
-                            set_power_statuses,
-                            set_remote_streams,
-                            is_recording_locally,
-                            local_recorder: local_recorder_for_cleanup.clone(),
-                            pending_recorders: pending_recorders_for_cleanup.clone(),
-                            recording_stream_id: recording_stream_id_for_cleanup.clone(),
-                            set_is_recording_locally,
-                            set_is_muted,
-                            set_audio_monitor,
-                            participants,
-                            set_last_reaction,
-                            set_breakout_rooms,
-                            set_polls,
-                            set_grid_layout_sig,
-                            set_whiteboard_history,
-                            set_last_draw_action,
-                            set_shared_video_url,
-                            last_ping_time,
-                            set_rtt,
-                            set_is_authenticated,
-                            set_show_login_dialog,
-                            set_auth_error,
-                            set_calendar_events,
-                            set_lobby_announcement,
-                        };
-                        handle_server_message(server_msg, &ctx);
+            if let Ok(socket) = WebSocket::new(&url) {
+                let webrtc_manager = webrtc_manager_for_ws.clone();
+                let remote_control_clone = remote_control_for_effect.clone();
+                let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
+                    if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
+                        let txt: String = txt.into();
+                        if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&txt) {
+                            let ctx = HandlerContext {
+                                set_my_id,
+                                set_current_state,
+                                analytics: analytics.clone(),
+                                start_media_on_join,
+                                initial_cam_on,
+                                start_media_stream,
+                                set_start_media_on_join,
+                                is_muted,
+                                ws,
+                                local_stream,
+                                raw_local_stream,
+                                add_toast: Callback::new(move |(msg, t)| add_toast(msg, t)),
+                                set_is_camera_off,
+                                room_config,
+                                set_show_etherpad,
+                                set_is_locked,
+                                set_is_e2ee_enabled,
+                                is_recording,
+                                set_is_recording,
+                                set_is_lobby_enabled,
+                                is_subtitles_enabled,
+                                set_is_subtitles_enabled,
+                                set_subtitles,
+                                set_room_config,
+                                current_room_id,
+                                set_messages,
+                                set_is_connected,
+                                set_knocking_participants,
+                                set_participants,
+                                my_id,
+                                webrtc_manager: webrtc_manager.clone(),
+                                set_typing_users,
+                                set_speaking_peers,
+                                set_power_statuses,
+                                set_remote_streams,
+                                is_recording_locally,
+                                local_recorder: local_recorder_for_cleanup.clone(),
+                                pending_recorders: pending_recorders_for_cleanup.clone(),
+                                recording_stream_id: recording_stream_id_for_cleanup.clone(),
+                                set_is_recording_locally,
+                                set_is_muted,
+                                set_audio_monitor,
+                                participants,
+                                set_last_reaction,
+                                set_breakout_rooms,
+                                set_polls,
+                                set_grid_layout_sig,
+                                set_whiteboard_history,
+                                set_last_draw_action,
+                                set_shared_video_url,
+                                last_ping_time,
+                                set_rtt,
+                                set_is_authenticated,
+                                set_show_login_dialog,
+                                set_auth_error,
+                                set_calendar_events,
+                                set_lobby_announcement,
+                                set_face_expression,
+                                remote_control: remote_control_clone.clone(),
+                            };
+                            handle_server_message(server_msg, &ctx);
+                        }
                     }
-                }
-            });
-            socket.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
+                });
+                socket.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+                onmessage_callback.forget();
 
-            // Handle connection open
-            let onopen_callback = Closure::<dyn FnMut()>::new(move || {
-                set_is_connected.set(true);
-            });
-            socket.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-            onopen_callback.forget();
+                let onopen_callback = Closure::<dyn FnMut()>::new(move || {
+                    set_is_connected.set(true);
+                });
+                socket.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
+                onopen_callback.forget();
 
-            // Handle connection close
-            let onclose_callback = Closure::<dyn FnMut()>::new(move || {
-                set_is_connected.set(false);
-            });
-            socket.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
-            onclose_callback.forget();
+                let onclose_callback = Closure::<dyn FnMut()>::new(move || {
+                    set_is_connected.set(false);
+                });
+                socket.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+                onclose_callback.forget();
 
-            // Handle error
-            let onerror_callback = Closure::<dyn FnMut()>::new(move || {
-                set_is_connected.set(false);
-            });
-            socket.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
-            onerror_callback.forget();
+                let onerror_callback = Closure::<dyn FnMut()>::new(move || {
+                    set_is_connected.set(false);
+                });
+                socket.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
+                onerror_callback.forget();
 
-            set_ws.set(Some(socket));
+                set_ws.set(Some(socket));
+            }
         }
     });
-
     let webrtc_manager_cleanup = webrtc_manager.clone();
+    let _remote_control_cleanup = remote_control.clone();
     on_cleanup(move || {
         if let Some(socket) = ws.get() {
             let _ = socket.close();
@@ -886,11 +897,22 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let toggle_participant_e2ee = Callback::new(move |enabled: bool| {
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::UpdateE2EE(enabled);
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
+    let toggle_participant_e2ee = Callback::new({
+        let analytics = analytics.clone();
+        move |enabled: bool| {
+            analytics.track_interaction(if enabled { "enable_e2ee" } else { "disable_e2ee" });
+            if enabled {
+                // Generate a mock key for this participant
+                set_e2ee_key.set(Some(js_sys::Math::random().to_string()));
+            } else {
+                set_e2ee_key.set(None);
+            }
+
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::UpdateE2EE(enabled);
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
             }
         }
     });
@@ -1595,6 +1617,8 @@ pub fn use_room_state() -> RoomState {
         is_recording_locally,
         lobby_announcement,
         dominant_speaker,
+        _last_face_expression,
+        is_face_landmarks_enabled,
         set_input_devices,
         set_background_mode,
         set_grid_layout,
@@ -1652,6 +1676,8 @@ pub fn use_room_state() -> RoomState {
         broadcast_to_lobby,
         promote_visitor,
         analytics,
+        _face_landmarks: face_landmarks,
+        remote_control,
     }
 }
 

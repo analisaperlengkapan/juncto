@@ -65,7 +65,13 @@ test.describe('Moderation Controls', () => {
     const muteBtn = userBRow.getByRole('button', { name: 'Mute', exact: true });
     await expect(muteBtn).toBeVisible();
 
-    // 3. Host mutes User B
+    // 3. Host mutes User B. Scroll the button into view first so Playwright's
+    // actionability checks pass — the new "RC" button added in
+    // `rust-app/frontend/src/participants.rs` can push the Mute button
+    // outside the viewport in narrow test windows. Using a real `click()`
+    // (rather than `dispatchEvent('click')`) keeps the visibility/stability
+    // checks active so genuine UI regressions still fail this test.
+    await muteBtn.scrollIntoViewIfNeeded();
     await muteBtn.click();
 
     // 4. Verify User B is muted
