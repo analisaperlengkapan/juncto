@@ -121,6 +121,15 @@ pub fn handle_remote_control(
             if !authorized {
                 return vec![];
             }
+            // Enforce same-room scoping: if the controller or controlled has
+            // moved to a different breakout room since the session was granted,
+            // drop the action rather than forward it across rooms. The session
+            // entry is preserved so it resumes if both parties return to the
+            // same room; callers can also explicitly `StopRemoteControl` to
+            // tear it down.
+            if !same_room(state, uid, &target_id) {
+                return vec![];
+            }
             vec![ServerMessage::RemoteControlAction {
                 requester_id: uid.to_string(),
                 target_id,
