@@ -133,10 +133,20 @@ pub fn RemoteControlLayer() -> impl IntoView {
         }
     });
 
+    // Pre-clone `rc` for each `<Show>`. The `view!` macro wraps each Show's
+    // children block in a `move` closure, which would otherwise capture the
+    // outer `rc` by move on the first Show and leave subsequent Shows
+    // referring to a moved value.
+    let rc_pending_when = rc.clone();
+    let rc_pending_children = rc.clone();
+    let rc_controlling_when = rc.clone();
+    let rc_controlling_children = rc.clone();
+    let rc_controlled_when = rc.clone();
+    let rc_controlled_children = rc.clone();
     view! {
-        <Show when={let rc = rc.clone(); move || rc.pending_incoming_request.get().is_some()}>
+        <Show when=move || rc_pending_when.pending_incoming_request.get().is_some()>
             {
-                let rc = rc.clone();
+                let rc = rc_pending_children.clone();
                 let rc_for_name = rc.clone();
                 let rc_allow = rc.clone();
                 let rc_deny = rc.clone();
@@ -173,9 +183,9 @@ pub fn RemoteControlLayer() -> impl IntoView {
                 }
             }
         </Show>
-        <Show when={let rc = rc.clone(); move || rc.controlling_peer.get().is_some()}>
+        <Show when=move || rc_controlling_when.controlling_peer.get().is_some()>
             {
-                let rc_stop = rc.clone();
+                let rc_stop = rc_controlling_children.clone();
                 view! {
                     // Non-modal banner shown to the controlled party so they
                     // know remote input is being injected and can stop the
@@ -194,7 +204,10 @@ pub fn RemoteControlLayer() -> impl IntoView {
                 }
             }
         </Show>
-        <Show when={let rc = rc.clone(); move || rc.controlled_peer.get().is_some()}>
+        <Show when=move || rc_controlled_when.controlled_peer.get().is_some()>
+            {
+            let rc = rc_controlled_children.clone();
+            view! {
             <div
                 node_ref=overlay_ref
                 style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; cursor: crosshair; background: rgba(0,0,0,0.1);"
@@ -272,6 +285,8 @@ pub fn RemoteControlLayer() -> impl IntoView {
                     </button>
                 </div>
             </div>
+            }
+            }
         </Show>
     }
 }
