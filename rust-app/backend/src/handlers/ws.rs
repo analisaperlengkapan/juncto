@@ -775,12 +775,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         ServerMessage::RemoteControlAllowed { requester_id, .. } => {
                                                             *requester_id == my_id_clone
                                                         },
-                                                        ServerMessage::RemoteControlStopped { .. } => {
-                                                            true // Broadcast to all in room? Or target?
-                                                            // For now broadcast all, client filters
+                                                        ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+                                                            // Targeted delivery: the peer being controlled
+                                                            // and the controller both need to know the
+                                                            // session ended.
+                                                            *sender_id == my_id_clone || *peer_id == my_id_clone
                                                         },
                                                         ServerMessage::RemoteControlAction { target_id, .. } => {
                                                             *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::FaceExpression { sender_id, .. } => {
+                                                            // Scope to the same breakout room as the sender,
+                                                            // consistent with PeerSpeaking / Transcription.
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(sender_id).cloned().flatten();
+                                                            my_loc == source_loc
                                                         },
                                                         ServerMessage::Transcription { user_id, .. } => {
                                                             let locs = locations_clone.lock().unwrap();
@@ -1557,11 +1567,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 ServerMessage::RemoteControlAllowed { requester_id, .. } => {
                                                     *requester_id == my_id_clone
                                                 },
-                                                ServerMessage::RemoteControlStopped { .. } => {
-                                                    true
+                                                ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+                                                    *sender_id == my_id_clone || *peer_id == my_id_clone
                                                 },
                                                 ServerMessage::RemoteControlAction { target_id, .. } => {
                                                     *target_id == my_id_clone
+                                                },
+                                                ServerMessage::FaceExpression { sender_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(sender_id).cloned().flatten();
+                                                    my_loc == source_loc
                                                 },
                                                 ServerMessage::Transcription { user_id, .. } => {
                                                     let locs = locations_clone.lock().unwrap();

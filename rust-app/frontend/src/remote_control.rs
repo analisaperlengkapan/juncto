@@ -1,5 +1,14 @@
 use leptos::*;
 use shared::{ClientMessage, RemoteControlAction};
+use std::cell::Cell;
+use std::rc::Rc;
+
+/// Minimum interval (in milliseconds) between successive `MouseMove`
+/// `RemoteControlAction` messages. mousemove events typically fire at
+/// ~60Hz, which would overwhelm the server's broadcast channel
+/// (capacity 100). Throttling to ~20Hz keeps the protocol responsive
+/// while preventing `RecvError::Lagged` for other subscribers.
+const MOUSE_MOVE_THROTTLE_MS: f64 = 50.0;
 
 #[derive(Clone)]
 pub struct RemoteControlService {
@@ -51,17 +60,28 @@ pub fn use_remote_control() -> RemoteControlService {
 #[component]
 pub fn RemoteControlLayer() -> impl IntoView {
     let rc = use_remote_control();
+    // Tracks the timestamp (ms) of the last sent MouseMove for throttling.
+    let last_mousemove_ms: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
 
     view! {
         <Show when={let rc = rc.clone(); move || rc.controlled_peer.get().is_some()}>
             <div
                 style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; cursor: crosshair; background: rgba(0,0,0,0.1);"
-                on:mousemove={let rc = rc.clone(); move |ev: web_sys::MouseEvent| {
-                    rc.send_action(RemoteControlAction::MouseMove {
-                        x: ev.client_x() as f64,
-                        y: ev.client_y() as f64,
-                    });
-                }}
+                on:mousemove={
+                    let rc = rc.clone();
+                    let last = last_mousemove_ms.clone();
+                    move |ev: web_sys::MouseEvent| {
+                        let now = js_sys::Date::now();
+                        if now - last.get() < MOUSE_MOVE_THROTTLE_MS {
+                            return;
+                        }
+                        last.set(now);
+                        rc.send_action(RemoteControlAction::MouseMove {
+                            x: ev.client_x() as f64,
+                            y: ev.client_y() as f64,
+                        });
+                    }
+                }
                 on:mousedown={let rc = rc.clone(); move |ev: web_sys::MouseEvent| {
                     rc.send_action(RemoteControlAction::MouseDown {
                         button: ev.button() as u8,

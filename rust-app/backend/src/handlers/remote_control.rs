@@ -24,9 +24,10 @@ pub fn handle_remote_control(uid: &str, msg: ClientMessage, _state: &Arc<AppStat
                 allowed: false,
             }]
         }
-        ClientMessage::StopRemoteControl(_peer_id) => {
+        ClientMessage::StopRemoteControl(peer_id) => {
             vec![ServerMessage::RemoteControlStopped {
                 sender_id: uid.to_string(),
+                peer_id,
             }]
         }
         ClientMessage::RemoteControlAction { target_id, action } => {

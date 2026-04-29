@@ -423,7 +423,7 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             }
         }
-        ServerMessage::RemoteControlStopped { sender_id } => {
+        ServerMessage::RemoteControlStopped { sender_id, .. } => {
             if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id) {
                 ctx.remote_control.set_controlled_peer(None);
                 ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));

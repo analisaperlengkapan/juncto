@@ -350,6 +350,11 @@ pub enum ServerMessage {
     },
     RemoteControlStopped {
         sender_id: String,
+        /// The peer on the other side of the session (controller if
+        /// `sender_id` is the controlled, or controlled if `sender_id`
+        /// is the controller). Used by the broadcast filter to deliver
+        /// this message only to the two participants involved.
+        peer_id: String,
     },
     RemoteControlAction {
         requester_id: String,
