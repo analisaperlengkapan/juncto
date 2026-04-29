@@ -409,27 +409,36 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     let parts = ctx.participants.get_untracked();
                     let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id.clone());
 
-                    // Require explicit user consent before granting remote
-                    // control. Falls back to deny if no window is available
-                    // or the user dismisses the prompt.
-                    let granted = web_sys::window()
-                        .and_then(|w| {
-                            w.confirm_with_message(&format!(
-                                "{} is requesting remote control of your session. Allow?",
-                                name
-                            ))
-                            .ok()
-                        })
-                        .unwrap_or(false);
+                    // Defer the synchronous `window.confirm()` to the next
+                    // tick so it does not block the WebSocket `onmessage`
+                    // callback. Blocking here would freeze all real-time
+                    // communication (chat, signaling, heartbeats) while the
+                    // dialog is open and queue up incoming messages.
+                    let add_toast = ctx.add_toast;
+                    let send_signal = ctx.remote_control.send_signal;
+                    set_timeout(
+                        move || {
+                            let granted = web_sys::window()
+                                .and_then(|w| {
+                                    w.confirm_with_message(&format!(
+                                        "{} is requesting remote control of your session. Allow?",
+                                        name
+                                    ))
+                                    .ok()
+                                })
+                                .unwrap_or(false);
 
-                    let msg = if granted {
-                        ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Info));
-                        ClientMessage::GrantRemoteControl(requester_id)
-                    } else {
-                        ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Info));
-                        ClientMessage::DenyRemoteControl(requester_id)
-                    };
-                    ctx.remote_control.send_signal.call(msg);
+                            let msg = if granted {
+                                add_toast.call(("Remote control granted".to_string(), ToastType::Info));
+                                ClientMessage::GrantRemoteControl(requester_id)
+                            } else {
+                                add_toast.call(("Remote control denied".to_string(), ToastType::Info));
+                                ClientMessage::DenyRemoteControl(requester_id)
+                            };
+                            send_signal.call(msg);
+                        },
+                        std::time::Duration::from_millis(0),
+                    );
                 }
             }
         }
