@@ -59,17 +59,32 @@ pub fn handle_remote_control(
             if !was_pending || !same_room(state, uid, &requester_id) {
                 return vec![];
             }
-            // Record the active session: requester controls `uid`.
-            state
+            // Record the active session: requester controls `uid`. If the
+            // requester already had an active session controlling a different
+            // peer, tear it down explicitly and notify both parties via a
+            // `RemoteControlStopped` message so the previously-controlled peer
+            // (and the controller's overlay state on other clients) does not
+            // think the old session is still active.
+            let previous_controlled = state
                 .remote_control_sessions
                 .lock()
                 .unwrap()
                 .insert(requester_id.clone(), uid.to_string());
-            vec![ServerMessage::RemoteControlAllowed {
+            let mut out = Vec::with_capacity(2);
+            if let Some(prev) = previous_controlled {
+                if prev != uid {
+                    out.push(ServerMessage::RemoteControlStopped {
+                        sender_id: requester_id.clone(),
+                        peer_id: prev,
+                    });
+                }
+            }
+            out.push(ServerMessage::RemoteControlAllowed {
                 requester_id,
                 target_id: uid.to_string(),
                 allowed: true,
-            }]
+            });
+            out
         }
         ClientMessage::DenyRemoteControl(requester_id) => {
             // Only respond if there is a matching pending request, and only
