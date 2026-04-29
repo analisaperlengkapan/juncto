@@ -78,6 +78,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Rate limiting for analytics events: max 10 events per second per connection
     let mut analytics_count: u32 = 0;
     let mut analytics_window_start = std::time::Instant::now();
+    // Separate rate limiter for high-frequency `RemoteControlAction`
+    // messages (max 30/sec) so an active session does not starve other
+    // analytics-class messages (FaceExpression, UpdatePowerStatus,
+    // ToggleLocalRecording, AnalyticsEvent) sharing the analytics counter.
+    let mut rc_count: u32 = 0;
+    let mut rc_window_start = std::time::Instant::now();
     // Track the last recording state sent by this client to prevent
     // redundant broadcasts (and toast spam) from repeated identical
     // ToggleLocalRecording messages.
@@ -143,6 +149,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             {
                                                 let mut locations = participant_locations_mutex.lock().unwrap();
                                                 locations.remove(&target_id);
+                                            }
+                                            // 3b. Clean up any remote-control sessions and pending
+                                            // requests involving the kicked participant so stale
+                                            // entries do not authorize future actions across rooms
+                                            // (e.g. on UUID collision) and so leaked sessions don't
+                                            // accumulate.
+                                            {
+                                                let mut sessions = state.remote_control_sessions.lock().unwrap();
+                                                sessions.remove(&target_id);
+                                                sessions.retain(|_, controlled| controlled != &target_id);
+                                            }
+                                            {
+                                                let mut pending = state.pending_remote_control_requests.lock().unwrap();
+                                                pending.retain(|(req, tgt)| req != &target_id && tgt != &target_id);
                                             }
                                             // 4. Broadcast Kicked
                                             let _ = tx.send(ServerMessage::Kicked { target_id: target_id.clone(), room_id: target_loc.clone() });
@@ -468,6 +488,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             {
                                                 let mut vid = state.shared_video_url.lock().unwrap();
                                                 *vid = None;
+                                            }
+                                            {
+                                                let mut rc = state.remote_control_sessions.lock().unwrap();
+                                                rc.clear();
+                                            }
+                                            {
+                                                let mut pending = state.pending_remote_control_requests.lock().unwrap();
+                                                pending.clear();
                                             }
                                         }
                                     }
@@ -1411,12 +1439,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         // stop) are infrequent and not rate-limited here.
                                         if matches!(client_msg, ClientMessage::RemoteControlAction { .. }) {
                                             let now = std::time::Instant::now();
-                                            if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
-                                                analytics_count = 0;
-                                                analytics_window_start = now;
+                                            if now.duration_since(rc_window_start) >= std::time::Duration::from_secs(1) {
+                                                rc_count = 0;
+                                                rc_window_start = now;
                                             }
-                                            analytics_count += 1;
-                                            if analytics_count > 30 {
+                                            rc_count += 1;
+                                            if rc_count > 30 {
                                                 continue;
                                             }
                                         }
@@ -1780,6 +1808,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         {
             let mut locations = participant_locations_mutex.lock().unwrap();
             locations.remove(&id);
+        }
+        // Clean up any remote-control sessions and pending requests
+        // involving the disconnecting participant. Without this, sessions
+        // leak across reconnections and could authorize a future client
+        // (in the unlikely event of a UUID collision) to inject actions.
+        {
+            let mut sessions = state.remote_control_sessions.lock().unwrap();
+            sessions.remove(&id);
+            sessions.retain(|_, controlled| controlled != &id);
+        }
+        {
+            let mut pending = state.pending_remote_control_requests.lock().unwrap();
+            pending.retain(|(req, tgt)| req != &id && tgt != &id);
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking

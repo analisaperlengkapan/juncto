@@ -216,6 +216,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_power_statuses.update(|map| {
                 map.remove(&id);
             });
+            // If we were remote-controlling this peer, clear the overlay so
+            // we don't keep capturing input for a peer that no longer exists.
+            if ctx.remote_control.controlled_peer.get_untracked().as_deref() == Some(&id) {
+                ctx.remote_control.set_controlled_peer(None);
+                ctx.add_toast.call((
+                    "Remote control session ended (peer disconnected)".to_string(),
+                    ToastType::Info,
+                ));
+            }
             ctx.webrtc_manager.handle_participant_left(&id);
             ctx.set_remote_streams.update(|map| {
                 map.remove(&id);

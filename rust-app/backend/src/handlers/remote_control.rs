@@ -28,13 +28,29 @@ pub fn handle_remote_control(
             if uid == target_id || !same_room(state, uid, &target_id) {
                 return vec![];
             }
+            // Record the pending request so a subsequent `GrantRemoteControl`
+            // from `target_id` can be authorized. Without this, any client
+            // could fabricate a grant naming any `requester_id` and force
+            // the overlay onto an unconsenting peer.
+            state
+                .pending_remote_control_requests
+                .lock()
+                .unwrap()
+                .insert((uid.to_string(), target_id.clone()));
             vec![ServerMessage::RemoteControlRequest {
                 requester_id: uid.to_string(),
                 target_id,
             }]
         }
         ClientMessage::GrantRemoteControl(requester_id) => {
-            if !same_room(state, uid, &requester_id) {
+            // Authorize: a matching `RequestRemoteControl` must have been
+            // issued by `requester_id` targeting `uid`.
+            let was_pending = state
+                .pending_remote_control_requests
+                .lock()
+                .unwrap()
+                .remove(&(requester_id.clone(), uid.to_string()));
+            if !was_pending || !same_room(state, uid, &requester_id) {
                 return vec![];
             }
             // Record the active session: requester controls `uid`.
@@ -50,6 +66,17 @@ pub fn handle_remote_control(
             }]
         }
         ClientMessage::DenyRemoteControl(requester_id) => {
+            // Only respond if there is a matching pending request, and only
+            // remove that pending entry so unrelated participants cannot
+            // emit spurious "denied" toasts.
+            let was_pending = state
+                .pending_remote_control_requests
+                .lock()
+                .unwrap()
+                .remove(&(requester_id.clone(), uid.to_string()));
+            if !was_pending {
+                return vec![];
+            }
             vec![ServerMessage::RemoteControlAllowed {
                 requester_id,
                 target_id: uid.to_string(),
