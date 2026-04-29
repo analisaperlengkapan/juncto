@@ -342,22 +342,6 @@ pub fn SettingsDialog(
                                 </select>
                             </div>
 
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: flex; align-items: center; cursor: pointer;">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || is_face_landmarks_enabled.map(|s| s.get()).unwrap_or(false)
-                                        on:change=move |ev| {
-                                            if let Some(sig) = is_face_landmarks_enabled {
-                                                sig.set(event_target_checked(&ev));
-                                            }
-                                        }
-                                        style="margin-right: 10px;"
-                                    />
-                                    "Enable Face Landmarks (Expressions)"
-                                </label>
-                            </div>
-
                             <div class="preview" style="margin-top: 20px; border: 1px solid #ccc; height: 200px; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden;">
                                 <video
                                     node_ref=video_ref
