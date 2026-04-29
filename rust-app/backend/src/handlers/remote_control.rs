@@ -56,8 +56,21 @@ pub fn handle_remote_control(
                 .lock()
                 .unwrap()
                 .remove(&(requester_id.clone(), uid.to_string()));
-            if !was_pending || !same_room(state, uid, &requester_id) {
+            if !was_pending {
                 return vec![];
+            }
+            // If the requester has moved to a different room since the request
+            // was issued, surface this to the requester as a denial rather than
+            // silently dropping the grant. The pending entry has already been
+            // consumed above, so without this branch neither side would learn
+            // the outcome (the target's modal is gone, the requester is still
+            // waiting on a response).
+            if !same_room(state, uid, &requester_id) {
+                return vec![ServerMessage::RemoteControlAllowed {
+                    requester_id,
+                    target_id: uid.to_string(),
+                    allowed: false,
+                }];
             }
             // Record the active session: requester controls `uid`. If the
             // requester already had an active session controlling a different
