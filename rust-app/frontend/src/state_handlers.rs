@@ -225,6 +225,13 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     ToastType::Info,
                 ));
             }
+            // If a pending incoming request from this peer is still on screen,
+            // dismiss the consent modal — there's no one left to grant access to.
+            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+                if requester_id == id {
+                    ctx.remote_control.pending_incoming_request.set(None);
+                }
+            }
             ctx.webrtc_manager.handle_participant_left(&id);
             ctx.set_remote_streams.update(|map| {
                 map.remove(&id);
@@ -407,38 +414,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
                     let parts = ctx.participants.get_untracked();
-                    let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id.clone());
+                    let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or_else(|| requester_id.clone());
 
-                    // Defer the synchronous `window.confirm()` to the next
-                    // tick so it does not block the WebSocket `onmessage`
-                    // callback. Blocking here would freeze all real-time
-                    // communication (chat, signaling, heartbeats) while the
-                    // dialog is open and queue up incoming messages.
-                    let add_toast = ctx.add_toast;
-                    let send_signal = ctx.remote_control.send_signal;
-                    set_timeout(
-                        move || {
-                            let granted = web_sys::window()
-                                .and_then(|w| {
-                                    w.confirm_with_message(&format!(
-                                        "{} is requesting remote control of your session. Allow?",
-                                        name
-                                    ))
-                                    .ok()
-                                })
-                                .unwrap_or(false);
-
-                            let msg = if granted {
-                                add_toast.call(("Remote control granted".to_string(), ToastType::Info));
-                                ClientMessage::GrantRemoteControl(requester_id)
-                            } else {
-                                add_toast.call(("Remote control denied".to_string(), ToastType::Info));
-                                ClientMessage::DenyRemoteControl(requester_id)
-                            };
-                            send_signal.call(msg);
-                        },
-                        std::time::Duration::from_millis(0),
-                    );
+                    // Set a signal that drives a non-blocking in-app modal in
+                    // `RemoteControlLayer`. We deliberately avoid
+                    // `window.confirm()` here because it blocks the JS event
+                    // loop, which would freeze WebSocket message processing
+                    // (chat, signaling, heartbeats) for as long as the dialog
+                    // is open.
+                    ctx.remote_control.set_pending_incoming_request(requester_id, name);
                 }
             }
         }

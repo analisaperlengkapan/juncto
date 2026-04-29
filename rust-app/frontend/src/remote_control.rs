@@ -14,6 +14,13 @@ const MOUSE_MOVE_THROTTLE_MS: f64 = 50.0;
 pub struct RemoteControlService {
     pub send_signal: Callback<ClientMessage>,
     pub controlled_peer: RwSignal<Option<String>>,
+    /// Pending incoming remote-control request: (requester_id, requester_name).
+    /// When `Some`, the `RemoteControlLayer` renders a non-blocking in-app
+    /// modal asking the user to Allow or Deny. Using a Leptos signal instead
+    /// of `window.confirm()` avoids blocking the JS event loop, which would
+    /// otherwise freeze WebSocket message processing (chat, signaling,
+    /// heartbeats) for as long as the dialog is open.
+    pub pending_incoming_request: RwSignal<Option<(String, String)>>,
 }
 
 impl RemoteControlService {
@@ -21,6 +28,7 @@ impl RemoteControlService {
         Self {
             send_signal,
             controlled_peer: create_rw_signal(None),
+            pending_incoming_request: create_rw_signal(None),
         }
     }
 
@@ -45,6 +53,26 @@ impl RemoteControlService {
                 target_id,
                 action,
             });
+        }
+    }
+
+    /// Queue an incoming `RemoteControlRequest` for user consent. The
+    /// `RemoteControlLayer` modal will read this signal and render Allow/Deny
+    /// buttons.
+    pub fn set_pending_incoming_request(&self, requester_id: String, requester_name: String) {
+        self.pending_incoming_request.set(Some((requester_id, requester_name)));
+    }
+
+    /// Respond to a pending incoming request and clear the signal.
+    pub fn respond_to_incoming_request(&self, granted: bool) {
+        if let Some((requester_id, _)) = self.pending_incoming_request.get_untracked() {
+            let msg = if granted {
+                ClientMessage::GrantRemoteControl(requester_id)
+            } else {
+                ClientMessage::DenyRemoteControl(requester_id)
+            };
+            self.send_signal.call(msg);
+            self.pending_incoming_request.set(None);
         }
     }
 }
@@ -79,6 +107,45 @@ pub fn RemoteControlLayer() -> impl IntoView {
     });
 
     view! {
+        <Show when={let rc = rc.clone(); move || rc.pending_incoming_request.get().is_some()}>
+            {
+                let rc = rc.clone();
+                let rc_for_name = rc.clone();
+                let rc_allow = rc.clone();
+                let rc_deny = rc.clone();
+                view! {
+                    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; color: black; padding: 20px; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                            <h3 style="margin-top: 0;">"Remote Control Request"</h3>
+                            <p>
+                                {move || {
+                                    let name = rc_for_name
+                                        .pending_incoming_request
+                                        .get()
+                                        .map(|(_, n)| n)
+                                        .unwrap_or_default();
+                                    format!("{} is requesting remote control of your session. Allow?", name)
+                                }}
+                            </p>
+                            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <button
+                                    on:click=move |_| rc_deny.respond_to_incoming_request(false)
+                                    style="padding: 8px 16px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 4px;"
+                                >
+                                    "Deny"
+                                </button>
+                                <button
+                                    on:click=move |_| rc_allow.respond_to_incoming_request(true)
+                                    style="padding: 8px 16px; border: none; background: #007bff; color: white; cursor: pointer; border-radius: 4px;"
+                                >
+                                    "Allow"
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </Show>
         <Show when={let rc = rc.clone(); move || rc.controlled_peer.get().is_some()}>
             <div
                 node_ref=overlay_ref
