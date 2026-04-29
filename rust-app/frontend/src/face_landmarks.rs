@@ -61,7 +61,21 @@ impl FaceLandmarksService {
 }
 
 pub fn provide_face_landmarks_context(send_signal: Callback<ClientMessage>) {
-    provide_context(FaceLandmarksService::new(send_signal));
+    let service = FaceLandmarksService::new(send_signal);
+    // Ensure the interval is cleared if the owning scope is dropped (e.g.
+    // navigation away from the room) without `stop()` being called first.
+    // Without this, the `set_interval_with_handle` keeps firing for the
+    // lifetime of the page even after the service is no longer reachable,
+    // which sends `FaceExpression` messages on a possibly-closed WebSocket.
+    let cleanup_interval = service.interval.clone();
+    let cleanup_active = service.active;
+    on_cleanup(move || {
+        cleanup_active.set(false);
+        if let Some(handle) = cleanup_interval.borrow_mut().take() {
+            handle.clear();
+        }
+    });
+    provide_context(service);
 }
 
 pub fn use_face_landmarks() -> FaceLandmarksService {
