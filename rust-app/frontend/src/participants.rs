@@ -166,7 +166,7 @@ pub fn ParticipantsList(
                         let p_sv = store_value(p);
 
                         view! {
-                            <li class="participant-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <li class="participant-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 5px;">
                                 <div style=move || if p_sv.get_value().is_visitor { "opacity: 0.7;" } else { "" }>
                                     <span>{move || p_sv.get_value().name}</span>
                                     {move || if p_sv.get_value().is_visitor {
@@ -219,7 +219,7 @@ pub fn ParticipantsList(
                                     } else {
                                         view! { <span></span> }.into_view()
                                     }}
-                                    <div style="display: flex; gap: 5px;">
+                                    <div style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end;">
                                         <Show when=move || on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
                                             <button
                                                 on:click=move |_| {
