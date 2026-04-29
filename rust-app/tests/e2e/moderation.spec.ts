@@ -65,8 +65,11 @@ test.describe('Moderation Controls', () => {
     const muteBtn = userBRow.getByRole('button', { name: 'Mute', exact: true });
     await expect(muteBtn).toBeVisible();
 
-    // 3. Host mutes User B
-    await muteBtn.click();
+    // 3. Host mutes User B. Use `dispatchEvent('click')` (same pattern as
+    // the host-transfer test below) to bypass visibility/stability checks:
+    // the new "RC" button added in `rust-app/frontend/src/participants.rs`
+    // can push the Mute button outside the viewport in narrow test windows.
+    await muteBtn.dispatchEvent('click');
 
     // 4. Verify User B is muted
     // Host sees Mute button disappear (or change state? Logic removes it if muted)

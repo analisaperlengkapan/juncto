@@ -82,7 +82,21 @@ impl RemoteControlService {
     /// Queue an incoming `RemoteControlRequest` for user consent. The
     /// `RemoteControlLayer` modal will read this signal and render Allow/Deny
     /// buttons.
+    ///
+    /// If a pending request is already on screen, the new request is
+    /// auto-denied instead of overwriting the modal. Without this, the first
+    /// requester's prompt would silently disappear (the user never sees it),
+    /// and their server-side entry in `pending_remote_control_requests` would
+    /// leak until they disconnect — `GrantRemoteControl`/`DenyRemoteControl`
+    /// from the target only consume the entry whose `requester_id` matches
+    /// the modal's current value.
     pub fn set_pending_incoming_request(&self, requester_id: String, requester_name: String) {
+        if self.pending_incoming_request.get_untracked().is_some() {
+            // Auto-deny the new request so the server clears its pending
+            // entry. The original requester will receive a `RemoteControlAllowed { allowed: false }`.
+            self.send_signal.call(ClientMessage::DenyRemoteControl(requester_id));
+            return;
+        }
         self.pending_incoming_request.set(Some((requester_id, requester_name)));
     }
 
