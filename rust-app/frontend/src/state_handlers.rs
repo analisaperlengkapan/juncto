@@ -240,6 +240,27 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::ParticipantList(list) => {
             ctx.set_participants.set(list.clone());
 
+            // If we switched rooms (e.g. joined a breakout) and the peer we were
+            // controlling — or the peer whose consent we were awaiting — is not
+            // present in the new room's participant list, dismiss the overlay
+            // and modal. Without this, the overlay would stay active because
+            // `ParticipantLeft` for that peer is filtered to the old room and
+            // never delivered to us in the new one.
+            if let Some(controlled) = ctx.remote_control.controlled_peer.get_untracked() {
+                if !list.iter().any(|p| p.id == controlled) {
+                    ctx.remote_control.set_controlled_peer(None);
+                    ctx.add_toast.call((
+                        "Remote control session ended (peer not in this room)".to_string(),
+                        ToastType::Info,
+                    ));
+                }
+            }
+            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+                if !list.iter().any(|p| p.id == requester_id) {
+                    ctx.remote_control.pending_incoming_request.set(None);
+                }
+            }
+
             if let Some(me) = ctx.my_id.get_untracked() {
                 for p in list {
                     if me > p.id {
