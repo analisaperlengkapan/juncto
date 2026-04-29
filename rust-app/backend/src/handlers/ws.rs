@@ -154,6 +154,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::FaceExpression(expression) => {
                                     if let Some(uid) = &my_id {
+                                        // Rate limit: reuse the analytics rate limiter to
+                                        // prevent abuse (max 10 events/sec per connection).
+                                        let now = std::time::Instant::now();
+                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                            analytics_count = 0;
+                                            analytics_window_start = now;
+                                        }
+                                        analytics_count += 1;
+                                        if analytics_count > 10 {
+                                            continue;
+                                        }
                                         let _ = tx.send(ServerMessage::FaceExpression {
                                             sender_id: uid.clone(),
                                             expression,
@@ -1393,6 +1404,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 | ClientMessage::StopRemoteControl(_)
                                 | ClientMessage::RemoteControlAction { .. } => {
                                     if let Some(uid) = &my_id {
+                                        // Rate limit RemoteControlAction (high-frequency,
+                                        // driven by mouse/keyboard events) to protect the
+                                        // broadcast channel even if the client throttle is
+                                        // bypassed. Lifecycle messages (request/grant/deny/
+                                        // stop) are infrequent and not rate-limited here.
+                                        if matches!(client_msg, ClientMessage::RemoteControlAction { .. }) {
+                                            let now = std::time::Instant::now();
+                                            if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
+                                                analytics_count = 0;
+                                                analytics_window_start = now;
+                                            }
+                                            analytics_count += 1;
+                                            if analytics_count > 30 {
+                                                continue;
+                                            }
+                                        }
                                         let msgs = remote_control::handle_remote_control(uid, client_msg, &state);
                                         for m in msgs {
                                             let _ = tx.send(m);

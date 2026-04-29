@@ -62,10 +62,26 @@ pub fn RemoteControlLayer() -> impl IntoView {
     let rc = use_remote_control();
     // Tracks the timestamp (ms) of the last sent MouseMove for throttling.
     let last_mousemove_ms: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+    let overlay_ref = create_node_ref::<leptos::html::Div>();
+
+    // Programmatically focus the overlay whenever a session becomes active so
+    // keyboard events (including ESC to stop) are received without requiring
+    // the user to click the overlay first.
+    create_effect({
+        let rc = rc.clone();
+        move |_| {
+            if rc.controlled_peer.get().is_some() {
+                if let Some(el) = overlay_ref.get() {
+                    let _ = el.focus();
+                }
+            }
+        }
+    });
 
     view! {
         <Show when={let rc = rc.clone(); move || rc.controlled_peer.get().is_some()}>
             <div
+                node_ref=overlay_ref
                 style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; cursor: crosshair; background: rgba(0,0,0,0.1);"
                 on:mousemove={
                     let rc = rc.clone();
@@ -93,6 +109,10 @@ pub fn RemoteControlLayer() -> impl IntoView {
                     });
                 }}
                 on:keydown={let rc = rc.clone(); move |ev: web_sys::KeyboardEvent| {
+                    if ev.key() == "Escape" {
+                        rc.stop_control();
+                        return;
+                    }
                     rc.send_action(RemoteControlAction::KeyDown {
                         key: ev.key(),
                     });

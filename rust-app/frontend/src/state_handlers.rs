@@ -397,17 +397,30 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::RemoteControlRequest { requester_id, target_id } => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
-                    let rc = ctx.remote_control.clone();
-                    let add_toast = ctx.add_toast;
                     let parts = ctx.participants.get_untracked();
                     let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id.clone());
 
-                    add_toast.call((format!("{} requested remote control. Granting (demo auto-grant)...", name), ToastType::Info));
+                    // Require explicit user consent before granting remote
+                    // control. Falls back to deny if no window is available
+                    // or the user dismisses the prompt.
+                    let granted = web_sys::window()
+                        .and_then(|w| {
+                            w.confirm_with_message(&format!(
+                                "{} is requesting remote control of your session. Allow?",
+                                name
+                            ))
+                            .ok()
+                        })
+                        .unwrap_or(false);
 
-                    // Demo: auto-grant after 1s
-                    set_timeout(move || {
-                        rc.send_signal.call(ClientMessage::GrantRemoteControl(requester_id));
-                    }, std::time::Duration::from_secs(1));
+                    let msg = if granted {
+                        ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Info));
+                        ClientMessage::GrantRemoteControl(requester_id)
+                    } else {
+                        ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Info));
+                        ClientMessage::DenyRemoteControl(requester_id)
+                    };
+                    ctx.remote_control.send_signal.call(msg);
                 }
             }
         }

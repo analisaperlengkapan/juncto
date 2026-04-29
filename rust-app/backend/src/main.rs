@@ -30,6 +30,11 @@ pub struct AppState {
     pub shared_video_url: Arc<Mutex<Option<String>>>,
     pub speaking_start_times: Arc<Mutex<HashMap<String, u64>>>,
     pub feedback: Arc<Mutex<Vec<shared::Feedback>>>,
+    /// Active remote-control sessions: maps controller (requester) id ->
+    /// controlled (target) id. Used by the handler to authorize subsequent
+    /// `RemoteControlAction` and `StopRemoteControl` messages so a malicious
+    /// client cannot inject actions without having been granted access.
+    pub remote_control_sessions: Arc<Mutex<HashMap<String, String>>>,
 }
 
 #[tokio::main]
@@ -54,6 +59,7 @@ async fn main() {
     let shared_video_url = Arc::new(Mutex::new(None));
     let speaking_start_times = Arc::new(Mutex::new(HashMap::new()));
     let feedback = Arc::new(Mutex::new(Vec::new()));
+    let remote_control_sessions = Arc::new(Mutex::new(HashMap::new()));
 
     let app_state = Arc::new(AppState {
         tx,
@@ -68,6 +74,7 @@ async fn main() {
         shared_video_url,
         speaking_start_times,
         feedback,
+        remote_control_sessions,
     });
 
     // Define the router
