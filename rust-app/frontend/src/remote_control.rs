@@ -14,6 +14,14 @@ const MOUSE_MOVE_THROTTLE_MS: f64 = 50.0;
 pub struct RemoteControlService {
     pub send_signal: Callback<ClientMessage>,
     pub controlled_peer: RwSignal<Option<String>>,
+    /// The peer currently controlling *us* (i.e. we are the controlled party).
+    /// Set when the user grants an incoming `RemoteControlRequest`; cleared
+    /// when either side stops the session, when the controller leaves the
+    /// room, or when the user clicks "Stop". Drives a small banner in
+    /// `RemoteControlLayer` so the controlled party has a visible indicator
+    /// and an explicit way to end the session — without this, the target had
+    /// no UI feedback that someone was sending input on their behalf.
+    pub controlling_peer: RwSignal<Option<String>>,
     /// Pending incoming remote-control request: (requester_id, requester_name).
     /// When `Some`, the `RemoteControlLayer` renders a non-blocking in-app
     /// modal asking the user to Allow or Deny. Using a Leptos signal instead
@@ -28,6 +36,7 @@ impl RemoteControlService {
         Self {
             send_signal,
             controlled_peer: create_rw_signal(None),
+            controlling_peer: create_rw_signal(None),
             pending_incoming_request: create_rw_signal(None),
         }
     }
@@ -43,8 +52,22 @@ impl RemoteControlService {
         }
     }
 
+    /// Stop a session in which we are the controlled party. Sends
+    /// `StopRemoteControl` naming the controller, then clears the local
+    /// `controlling_peer` signal so the banner disappears immediately.
+    pub fn stop_being_controlled(&self) {
+        if let Some(peer_id) = self.controlling_peer.get_untracked() {
+            self.send_signal.call(ClientMessage::StopRemoteControl(peer_id));
+            self.controlling_peer.set(None);
+        }
+    }
+
     pub fn set_controlled_peer(&self, peer_id: Option<String>) {
         self.controlled_peer.set(peer_id);
+    }
+
+    pub fn set_controlling_peer(&self, peer_id: Option<String>) {
+        self.controlling_peer.set(peer_id);
     }
 
     pub fn send_action(&self, action: RemoteControlAction) {
@@ -63,7 +86,11 @@ impl RemoteControlService {
         self.pending_incoming_request.set(Some((requester_id, requester_name)));
     }
 
-    /// Respond to a pending incoming request and clear the signal.
+    /// Respond to a pending incoming request and clear the signal. The
+    /// banner (`controlling_peer`) is set reactively when the server echoes
+    /// `RemoteControlAllowed { allowed: true }` back to us, not optimistically
+    /// here — this avoids a stuck banner when the server rejects the grant
+    /// (e.g. because another controller already holds a session against us).
     pub fn respond_to_incoming_request(&self, granted: bool) {
         if let Some((requester_id, _)) = self.pending_incoming_request.get_untracked() {
             let msg = if granted {
@@ -146,6 +173,27 @@ pub fn RemoteControlLayer() -> impl IntoView {
                 }
             }
         </Show>
+        <Show when={let rc = rc.clone(); move || rc.controlling_peer.get().is_some()}>
+            {
+                let rc_stop = rc.clone();
+                view! {
+                    // Non-modal banner shown to the controlled party so they
+                    // know remote input is being injected and can stop the
+                    // session at any time. Pinned to the top of the viewport
+                    // with a high z-index but no input capture, so the user
+                    // can still interact with the rest of the page.
+                    <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(180, 0, 0, 0.9); color: white; padding: 8px 16px; border-radius: 20px; z-index: 9998; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                        <span>"You are being remotely controlled"</span>
+                        <button
+                            on:click=move |_| rc_stop.stop_being_controlled()
+                            style="background: white; color: #b40000; border: none; padding: 4px 10px; cursor: pointer; border-radius: 4px; font-weight: bold;"
+                        >
+                            "Stop"
+                        </button>
+                    </div>
+                }
+            }
+        </Show>
         <Show when={let rc = rc.clone(); move || rc.controlled_peer.get().is_some()}>
             <div
                 node_ref=overlay_ref
@@ -177,16 +225,39 @@ pub fn RemoteControlLayer() -> impl IntoView {
                 }}
                 on:keydown={let rc = rc.clone(); move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Escape" {
+                        ev.prevent_default();
                         rc.stop_control();
                         return;
                     }
+                    // Suppress browser-default behavior for keys that would
+                    // steal focus from the overlay (Tab) or trigger destructive
+                    // navigation/reload (F5, Ctrl+R, Ctrl+W, Alt+Left/Right).
+                    // Other keys (printable characters, arrows, etc.) are
+                    // forwarded to the controlled peer *and* allowed to fire
+                    // locally so the controller's browser remains usable.
+                    let key = ev.key();
+                    let suppress = key == "Tab"
+                        || key == "F5"
+                        || (ev.ctrl_key() && (key == "r" || key == "R" || key == "w" || key == "W"))
+                        || (ev.alt_key() && (key == "ArrowLeft" || key == "ArrowRight"));
+                    if suppress {
+                        ev.prevent_default();
+                    }
                     rc.send_action(RemoteControlAction::KeyDown {
-                        key: ev.key(),
+                        key,
                     });
                 }}
                 on:keyup={let rc = rc.clone(); move |ev: web_sys::KeyboardEvent| {
+                    let key = ev.key();
+                    let suppress = key == "Tab"
+                        || key == "F5"
+                        || (ev.ctrl_key() && (key == "r" || key == "R" || key == "w" || key == "W"))
+                        || (ev.alt_key() && (key == "ArrowLeft" || key == "ArrowRight"));
+                    if suppress {
+                        ev.prevent_default();
+                    }
                     rc.send_action(RemoteControlAction::KeyUp {
-                        key: ev.key(),
+                        key,
                     });
                 }}
                 tabindex="0"

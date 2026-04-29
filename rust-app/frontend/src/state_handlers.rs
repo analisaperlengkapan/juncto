@@ -225,6 +225,16 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     ToastType::Info,
                 ));
             }
+            // If we were being controlled by this peer, clear the banner so
+            // the user isn't left with a stale "you are being controlled"
+            // indicator after the controller disconnects.
+            if ctx.remote_control.controlling_peer.get_untracked().as_deref() == Some(&id) {
+                ctx.remote_control.set_controlling_peer(None);
+                ctx.add_toast.call((
+                    "Remote control session ended (controller disconnected)".to_string(),
+                    ToastType::Info,
+                ));
+            }
             // If a pending incoming request from this peer is still on screen,
             // dismiss the consent modal — there's no one left to grant access to.
             if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
@@ -251,6 +261,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     ctx.remote_control.set_controlled_peer(None);
                     ctx.add_toast.call((
                         "Remote control session ended (peer not in this room)".to_string(),
+                        ToastType::Info,
+                    ));
+                }
+            }
+            if let Some(controller) = ctx.remote_control.controlling_peer.get_untracked() {
+                if !list.iter().any(|p| p.id == controller) {
+                    ctx.remote_control.set_controlling_peer(None);
+                    ctx.add_toast.call((
+                        "Remote control session ended (controller not in this room)".to_string(),
                         ToastType::Info,
                     ));
                 }
@@ -456,6 +475,14 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     } else {
                         ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Error));
                     }
+                } else if allowed && my == target_id {
+                    // We are the controlled party; the server confirmed our
+                    // grant. Show the "being controlled" banner so we have a
+                    // visible indicator and an explicit way to stop the
+                    // session. Driving this reactively (rather than
+                    // optimistically when the user clicks Allow) ensures the
+                    // banner doesn't appear if the server rejected the grant.
+                    ctx.remote_control.set_controlling_peer(Some(requester_id));
                 }
             }
         }
@@ -467,8 +494,12 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
             } else if let Some(my) = ctx.my_id.get_untracked() {
                 // If we're the controlled party (i.e. `peer_id` identifies us
-                // and the controller stopped the session), notify us too.
+                // and the controller stopped the session), clear the banner
+                // and notify us too. Also covers server-side rejections of
+                // grants (e.g. target already controlled by another peer)
+                // where we optimistically set `controlling_peer` on grant.
                 if my == peer_id && my != sender_id {
+                    ctx.remote_control.set_controlling_peer(None);
                     ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
                 }
             }

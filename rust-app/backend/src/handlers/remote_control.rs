@@ -72,6 +72,26 @@ pub fn handle_remote_control(
                     allowed: false,
                 }];
             }
+            // Reject the grant if `uid` is already being controlled by some
+            // other participant. Without this check, two controllers could
+            // simultaneously hold sessions targeting the same peer and inject
+            // conflicting input events. If `uid` is reissuing a grant to the
+            // same controller (already in the map), allow it as a no-op.
+            let already_controlled_by_other = state
+                .remote_control_sessions
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(controller, controlled)| {
+                    controlled == uid && controller != &requester_id
+                });
+            if already_controlled_by_other {
+                return vec![ServerMessage::RemoteControlAllowed {
+                    requester_id,
+                    target_id: uid.to_string(),
+                    allowed: false,
+                }];
+            }
             // Record the active session: requester controls `uid`. If the
             // requester already had an active session controlling a different
             // peer, tear it down explicitly and notify both parties via a

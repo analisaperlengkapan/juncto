@@ -820,8 +820,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                         ServerMessage::RemoteControlRequest { target_id, .. } => {
                                                             *target_id == my_id_clone
                                                         },
-                                                        ServerMessage::RemoteControlAllowed { requester_id, .. } => {
+                                                        ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+                                                            // Deliver to the requester always so they see
+                                                            // grant/deny outcome. Also deliver to the
+                                                            // target on a successful grant so the
+                                                            // controlled-party banner can reactively
+                                                            // appear (and on a server-side rejection,
+                                                            // so the target's modal-dismissed state stays
+                                                            // consistent — we still skip in that case
+                                                            // since the target never had `controlling_peer`
+                                                            // set yet).
                                                             *requester_id == my_id_clone
+                                                                || (*allowed && *target_id == my_id_clone)
                                                         },
                                                         ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
                                                             // Targeted delivery: the peer being controlled
@@ -1628,8 +1638,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 ServerMessage::RemoteControlRequest { target_id, .. } => {
                                                     *target_id == my_id_clone
                                                 },
-                                                ServerMessage::RemoteControlAllowed { requester_id, .. } => {
+                                                ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+                                                    // Deliver to the requester always; also to the target
+                                                    // on a successful grant so their controlled-party
+                                                    // banner appears reactively. See the equivalent arm
+                                                    // in the direct-join broadcast filter for context.
                                                     *requester_id == my_id_clone
+                                                        || (*allowed && *target_id == my_id_clone)
                                                 },
                                                 ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
                                                     *sender_id == my_id_clone || *peer_id == my_id_clone
