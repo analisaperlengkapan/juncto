@@ -15,9 +15,16 @@ test('remote control request protocol', async ({ browser }) => {
     await page2.fill('#display-name', 'Target');
     await page2.click('button:has-text("Join Meeting")');
 
-    await page1.waitForSelector('.participants-container');
+    // Open the participants panel on the requester's page. The toolbox button
+    // toggles the panel; we click it and wait for the participant list to
+    // populate before clicking the RC button.
     await page1.click('button:has-text("Participants")');
+    await page1.waitForSelector('.participants-list');
     await page1.locator('.participant-item').filter({ hasText: 'Target' }).locator('button[title="Request Remote Control"]').dispatchEvent('click');
 
-    await expect(page2.locator('.toast-container')).toContainText('requested remote control', { timeout: 10000 });
+    // The PR implements consent as a non-blocking in-app modal (see
+    // `rust-app/frontend/src/remote_control.rs`), not a toast. Verify the
+    // modal text appears on the target's page.
+    await expect(page2.locator('text=Remote Control Request')).toBeVisible({ timeout: 10000 });
+    await expect(page2.locator('text=is requesting remote control of your session')).toBeVisible();
 });
