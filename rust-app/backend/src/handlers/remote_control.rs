@@ -7,9 +7,15 @@ use std::sync::Arc;
 /// cross-room remote-control requests/actions, mirroring the scoping used by
 /// `MuteParticipant` and `RequestUnmute`.
 fn same_room(state: &Arc<AppState>, requester: &str, target: &str) -> bool {
-    let participants = state.participants.lock().unwrap();
-    if !participants.contains_key(requester) || !participants.contains_key(target) {
-        return false;
+    // Drop the `participants` lock before acquiring `participant_locations`
+    // to avoid holding two state locks simultaneously. This keeps the lock
+    // ordering explicit and prevents deadlocks if any future code path
+    // acquires these locks in the opposite order.
+    {
+        let participants = state.participants.lock().unwrap();
+        if !participants.contains_key(requester) || !participants.contains_key(target) {
+            return false;
+        }
     }
     let locs = state.participant_locations.lock().unwrap();
     let req_loc = locs.get(requester).cloned().flatten();

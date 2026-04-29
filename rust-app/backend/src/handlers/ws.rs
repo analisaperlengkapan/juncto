@@ -80,10 +80,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let mut analytics_window_start = std::time::Instant::now();
     // Separate rate limiter for high-frequency `RemoteControlAction`
     // messages (max 30/sec) so an active session does not starve other
-    // analytics-class messages (FaceExpression, UpdatePowerStatus,
-    // ToggleLocalRecording, AnalyticsEvent) sharing the analytics counter.
+    // analytics-class messages (UpdatePowerStatus, ToggleLocalRecording,
+    // AnalyticsEvent) sharing the analytics counter.
     let mut rc_count: u32 = 0;
     let mut rc_window_start = std::time::Instant::now();
+    // Dedicated rate limiter for `FaceExpression` messages (max 10/sec)
+    // so they don't share a budget with UpdatePowerStatus / ToggleLocalRecording
+    // / AnalyticsEvent. If the mock detection frequency is ever increased,
+    // this prevents face expressions from starving toast-bearing messages
+    // like ToggleLocalRecording.
+    let mut face_count: u32 = 0;
+    let mut face_window_start = std::time::Instant::now();
     // Track the last recording state sent by this client to prevent
     // redundant broadcasts (and toast spam) from repeated identical
     // ToggleLocalRecording messages.
@@ -174,15 +181,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::FaceExpression(expression) => {
                                     if let Some(uid) = &my_id {
-                                        // Rate limit: reuse the analytics rate limiter to
-                                        // prevent abuse (max 10 events/sec per connection).
+                                        // Rate limit with a dedicated counter (max 10/sec
+                                        // per connection) so face expressions do not share
+                                        // a budget with UpdatePowerStatus / ToggleLocalRecording
+                                        // / AnalyticsEvent.
                                         let now = std::time::Instant::now();
-                                        if now.duration_since(analytics_window_start) >= std::time::Duration::from_secs(1) {
-                                            analytics_count = 0;
-                                            analytics_window_start = now;
+                                        if now.duration_since(face_window_start) >= std::time::Duration::from_secs(1) {
+                                            face_count = 0;
+                                            face_window_start = now;
                                         }
-                                        analytics_count += 1;
-                                        if analytics_count > 10 {
+                                        face_count += 1;
+                                        if face_count > 10 {
                                             continue;
                                         }
                                         let _ = tx.send(ServerMessage::FaceExpression {

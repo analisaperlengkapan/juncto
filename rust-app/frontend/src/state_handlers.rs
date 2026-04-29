@@ -445,10 +445,18 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             }
         }
-        ServerMessage::RemoteControlStopped { sender_id, .. } => {
-            if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id) {
+        ServerMessage::RemoteControlStopped { sender_id, peer_id } => {
+            // Clear the overlay if we're the controller and the controlled
+            // party ended the session.
+            if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id.clone()) {
                 ctx.remote_control.set_controlled_peer(None);
                 ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+            } else if let Some(my) = ctx.my_id.get_untracked() {
+                // If we're the controlled party (i.e. `peer_id` identifies us
+                // and the controller stopped the session), notify us too.
+                if my == peer_id && my != sender_id {
+                    ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+                }
             }
         }
         ServerMessage::RemoteControlAction { .. } => {
