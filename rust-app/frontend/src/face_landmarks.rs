@@ -24,12 +24,14 @@ impl FaceLandmarksService {
         if self.active.get_untracked() {
             return;
         }
-        self.active.set(true);
 
         let send_signal = self.send_signal;
         let active = self.active;
 
-        // Mock detection loop
+        // Mock detection loop. Only flip `active` to true after the interval
+        // is successfully created — otherwise a failed `set_interval_with_handle`
+        // would leave `active=true` with no interval running, and the early
+        // return at the top of `start()` would prevent recovery on retry.
         if let Ok(handle) = set_interval_with_handle(
             move || {
                 if !active.get_untracked() {
@@ -49,6 +51,7 @@ impl FaceLandmarksService {
             std::time::Duration::from_secs(5),
         ) {
             *self.interval.borrow_mut() = Some(handle);
+            self.active.set(true);
         }
     }
 

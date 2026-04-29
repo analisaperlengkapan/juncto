@@ -289,7 +289,17 @@ pub fn RemoteControlLayer() -> impl IntoView {
                 }}
                 tabindex="0"
             >
-                <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 5px 15px; border-radius: 20px;">
+                <div
+                    style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 5px 15px; border-radius: 20px;"
+                    // Stop mouse events from bubbling to the overlay's
+                    // `on:mousedown`/`on:mouseup`/`on:mousemove` handlers
+                    // — otherwise clicks on the Stop button would be
+                    // forwarded as `RemoteControlAction` mouse events to
+                    // the controlled peer right before the session ends.
+                    on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                    on:mouseup=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                    on:mousemove=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                >
                     "Controlling Remote Peer - Press ESC to stop"
                     <button
                         on:click={let rc = rc.clone(); move |_| rc.stop_control()}
