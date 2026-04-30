@@ -98,7 +98,9 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(page.getByText('Save Profile')).toBeVisible();
 
   // Change Name
-  const nameSettingInput = page.locator('.modal-content input[type="text"]');
+  // Use specific ID to avoid strict-mode violation now that the Profile tab
+  // also contains an avatar URL input (#settings-avatar-url).
+  const nameSettingInput = page.locator('#settings-display-name');
   await nameSettingInput.fill('Updated Name');
   await page.click('button:has-text("Save Profile")');
 
