@@ -165,16 +165,24 @@ pub fn ParticipantsList(
                     children=move |p| {
                         let p_sv = store_value(p);
 
+                        // Track image load errors so a broken avatar URL falls
+                        // back to the initial-letter circle instead of showing
+                        // a broken image icon. Because the `<For>` key above
+                        // includes `avatar_url`, this signal is implicitly
+                        // reset (the row is rebuilt) when the URL changes.
+                        let (avatar_failed, set_avatar_failed) = create_signal(false);
+
                         view! {
                             <li class="participant-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 5px;">
                                 <div style=move || if p_sv.get_value().is_visitor { "display: flex; align-items: center; opacity: 0.7;" } else { "display: flex; align-items: center;" }>
-                                    <Show when=move || p_sv.get_value().avatar_url.is_some() fallback=move || view! {
+                                    <Show when=move || p_sv.get_value().avatar_url.is_some() && !avatar_failed.get() fallback=move || view! {
                                         <div style="width: 24px; height: 24px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; margin-right: 8px;">
                                             {p_sv.get_value().name.chars().next().unwrap_or('?').to_uppercase().to_string()}
                                         </div>
                                     }>
                                         <img
                                             src=move || p_sv.get_value().avatar_url.unwrap_or_default()
+                                            on:error=move |_| set_avatar_failed.set(true)
                                             style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; margin-right: 8px;"
                                             alt="Avatar"
                                         />

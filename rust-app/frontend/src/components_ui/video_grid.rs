@@ -223,17 +223,27 @@ pub fn VideoGrid(
                         }).unwrap_or_else(|| "Me".to_string())
                     });
 
+                    // Track image load errors so a broken avatar URL falls back
+                    // to the initial-letter circle instead of showing a broken
+                    // image icon. The signal is reset whenever the URL changes.
+                    let (avatar_failed, set_avatar_failed) = create_signal(false);
+                    create_effect(move |_| {
+                        let _ = avatar_url.get();
+                        set_avatar_failed.set(false);
+                    });
+
                     view! {
                         <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; background: #222;">
                             <span style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;">"Camera Off"</span>
                             <div class="avatar-container" style="width: 80px; height: 80px;">
-                                <Show when=move || avatar_url.get().is_some() fallback=move || view! {
+                                <Show when=move || avatar_url.get().is_some() && !avatar_failed.get() fallback=move || view! {
                                     <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
                                         {initial.get()}
                                     </div>
                                 }>
                                     <img
                                         src=move || avatar_url.get().unwrap_or_default()
+                                        on:error=move |_| set_avatar_failed.set(true)
                                         style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
                                         alt="Avatar"
                                     />
@@ -441,6 +451,16 @@ pub fn VideoGrid(
                                 })
                             });
 
+                            // Track image load errors so a broken avatar URL
+                            // falls back to the initial-letter circle instead
+                            // of showing a broken image icon. The signal is
+                            // reset whenever the URL changes.
+                            let (avatar_failed, set_avatar_failed) = create_signal(false);
+                            create_effect(move |_| {
+                                let _ = avatar_url_sig.get();
+                                set_avatar_failed.set(false);
+                            });
+
                             let is_speaking_memo = create_memo(move |_| speaking_peers.get().contains(&id_clone));
                             let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
 
@@ -573,13 +593,14 @@ pub fn VideoGrid(
                                         } else {
                                             view! {
                                                 <div class="avatar-container" style="width: 80px; height: 80px; position: relative;">
-                                                    <Show when=move || avatar_url_sig.get().is_some() fallback=move || view! {
+                                                    <Show when=move || avatar_url_sig.get().is_some() && !avatar_failed.get() fallback=move || view! {
                                                         <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
                                                             {initial_char.get()}
                                                         </div>
                                                     }>
                                                         <img
                                                             src=move || avatar_url_sig.get().unwrap_or_default()
+                                                            on:error=move |_| set_avatar_failed.set(true)
                                                             style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
                                                             alt="Avatar"
                                                         />

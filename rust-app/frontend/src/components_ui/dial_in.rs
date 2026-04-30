@@ -1,14 +1,30 @@
 use leptos::*;
 
-// NOTE: The phone number and meeting ID rendered below are placeholder values
-// for the UI scaffold. Real dial-in details are not yet provisioned by the
-// backend — when a telephony provider is integrated, these should be sourced
-// from the room configuration (e.g. `RoomConfig`) rather than hardcoded here.
+// Default placeholder values for the UI scaffold. Real dial-in details are
+// not yet provisioned by the backend — when a telephony provider is
+// integrated, the caller should pass `phone_number` and `meeting_id` props
+// sourced from the room configuration (e.g. `RoomConfig`) rather than
+// relying on these defaults.
+const DEFAULT_DIAL_IN_PHONE: &str = "+1 555 012 3456";
+const DEFAULT_DIAL_IN_MEETING_ID: &str = "123 456 789";
+
 #[component]
 pub fn DialInDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
+    #[prop(into, optional)] phone_number: Option<Signal<Option<String>>>,
+    #[prop(into, optional)] meeting_id: Option<Signal<Option<String>>>,
 ) -> impl IntoView {
+    let phone_text = move || {
+        phone_number
+            .and_then(|s| s.get())
+            .unwrap_or_else(|| DEFAULT_DIAL_IN_PHONE.to_string())
+    };
+    let meeting_text = move || {
+        meeting_id
+            .and_then(|s| s.get())
+            .unwrap_or_else(|| DEFAULT_DIAL_IN_MEETING_ID.to_string())
+    };
     view! {
         <Show when=move || show.get()>
             <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
@@ -21,11 +37,11 @@ pub fn DialInDialog(
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
                         <p style="margin: 0 0 10px 0; font-size: 0.9em; color: #666;">"To join by phone, dial one of these numbers:"</p>
                         <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #007bff;">
-                            "+1 555 012 3456"
+                            {phone_text}
                         </div>
                         <p style="margin: 0 0 5px 0; font-size: 0.9em; color: #666;">"Meeting ID:"</p>
                         <div style="font-size: 1.1em; font-weight: bold; letter-spacing: 2px;">
-                            "123 456 789"
+                            {meeting_text}
                         </div>
                     </div>
 
