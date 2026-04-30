@@ -180,9 +180,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::SetSubject(subject) => {
-                                    // Validate subject length to prevent abuse
+                                    // Validate subject length to prevent abuse. Use char count
+                                    // (not byte length) so multi-byte UTF-8 content (CJK, emoji)
+                                    // is treated consistently with what users see.
                                     if let Some(ref s) = subject {
-                                        if s.len() > 256 {
+                                        if s.chars().count() > 256 {
                                             let _ = internal_tx.send(ServerMessage::Error("Invalid subject: too long".to_string())).await;
                                             continue;
                                         }
@@ -192,9 +194,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
-                                            let mut config = room_config_mutex.lock().unwrap();
-                                            config.subject = subject;
-                                            let _ = tx.send(ServerMessage::RoomUpdated(config.clone()));
+                                            // Clone the updated config inside a nested block
+                                            // so the mutex guard is dropped before broadcasting,
+                                            // matching the pattern used elsewhere (e.g. ToggleLobby).
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.subject = subject;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
                                         }
                                     }
                                 },

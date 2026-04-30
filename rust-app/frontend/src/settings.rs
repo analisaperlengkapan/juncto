@@ -273,9 +273,20 @@ pub fn SettingsDialog(
                                 id="save-profile-btn"
                                 on:click=move |_| {
                                     on_save_profile.call(display_name.get());
+                                    // Only fire the avatar update if the value actually changed.
+                                    // This avoids a redundant ParticipantUpdated broadcast
+                                    // (and the brief intermediate state on other clients
+                                    // where the new name is paired with the old avatar)
+                                    // when the user only edits their display name.
                                     if let Some(cb) = on_save_avatar {
                                         let av = avatar_url.get();
-                                        cb.call(if av.is_empty() { None } else { Some(av) });
+                                        let new_val = if av.is_empty() { None } else { Some(av) };
+                                        let prev_val = current_avatar
+                                            .map(|s| s.get_untracked())
+                                            .unwrap_or(None);
+                                        if new_val != prev_val {
+                                            cb.call(new_val);
+                                        }
                                     }
                                     on_close.call(());
                                 }

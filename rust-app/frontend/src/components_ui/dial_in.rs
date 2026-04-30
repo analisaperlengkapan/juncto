@@ -1,5 +1,9 @@
 use leptos::*;
 
+// NOTE: The phone number and meeting ID rendered below are placeholder values
+// for the UI scaffold. Real dial-in details are not yet provisioned by the
+// backend — when a telephony provider is integrated, these should be sourced
+// from the room configuration (e.g. `RoomConfig`) rather than hardcoded here.
 #[component]
 pub fn DialInDialog(
     show: ReadSignal<bool>,
