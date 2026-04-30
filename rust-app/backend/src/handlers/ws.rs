@@ -212,13 +212,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::UpdateAvatar(url) => {
-                                    // Server-side avatar URL validation: must be http/https
+                                    // Server-side avatar URL validation: must be https
                                     // and within a reasonable length, to prevent abuse where
                                     // a participant could force other clients to issue
                                     // requests to arbitrary URLs (e.g. IP-leaking trackers).
+                                    // Plain http:// is rejected to avoid mixed-content
+                                    // loading and MITM avatar swaps when the meeting is
+                                    // served over HTTPS.
                                     if let Some(ref url_str) = url {
-                                        if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
-                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with http:// or https://".to_string())).await;
+                                        if !url_str.starts_with("https://") {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with https://".to_string())).await;
                                             continue;
                                         }
                                         if url_str.len() > 2048 {
@@ -568,6 +571,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut pending = state.pending_remote_control_requests.lock().unwrap();
                                                 pending.clear();
                                             }
+                                            {
+                                                let mut fb = state.feedback.lock().unwrap();
+                                                fb.clear();
+                                            }
                                         }
                                     }
                                 },
@@ -625,12 +632,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     // optional cosmetic field, an invalid value should not
                                     // prevent the user from joining the room. Drop the URL
                                     // (treat as `None`) when it fails the same validation
-                                    // rules as `UpdateAvatar` (http/https scheme, ≤2048
+                                    // rules as `UpdateAvatar` (https scheme only, ≤2048
                                     // chars). Clients can still recover via `UpdateAvatar`
                                     // afterwards, which surfaces an explicit error.
                                     let avatar_url = avatar_url.filter(|url_str| {
-                                        (url_str.starts_with("https://") || url_str.starts_with("http://"))
-                                            && url_str.len() <= 2048
+                                        url_str.starts_with("https://") && url_str.len() <= 2048
                                     });
 
                                     // Check if room is locked or lobby is enabled

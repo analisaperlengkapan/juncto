@@ -78,6 +78,10 @@ pub async fn create_room(
         let mut pending = state.pending_remote_control_requests.lock().unwrap();
         pending.clear();
     }
+    {
+        let mut fb = state.feedback.lock().unwrap();
+        fb.clear();
+    }
 
     let room_id = format!("room-{}", uuid::Uuid::new_v4());
 
