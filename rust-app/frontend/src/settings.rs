@@ -264,6 +264,7 @@ pub fn SettingsDialog(
                                 <input
                                     type="text"
                                     id="settings-avatar-url"
+                                    maxlength="2048"
                                     prop:value=move || avatar_url.get()
                                     on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
@@ -471,6 +472,7 @@ pub fn SettingsDialog(
                                     <input
                                         type="text"
                                         id="settings-subject"
+                                        maxlength="256"
                                         prop:value=move || subject.get()
                                         on:input=move |ev| set_subject.set(event_target_value(&ev))
                                         style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
