@@ -12,6 +12,11 @@ pub fn SettingsDialog(
     show: ReadSignal<bool>,
     on_close: Callback<()>,
     on_save_profile: Callback<String>,
+    #[prop(into, optional)] current_name: Option<Signal<String>>,
+    #[prop(into, optional)] current_avatar: Option<Signal<Option<String>>>,
+    #[prop(into, optional)] current_subject: Option<Signal<Option<String>>>,
+    #[prop(optional)] on_save_avatar: Option<Callback<Option<String>>>,
+    #[prop(optional)] on_set_subject: Option<Callback<String>>,
     #[prop(optional)] on_save_devices: Option<Callback<DeviceSettings>>,
     #[prop(optional)] current_video_id: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] current_audio_id: Option<ReadSignal<Option<String>>>,
@@ -38,6 +43,23 @@ pub fn SettingsDialog(
     });
 
     let (display_name, set_display_name) = create_signal("".to_string());
+    let (avatar_url, set_avatar_url) = create_signal("".to_string());
+    let (subject, set_subject) = create_signal("".to_string());
+
+    // Sync local state with global props when dialog opens
+    create_effect(move |_| {
+        if show.get() {
+            if let Some(sig) = current_name {
+                set_display_name.set(sig.get_untracked());
+            }
+            if let Some(sig) = current_avatar {
+                set_avatar_url.set(sig.get_untracked().unwrap_or_default());
+            }
+            if let Some(sig) = current_subject {
+                set_subject.set(sig.get_untracked().unwrap_or_default());
+            }
+        }
+    });
 
     // Initialize state from props if available
     let init_video = current_video_id.and_then(|s| s.get_untracked());
@@ -231,14 +253,30 @@ pub fn SettingsDialog(
                                 <label style="display: block; margin-bottom: 5px;">{move || t("display_name")}</label>
                                 <input
                                     type="text"
-                                    prop:value=display_name
+                                    id="settings-display-name"
+                                    prop:value=move || display_name.get()
                                     on:input=move |ev| set_display_name.set(event_target_value(&ev))
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
                                 />
                             </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">"Avatar URL"</label>
+                                <input
+                                    type="text"
+                                    id="settings-avatar-url"
+                                    prop:value=move || avatar_url.get()
+                                    on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
+                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                />
+                            </div>
                             <button
+                                id="save-profile-btn"
                                 on:click=move |_| {
                                     on_save_profile.call(display_name.get());
+                                    if let Some(cb) = on_save_avatar {
+                                        let av = avatar_url.get();
+                                        cb.call(if av.is_empty() { None } else { Some(av) });
+                                    }
                                     on_close.call(());
                                 }
                                 style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -416,6 +454,29 @@ pub fn SettingsDialog(
                             </div>
                         </Show>
                         <Show when=move || active_tab.get() == "moderator">
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">"Meeting Subject"</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input
+                                        type="text"
+                                        id="settings-subject"
+                                        prop:value=move || subject.get()
+                                        on:input=move |ev| set_subject.set(event_target_value(&ev))
+                                        style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                    />
+                                    <button
+                                        id="update-subject-btn"
+                                        on:click=move |_| {
+                                            if let Some(cb) = on_set_subject {
+                                                cb.call(subject.get());
+                                            }
+                                        }
+                                        style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        "Update"
+                                    </button>
+                                </div>
+                            </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input

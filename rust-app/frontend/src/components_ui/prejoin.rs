@@ -13,6 +13,7 @@ pub fn PrejoinScreen(
 ) -> impl IntoView {
     let initial_settings = crate::storage::load_settings();
     let (display_name, set_display_name) = create_signal(initial_settings.display_name.clone().unwrap_or_else(|| "Guest".to_string()));
+    let (avatar_url, set_avatar_url) = create_signal("".to_string());
 
     // Device Lists
     let (video_devices, set_video_devices) = create_signal(Vec::<DeviceInfo>::new());
@@ -161,6 +162,7 @@ pub fn PrejoinScreen(
 
     let handle_join = move |_| {
         stop_stream();
+        let av = avatar_url.get_untracked();
         on_join.call(JoinOptions {
             display_name: display_name.get_untracked(),
             mic_enabled: is_mic_on.get_untracked(),
@@ -168,6 +170,7 @@ pub fn PrejoinScreen(
             audio_device_id: selected_audio_device.get_untracked(),
             video_device_id: selected_video_device.get_untracked(),
             is_visitor: is_visitor.get_untracked(),
+            avatar_url: if av.is_empty() { None } else { Some(av) },
         });
     };
 
@@ -273,10 +276,22 @@ pub fn PrejoinScreen(
                     <input
                         type="text"
                         id="display-name"
-                        prop:value=display_name
                         on:input=move |ev| set_display_name.set(event_target_value(&ev))
+                        prop:value=move || display_name.get()
                         style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                         placeholder="Enter your name"
+                    />
+                </div>
+
+                <div style="margin-bottom: 20px; text-align: left;">
+                    <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Avatar URL (Optional)"</label>
+                    <input
+                        type="text"
+                        id="avatar-url"
+                        on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
+                        prop:value=move || avatar_url.get()
+                        style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                        placeholder="https://example.com/avatar.png"
                     />
                 </div>
 

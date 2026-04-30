@@ -205,10 +205,41 @@ pub fn VideoGrid(
                     local_stream.get()
                         .map(|s| s.get_video_tracks().length() > 0)
                         .unwrap_or(false)
-                } fallback=move || view! {
-                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white;">
-                        "Camera Off"
-                    </div>
+                } fallback=move || {
+                    let my_id_val = my_id.get();
+                    let my_id_val_clone = my_id_val.clone();
+                    let avatar_url = Signal::derive(move || {
+                        my_id_val.clone().and_then(|id| {
+                            participants.with(|ps| {
+                                ps.iter().find(|p| p.id == id).and_then(|p| p.avatar_url.clone())
+                            })
+                        })
+                    });
+                    let initial = Signal::derive(move || {
+                        my_id_val_clone.clone().and_then(|id| {
+                            participants.with(|ps| {
+                                ps.iter().find(|p| p.id == id).map(|p| p.name.chars().next().unwrap_or('?').to_uppercase().to_string())
+                            })
+                        }).unwrap_or_else(|| "Me".to_string())
+                    });
+
+                    view! {
+                        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; background: #222;">
+                            <div class="avatar-container" style="width: 80px; height: 80px;">
+                                <Show when=move || avatar_url.get().is_some() fallback=move || view! {
+                                    <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                        {initial.get()}
+                                    </div>
+                                }>
+                                    <img
+                                        src=move || avatar_url.get().unwrap_or_default()
+                                        style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
+                                        alt="Avatar"
+                                    />
+                                </Show>
+                            </div>
+                        </div>
+                    }
                 }>
                     <video
                         node_ref=video_ref
@@ -400,6 +431,15 @@ pub fn VideoGrid(
                                 })
                             });
 
+                            let p_id_for_avatar = p.id.clone();
+                            let avatar_url_sig = Signal::derive(move || {
+                                participants.with(|ps| {
+                                    ps.iter()
+                                        .find(|pp| pp.id == p_id_for_avatar)
+                                        .and_then(|pp| pp.avatar_url.clone())
+                                })
+                            });
+
                             let is_speaking_memo = create_memo(move |_| speaking_peers.get().contains(&id_clone));
                             let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
 
@@ -531,8 +571,18 @@ pub fn VideoGrid(
                                             }.into_view()
                                         } else {
                                             view! {
-                                                <div class="avatar" style="width: 80px; height: 80px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                                    {initial_char.get()}
+                                                <div class="avatar-container" style="width: 80px; height: 80px; position: relative;">
+                                                    <Show when=move || avatar_url_sig.get().is_some() fallback=move || view! {
+                                                        <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
+                                                            {initial_char.get()}
+                                                        </div>
+                                                    }>
+                                                        <img
+                                                            src=move || avatar_url_sig.get().unwrap_or_default()
+                                                            style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
+                                                            alt="Avatar"
+                                                        />
+                                                    </Show>
                                                 </div>
                                             }.into_view()
                                         }
@@ -608,7 +658,9 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false, hand_raised_at: None,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
         };
 
         let item_user = GridItem::User(p.clone());

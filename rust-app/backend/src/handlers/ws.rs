@@ -179,6 +179,34 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::SetSubject(subject) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let mut config = room_config_mutex.lock().unwrap();
+                                            config.subject = subject;
+                                            let _ = tx.send(ServerMessage::RoomUpdated(config.clone()));
+                                        }
+                                    }
+                                },
+                                ClientMessage::UpdateAvatar(url) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_p = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.avatar_url = url;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_p {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                        }
+                                    }
+                                },
                                 ClientMessage::FaceExpression(expression) => {
                                     if let Some(uid) = &my_id {
                                         // Rate limit with a dedicated counter (max 10/sec
@@ -556,7 +584,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::Join { name, is_visitor } => {
+                                ClientMessage::Join { name, is_visitor, avatar_url } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Check if room is locked or lobby is enabled
@@ -582,6 +610,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_visitor,
                                         e2ee_enabled: false,
                                         hand_raised_at: None,
+                                        avatar_url,
                                     };
 
                                     if is_lobby && host_exists {

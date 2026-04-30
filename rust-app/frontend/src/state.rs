@@ -33,6 +33,7 @@ pub struct JoinOptions {
     pub audio_device_id: Option<String>,
     pub video_device_id: Option<String>,
     pub is_visitor: bool,
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -129,6 +130,8 @@ pub struct RoomState {
     pub deny_access: Callback<String>,
     pub join_meeting: Callback<JoinOptions>,
     pub save_profile: Callback<String>,
+    pub set_avatar_url: Callback<Option<String>>,
+    pub set_subject: Callback<String>,
     pub send_reaction: Callback<String>,
     pub toggle_raise_hand: Callback<()>,
     pub toggle_screen_share: Callback<()>,
@@ -1002,6 +1005,24 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let set_avatar_url = Callback::new(move |url: Option<String>| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::UpdateAvatar(url);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let set_subject = Callback::new(move |subject: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetSubject(Some(subject));
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
         if is_visitor.get_untracked() { return; }
@@ -1135,9 +1156,14 @@ pub fn use_room_state() -> RoomState {
 
         let display_name = options.display_name;
         let is_visitor = options.is_visitor;
+        let avatar_url = options.avatar_url;
 
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::Join { name: display_name, is_visitor };
+            let msg = ClientMessage::Join {
+                name: display_name,
+                is_visitor,
+                avatar_url,
+            };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1648,6 +1674,8 @@ pub fn use_room_state() -> RoomState {
         deny_access,
         join_meeting,
         save_profile,
+        set_avatar_url,
+        set_subject,
         send_reaction,
         toggle_raise_hand,
         toggle_screen_share,
