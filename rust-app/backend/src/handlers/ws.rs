@@ -189,6 +189,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             continue;
                                         }
                                     }
+                                    // Normalize `Some("")` to `None` for defensive consistency
+                                    // with the frontend (state.rs `set_subject`), so a client
+                                    // bypassing the frontend cannot store an empty-string
+                                    // subject in the room config.
+                                    let subject = subject.filter(|s| !s.is_empty());
                                     if let Some(uid) = &my_id {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
