@@ -189,9 +189,11 @@ pub fn Room() -> impl IntoView {
                                     <div id="capture-area" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
                                             <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
-                                            <span id="meeting-subject" style="font-size: 1.2em; font-weight: bold; color: #007bff;">
-                                                {move || state.room_config.get().subject.unwrap_or_default()}
-                                            </span>
+                                            <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
+                                                <span id="meeting-subject" style="font-size: 1.2em; font-weight: bold; color: #007bff;">
+                                                    {move || state.room_config.get().subject.unwrap_or_default()}
+                                                </span>
+                                            </Show>
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
                                                 {format_time}
                                             </span>
