@@ -1298,7 +1298,10 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
 
     // Click Allow All
-    await hostPage.getByRole('button', { name: 'Allow All' }).click();
+    const allowAllBtn = hostPage.getByRole('button', { name: 'Allow All' });
+    await allowAllBtn.scrollIntoViewIfNeeded();
+    await expect(allowAllBtn).toBeEnabled();
+    await allowAllBtn.click();
 
     // Verify guests enter room
     await expect(g1Page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();
