@@ -161,7 +161,7 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled)
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled, p.avatar_url.clone())
                     children=move |p| {
                         let p_sv = store_value(p);
 

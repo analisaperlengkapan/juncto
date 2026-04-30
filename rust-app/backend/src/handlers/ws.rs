@@ -180,6 +180,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::SetSubject(subject) => {
+                                    // Validate subject length to prevent abuse
+                                    if let Some(ref s) = subject {
+                                        if s.len() > 256 {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid subject: too long".to_string())).await;
+                                            continue;
+                                        }
+                                    }
                                     if let Some(uid) = &my_id {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
@@ -192,6 +199,20 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     }
                                 },
                                 ClientMessage::UpdateAvatar(url) => {
+                                    // Server-side avatar URL validation: must be http/https
+                                    // and within a reasonable length, to prevent abuse where
+                                    // a participant could force other clients to issue
+                                    // requests to arbitrary URLs (e.g. IP-leaking trackers).
+                                    if let Some(ref url_str) = url {
+                                        if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with http:// or https://".to_string())).await;
+                                            continue;
+                                        }
+                                        if url_str.len() > 2048 {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: too long".to_string())).await;
+                                            continue;
+                                        }
+                                    }
                                     if let Some(uid) = &my_id {
                                         let updated_p = {
                                             let mut participants = participants_mutex.lock().unwrap();
@@ -586,6 +607,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Join { name, is_visitor, avatar_url } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
+
+                                    // Validate avatar URL on join (same rules as UpdateAvatar)
+                                    if let Some(ref url_str) = avatar_url {
+                                        if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with http:// or https://".to_string())).await;
+                                            continue;
+                                        }
+                                        if url_str.len() > 2048 {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: too long".to_string())).await;
+                                            continue;
+                                        }
+                                    }
 
                                     // Check if room is locked or lobby is enabled
                                     let (is_locked, is_lobby, max_participants, host_exists) = {
