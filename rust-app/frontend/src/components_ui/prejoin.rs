@@ -286,7 +286,7 @@ pub fn PrejoinScreen(
                 <div style="margin-bottom: 20px; text-align: left;">
                     <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Avatar URL (Optional)"</label>
                     <input
-                        type="text"
+                        type="url"
                         id="avatar-url"
                         on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
                         prop:value=move || avatar_url.get()

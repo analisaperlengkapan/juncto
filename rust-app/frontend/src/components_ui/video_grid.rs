@@ -225,6 +225,7 @@ pub fn VideoGrid(
 
                     view! {
                         <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; background: #222;">
+                            <span style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;">"Camera Off"</span>
                             <div class="avatar-container" style="width: 80px; height: 80px;">
                                 <Show when=move || avatar_url.get().is_some() fallback=move || view! {
                                     <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
