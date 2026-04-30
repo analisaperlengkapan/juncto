@@ -621,17 +621,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 ClientMessage::Join { name, is_visitor, avatar_url } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
-                                    // Validate avatar URL on join (same rules as UpdateAvatar)
-                                    if let Some(ref url_str) = avatar_url {
-                                        if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
-                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with http:// or https://".to_string())).await;
-                                            continue;
-                                        }
-                                        if url_str.len() > 2048 {
-                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: too long".to_string())).await;
-                                            continue;
-                                        }
-                                    }
+                                    // Sanitize avatar URL on join: since `avatar_url` is an
+                                    // optional cosmetic field, an invalid value should not
+                                    // prevent the user from joining the room. Drop the URL
+                                    // (treat as `None`) when it fails the same validation
+                                    // rules as `UpdateAvatar` (http/https scheme, ≤2048
+                                    // chars). Clients can still recover via `UpdateAvatar`
+                                    // afterwards, which surfaces an explicit error.
+                                    let avatar_url = avatar_url.filter(|url_str| {
+                                        (url_str.starts_with("https://") || url_str.starts_with("http://"))
+                                            && url_str.len() <= 2048
+                                    });
 
                                     // Check if room is locked or lobby is enabled
                                     let (is_locked, is_lobby, max_participants, host_exists) = {
