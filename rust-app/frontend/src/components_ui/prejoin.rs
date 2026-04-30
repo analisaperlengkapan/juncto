@@ -288,6 +288,7 @@ pub fn PrejoinScreen(
                     <input
                         type="url"
                         id="avatar-url"
+                        maxlength="2048"
                         on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
                         prop:value=move || avatar_url.get()
                         style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
