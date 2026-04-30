@@ -1016,7 +1016,10 @@ pub fn use_room_state() -> RoomState {
 
     let set_subject = Callback::new(move |subject: String| {
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::SetSubject(Some(subject));
+            // Normalize empty strings to `None` so clearing the subject stores
+            // `None` rather than `Some("")` in the room config.
+            let payload = if subject.is_empty() { None } else { Some(subject) };
+            let msg = ClientMessage::SetSubject(payload);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
