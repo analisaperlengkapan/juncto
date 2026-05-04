@@ -161,13 +161,32 @@ pub fn ParticipantsList(
             <ul>
                 <For
                     each=move || sort_participants(participants.get())
-                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled)
+                    key=|p| (p.id.clone(), p.name.clone(), p.is_hand_raised, p.is_sharing_screen, p.is_muted, p.presence.clone(), p.is_visitor, p.e2ee_enabled, p.avatar_url.clone())
                     children=move |p| {
                         let p_sv = store_value(p);
 
+                        // Track image load errors so a broken avatar URL falls
+                        // back to the initial-letter circle instead of showing
+                        // a broken image icon. Because the `<For>` key above
+                        // includes `avatar_url`, this signal is implicitly
+                        // reset (the row is rebuilt) when the URL changes.
+                        let (avatar_failed, set_avatar_failed) = create_signal(false);
+
                         view! {
                             <li class="participant-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 5px;">
-                                <div style=move || if p_sv.get_value().is_visitor { "opacity: 0.7;" } else { "" }>
+                                <div style=move || if p_sv.get_value().is_visitor { "display: flex; align-items: center; opacity: 0.7;" } else { "display: flex; align-items: center;" }>
+                                    <Show when=move || p_sv.get_value().avatar_url.is_some() && !avatar_failed.get() fallback=move || view! {
+                                        <div style="width: 24px; height: 24px; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; margin-right: 8px;">
+                                            {p_sv.get_value().name.chars().next().unwrap_or('?').to_uppercase().to_string()}
+                                        </div>
+                                    }>
+                                        <img
+                                            src=move || p_sv.get_value().avatar_url.unwrap_or_default()
+                                            on:error=move |_| set_avatar_failed.set(true)
+                                            style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; margin-right: 8px;"
+                                            alt="Avatar"
+                                        />
+                                    </Show>
                                     <span>{move || p_sv.get_value().name}</span>
                                     {move || if p_sv.get_value().is_visitor {
                                         view! { <span style="font-size: 0.75em; background: #eee; padding: 1px 3px; border-radius: 3px; margin-left: 5px; color: #666;">"Visitor"</span> }.into_view()
@@ -332,7 +351,9 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false, hand_raised_at: None,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
         };
         let p2 = Participant {
             id: "2".to_string(),
@@ -343,7 +364,9 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false, hand_raised_at: None,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
         };
         let p3 = Participant {
             id: "3".to_string(),
@@ -354,7 +377,9 @@ mod tests {
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
-            e2ee_enabled: false, hand_raised_at: None,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
         };
 
         let unsorted = vec![p1.clone(), p2.clone(), p3.clone()];

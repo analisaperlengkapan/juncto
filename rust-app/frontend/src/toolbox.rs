@@ -40,6 +40,7 @@ pub fn Toolbox(
     is_muted: ReadSignal<bool>,
     on_auth_dialog: Callback<()>,
     on_calendar: Callback<()>,
+    #[prop(optional)] on_dial_in: Option<Callback<()>>,
     #[prop(optional)] on_leave: Option<Callback<()>>,
     #[prop(optional)] on_end_meeting: Option<Callback<()>>,
     #[prop(optional)] class: &'static str,
@@ -247,6 +248,19 @@ pub fn Toolbox(
             >
                 "Calendar"
             </button>
+            <Show when=move || on_dial_in.is_some()>
+                <button
+                    on:click=move |_| {
+                        if let Some(cb) = on_dial_in {
+                            cb.call(());
+                        }
+                    }
+                    style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
+                    title="Dial-in Info"
+                >
+                    "📞 Dial"
+                </button>
+            </Show>
             <button
                 on:click=move |_| on_shortcuts.call(())
                 style="padding: 8px 16px; background-color: #666; color: white; border: none; cursor: pointer; border-radius: 4px;"

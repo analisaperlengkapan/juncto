@@ -139,7 +139,9 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             });
             p_map.insert(user_id.clone(), Participant {
                 id: user_id.clone(),
@@ -150,7 +152,9 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             });
         }
 
@@ -180,7 +184,9 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             });
             p_map.insert(user_id.clone(), Participant {
                 id: user_id.clone(),
@@ -191,7 +197,9 @@ mod tests {
                 speaking_time: 0,
                 presence: PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             });
         }
 
@@ -254,7 +262,9 @@ mod tests {
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
-                    e2ee_enabled: false, hand_raised_at: None,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
                 });
             }
         }

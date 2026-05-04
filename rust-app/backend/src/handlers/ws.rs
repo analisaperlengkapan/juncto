@@ -179,6 +179,71 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::SetSubject(subject) => {
+                                    // Validate subject length to prevent abuse. Use char count
+                                    // (not byte length) so multi-byte UTF-8 content (CJK, emoji)
+                                    // is treated consistently with what users see.
+                                    if let Some(ref s) = subject {
+                                        if s.chars().count() > 256 {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid subject: too long".to_string())).await;
+                                            continue;
+                                        }
+                                    }
+                                    // Normalize `Some("")` to `None` for defensive consistency
+                                    // with the frontend (state.rs `set_subject`), so a client
+                                    // bypassing the frontend cannot store an empty-string
+                                    // subject in the room config.
+                                    let subject = subject.filter(|s| !s.is_empty());
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            // Clone the updated config inside a nested block
+                                            // so the mutex guard is dropped before broadcasting,
+                                            // matching the pattern used elsewhere (e.g. ToggleLobby).
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.subject = subject;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::UpdateAvatar(url) => {
+                                    // Server-side avatar URL validation: must be https
+                                    // and within a reasonable length, to prevent abuse where
+                                    // a participant could force other clients to issue
+                                    // requests to arbitrary URLs (e.g. IP-leaking trackers).
+                                    // Plain http:// is rejected to avoid mixed-content
+                                    // loading and MITM avatar swaps when the meeting is
+                                    // served over HTTPS.
+                                    if let Some(ref url_str) = url {
+                                        if !url_str.starts_with("https://") {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: must start with https://".to_string())).await;
+                                            continue;
+                                        }
+                                        if url_str.len() > 2048 {
+                                            let _ = internal_tx.send(ServerMessage::Error("Invalid avatar URL: too long".to_string())).await;
+                                            continue;
+                                        }
+                                    }
+                                    if let Some(uid) = &my_id {
+                                        let updated_p = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.avatar_url = url;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_p {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                        }
+                                    }
+                                },
                                 ClientMessage::FaceExpression(expression) => {
                                     if let Some(uid) = &my_id {
                                         // Rate limit with a dedicated counter (max 10/sec
@@ -506,6 +571,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 let mut pending = state.pending_remote_control_requests.lock().unwrap();
                                                 pending.clear();
                                             }
+                                            {
+                                                let mut fb = state.feedback.lock().unwrap();
+                                                fb.clear();
+                                            }
                                         }
                                     }
                                 },
@@ -556,8 +625,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::Join { name, is_visitor } => {
+                                ClientMessage::Join { name, is_visitor, avatar_url } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
+
+                                    // Sanitize avatar URL on join: since `avatar_url` is an
+                                    // optional cosmetic field, an invalid value should not
+                                    // prevent the user from joining the room. Drop the URL
+                                    // (treat as `None`) when it fails the same validation
+                                    // rules as `UpdateAvatar` (https scheme only, ≤2048
+                                    // chars). Clients can still recover via `UpdateAvatar`
+                                    // afterwards, which surfaces an explicit error.
+                                    let avatar_url = avatar_url.filter(|url_str| {
+                                        url_str.starts_with("https://") && url_str.len() <= 2048
+                                    });
 
                                     // Check if room is locked or lobby is enabled
                                     let (is_locked, is_lobby, max_participants, host_exists) = {
@@ -582,6 +662,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_visitor,
                                         e2ee_enabled: false,
                                         hand_raised_at: None,
+                                        avatar_url,
                                     };
 
                                     if is_lobby && host_exists {

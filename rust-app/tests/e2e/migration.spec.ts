@@ -98,7 +98,9 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(page.getByText('Save Profile')).toBeVisible();
 
   // Change Name
-  const nameSettingInput = page.locator('.modal-content input[type="text"]');
+  // Use specific ID to avoid strict-mode violation now that the Profile tab
+  // also contains an avatar URL input (#settings-avatar-url).
+  const nameSettingInput = page.locator('#settings-display-name');
   await nameSettingInput.fill('Updated Name');
   await page.click('button:has-text("Save Profile")');
 
@@ -1296,7 +1298,14 @@ test('Allow All Lobby E2E', async ({ browser, request }) => {
     await expect(hostPage.locator('.knocking-list li')).toHaveCount(2);
 
     // Click Allow All
-    await hostPage.getByRole('button', { name: 'Allow All' }).click();
+    const allowAllBtn = hostPage.getByRole('button', { name: 'Allow All' });
+    await allowAllBtn.scrollIntoViewIfNeeded();
+    await expect(allowAllBtn).toBeEnabled();
+    // Use dispatchEvent to bypass actionability checks (stability/visibility),
+    // mirroring the Kick test pattern earlier in this file. The button is
+    // sometimes briefly covered by a transient toast/animation in CI which
+    // causes a regular click() to time out.
+    await allowAllBtn.dispatchEvent('click');
 
     // Verify guests enter room
     await expect(g1Page.getByText(`Meeting Room: ${roomName}`)).toBeVisible();

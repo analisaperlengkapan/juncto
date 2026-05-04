@@ -50,6 +50,7 @@ fn test_server_message_serialization() {
         is_visitor: false,
         e2ee_enabled: false,
         hand_raised_at: None,
+        avatar_url: None,
     };
     let msg = ServerMessage::ParticipantJoined(p.clone());
     let json = serde_json::to_string(&msg).unwrap();
@@ -289,6 +290,19 @@ fn test_is_giphy_cdn_url() {
     assert!(!is_giphy_cdn_url("https://mediaX.giphy.com/media/abc/giphy.gif"));
     assert!(!is_giphy_cdn_url("https://media99.giphy.com/media/abc/giphy.gif"));
     assert!(!is_giphy_cdn_url("not-a-url"));
+}
+
+#[test]
+fn test_set_subject_and_update_avatar_serialization() {
+    let msg = ClientMessage::SetSubject(Some("Project Alpha".to_string()));
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg = ClientMessage::UpdateAvatar(Some("http://avatar.com/1".to_string()));
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
 }
 
 #[test]

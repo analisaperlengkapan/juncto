@@ -36,6 +36,8 @@ pub struct RoomConfig {
     pub is_subtitles_enabled: bool,
     #[serde(default)]
     pub etherpad_url: Option<String>,
+    #[serde(default)]
+    pub subject: Option<String>,
 }
 
 impl Default for RoomConfig {
@@ -50,6 +52,7 @@ impl Default for RoomConfig {
             e2ee_enabled: false,
             is_subtitles_enabled: false,
             etherpad_url: None,
+            subject: None,
         }
     }
 }
@@ -122,6 +125,8 @@ pub struct Participant {
     pub e2ee_enabled: bool,
     #[serde(default)]
     pub hand_raised_at: Option<u64>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -170,6 +175,8 @@ pub enum ClientMessage {
         name: String,
         #[serde(default)]
         is_visitor: bool,
+        #[serde(default)]
+        avatar_url: Option<String>,
     },
     Chat {
         content: String,
@@ -205,6 +212,8 @@ pub enum ClientMessage {
     Typing(bool),
     StartShareVideo(String), // URL
     StopShareVideo,
+    SetSubject(Option<String>),
+    UpdateAvatar(Option<String>),
     Speaking(bool),
     Ping,
     MuteAll,

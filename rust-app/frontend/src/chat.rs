@@ -362,7 +362,9 @@ mod tests {
                 speaking_time: 0,
                 presence: shared::PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             },
             Participant {
                 id: "u2".to_string(),
@@ -373,7 +375,9 @@ mod tests {
                 speaking_time: 0,
                 presence: shared::PresenceStatus::Connected,
                 is_visitor: false,
-                e2ee_enabled: false, hand_raised_at: None,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
             },
         ];
 

@@ -9,6 +9,7 @@ use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::screenshot_capture::ScreenshotCapture;
 use crate::components_ui::shared_video_dialog::SharedVideoDialog;
+use crate::components_ui::dial_in::DialInDialog;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::connection_stats::ConnectionStats;
 use crate::participants::ParticipantsList;
@@ -48,6 +49,7 @@ pub fn Room() -> impl IntoView {
     let (show_embed, set_show_embed) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
     let (show_participants, set_show_participants) = create_signal(true);
+    let (show_dial_in, set_show_dial_in) = create_signal(false);
 
     let invite_url = Signal::derive(move || {
         if let Some(window) = web_sys::window() {
@@ -187,6 +189,11 @@ pub fn Room() -> impl IntoView {
                                     <div id="capture-area" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                                         <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
                                             <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
+                                            <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
+                                                <span id="meeting-subject" style="font-size: 1.2em; font-weight: bold; color: #007bff;">
+                                                    {move || state.room_config.get().subject.unwrap_or_default()}
+                                                </span>
+                                            </Show>
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
                                                 {format_time}
                                             </span>
@@ -344,6 +351,7 @@ pub fn Room() -> impl IntoView {
                                     state.set_show_login_dialog.set(true);
                                 })
                                 on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
+                                on_dial_in=Callback::new(move |_| set_show_dial_in.set(true))
                                 on_leave=leave_room
                                 on_end_meeting=end_meeting_and_leave
                             />
@@ -420,6 +428,24 @@ pub fn Room() -> impl IntoView {
                             show=state.show_settings
                             on_close=Callback::new(move |_| state.set_show_settings.set(false))
                             on_save_profile=state.save_profile
+                            current_name=Signal::derive({
+                                let state = state.clone();
+                                move || {
+                                    state.participants.get().iter().find(|p| Some(p.id.clone()) == state.my_id.get()).map(|p| p.name.clone()).unwrap_or_default()
+                                }
+                            })
+                            current_avatar=Signal::derive({
+                                let state = state.clone();
+                                move || {
+                                    state.participants.get().iter().find(|p| Some(p.id.clone()) == state.my_id.get()).and_then(|p| p.avatar_url.clone())
+                                }
+                            })
+                            current_subject=Signal::derive({
+                                let state = state.clone();
+                                move || state.room_config.get().subject.clone()
+                            })
+                            on_save_avatar=state.set_avatar_url
+                            on_set_subject=state.set_subject
                             on_save_devices=state.set_input_devices
                             current_video_id=state.selected_camera_id
                             current_audio_id=state.selected_mic_id
@@ -482,6 +508,10 @@ pub fn Room() -> impl IntoView {
                         <FeedbackDialog
                             show=state.show_feedback
                             on_close=Callback::new(move |_| state.set_show_feedback.set(false))
+                        />
+                        <DialInDialog
+                            show=show_dial_in
+                            on_close=Callback::new(move |_| set_show_dial_in.set(false))
                         />
                     </div>
                 }.into_view()
