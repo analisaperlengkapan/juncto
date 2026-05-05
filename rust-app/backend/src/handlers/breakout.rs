@@ -124,8 +124,7 @@ pub fn close_all_breakout_rooms(
         rooms.clear();
     }
 
-    let mut messages = Vec::new();
-    messages.push(ServerMessage::BreakoutRoomsList(Vec::new()));
+    let messages = vec![ServerMessage::BreakoutRoomsList(Vec::new())];
 
     // Notify all participants they are moved back to main room
     // The WS loop will catch these and deliver them.
