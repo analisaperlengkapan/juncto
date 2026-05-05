@@ -36,6 +36,7 @@ pub fn ParticipantsList(
     #[prop(optional)] on_broadcast_lobby: Option<Callback<String>>,
     #[prop(optional)] on_promote: Option<Callback<String>>,
     #[prop(optional)] on_request_remote_control: Option<Callback<String>>,
+    #[prop(optional)] on_stop_screen_share_all: Option<Callback<()>>,
 ) -> impl IntoView {
     let (lobby_msg, set_lobby_msg) = create_signal("".to_string());
 
@@ -154,6 +155,18 @@ pub fn ParticipantsList(
                             title="Mute All Cameras"
                         >
                             "Mute Cam All"
+                        </button>
+                        <button
+                            id="stop-screen-share-all-btn"
+                            on:click=move |_| {
+                                if let Some(cb) = on_stop_screen_share_all {
+                                    cb.call(());
+                                }
+                            }
+                            style="background: #dc3545; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.8em;"
+                            title="Stop All Screen Shares"
+                        >
+                            "Stop Screen All"
                         </button>
                     </div>
                 </Show>

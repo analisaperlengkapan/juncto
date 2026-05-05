@@ -40,6 +40,7 @@ pub fn Toolbox(
     is_muted: ReadSignal<bool>,
     on_auth_dialog: Callback<()>,
     on_calendar: Callback<()>,
+    on_files: Callback<()>,
     #[prop(optional)] on_dial_in: Option<Callback<()>>,
     #[prop(optional)] on_leave: Option<Callback<()>>,
     #[prop(optional)] on_end_meeting: Option<Callback<()>>,
@@ -247,6 +248,13 @@ pub fn Toolbox(
                 style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
             >
                 "Calendar"
+            </button>
+            <button
+                id="toggle-files-btn"
+                on:click=move |_| on_files.call(())
+                style="padding: 8px 16px; background-color: #f8f9fa; color: #333; border: none; cursor: pointer; border-radius: 4px;"
+            >
+                "Files"
             </button>
             <Show when=move || on_dial_in.is_some()>
                 <button

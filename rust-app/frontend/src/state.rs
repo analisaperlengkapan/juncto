@@ -93,6 +93,7 @@ pub struct RoomState {
     pub is_visitor: Signal<bool>,
     pub room_config: ReadSignal<shared::RoomConfig>,
     pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
+    pub branding: ReadSignal<shared::BrandingConfig>,
     pub is_recording_locally: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
     pub dominant_speaker: ReadSignal<Option<String>>,
@@ -143,6 +144,10 @@ pub struct RoomState {
     pub set_is_typing: Callback<bool>,
     pub create_breakout_room: Callback<String>,
     pub join_breakout_room: Callback<Option<String>>,
+    pub close_all_breakout_rooms: Callback<()>,
+    #[allow(dead_code)]
+    pub move_participant_to_room: Callback<(String, Option<String>)>,
+    pub auto_assign_to_breakout_rooms: Callback<()>,
     pub toggle_camera: Callback<()>,
     pub toggle_mic: Callback<()>,
     pub end_meeting: Callback<()>,
@@ -150,6 +155,8 @@ pub struct RoomState {
     pub mute_camera_participant: Callback<String>,
     pub mute_all: Callback<()>,
     pub mute_camera_all: Callback<()>,
+    pub stop_screen_share_all: Callback<()>,
+    pub set_branding: Callback<shared::BrandingConfig>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
     pub toggle_local_recording: Callback<()>,
@@ -219,6 +226,7 @@ pub fn use_room_state() -> RoomState {
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
+    let (branding, set_branding_sig) = create_signal(shared::BrandingConfig::default());
     let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
     let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
     let (_last_face_expression, set_face_expression) = create_signal(None::<(String, String, u64)>);
@@ -803,6 +811,9 @@ pub fn use_room_state() -> RoomState {
                                 set_is_recording_locally,
                                 set_is_muted,
                                 set_audio_monitor,
+                                set_branding_sig,
+                                local_screen_stream,
+                                set_local_screen_stream,
                                 participants,
                                 set_last_reaction,
                                 set_breakout_rooms,
@@ -819,6 +830,7 @@ pub fn use_room_state() -> RoomState {
                                 set_calendar_events,
                                 set_lobby_announcement,
                                 set_face_expression,
+                                set_current_room_id,
                                 remote_control: remote_control_clone.clone(),
                             };
                             handle_server_message(server_msg, &ctx);
@@ -1191,6 +1203,33 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let close_all_breakout_rooms = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::CloseAllBreakoutRooms;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let move_participant_to_room = Callback::new(move |(target_id, room_id): (String, Option<String>)| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MoveParticipantToRoom { target_id, room_id };
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let auto_assign_to_breakout_rooms = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::AutoAssignToBreakoutRooms;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let webrtc_manager_for_breakout = webrtc_manager.clone();
     let join_breakout_room = Callback::new(move |room_id: Option<String>| {
         set_current_room_id.set(room_id.clone());
@@ -1255,6 +1294,24 @@ pub fn use_room_state() -> RoomState {
     let mute_camera_all = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::MuteCameraAll;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let stop_screen_share_all = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::StopScreenShareAll;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let set_branding = Callback::new(move |b: shared::BrandingConfig| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetBranding(b);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1643,6 +1700,7 @@ pub fn use_room_state() -> RoomState {
         is_visitor,
         room_config,
         power_statuses,
+        branding,
         is_recording_locally,
         lobby_announcement,
         dominant_speaker,
@@ -1690,6 +1748,9 @@ pub fn use_room_state() -> RoomState {
         set_is_typing,
         create_breakout_room,
         join_breakout_room,
+        close_all_breakout_rooms,
+        move_participant_to_room,
+        auto_assign_to_breakout_rooms,
         toggle_camera,
         toggle_mic,
         end_meeting,
@@ -1697,6 +1758,8 @@ pub fn use_room_state() -> RoomState {
         mute_camera_participant,
         mute_all,
         mute_camera_all,
+        stop_screen_share_all,
+        set_branding,
         transfer_host,
         start_share_video,
         stop_share_video,

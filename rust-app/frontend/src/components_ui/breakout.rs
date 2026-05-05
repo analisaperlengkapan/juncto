@@ -8,6 +8,8 @@ pub fn BreakoutRooms(
     is_host: Signal<bool>,
     on_create: Callback<String>,
     on_join: Callback<Option<String>>,
+    #[prop(optional)] on_close_all: Option<Callback<()>>,
+    #[prop(optional)] on_auto_assign: Option<Callback<()>>,
 ) -> impl IntoView {
     let (new_room_name, set_new_room_name) = create_signal("".to_string());
 
@@ -23,14 +25,30 @@ pub fn BreakoutRooms(
         <div class="breakout-rooms" style="padding: 10px; background: #f8f9fa; border-bottom: 1px solid #ccc;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h4 style="margin: 0;">"Breakout Rooms"</h4>
-                <Show when=move || current_room_id.get().is_some()>
-                    <button
-                        on:click=move |_| on_join.call(None) // Join Main
-                        style="padding: 5px 10px; background-color: #6c757d; color: white; border: none; cursor: pointer; border-radius: 4px;"
-                    >
-                        "Return to Main"
-                    </button>
-                </Show>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <Show when=move || is_host.get()>
+                        <button
+                            on:click=move |_| { if let Some(cb) = on_auto_assign { cb.call(()); } }
+                            style="padding: 5px 10px; background-color: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 0.9em;"
+                        >
+                            "Auto Assign"
+                        </button>
+                        <button
+                            on:click=move |_| { if let Some(cb) = on_close_all { cb.call(()); } }
+                            style="padding: 5px 10px; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 0.9em;"
+                        >
+                            "Close All"
+                        </button>
+                    </Show>
+                    <Show when=move || current_room_id.get().is_some()>
+                        <button
+                            on:click=move |_| on_join.call(None) // Join Main
+                            style="padding: 5px 10px; background-color: #6c757d; color: white; border: none; cursor: pointer; border-radius: 4px;"
+                        >
+                            "Return to Main"
+                        </button>
+                    </Show>
+                </div>
             </div>
 
             <div class="rooms-list" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">

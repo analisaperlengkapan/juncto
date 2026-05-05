@@ -49,6 +49,7 @@ pub fn Room() -> impl IntoView {
     let (show_embed, set_show_embed) = create_signal(false);
     let (show_chat, set_show_chat) = create_signal(true);
     let (show_participants, set_show_participants) = create_signal(true);
+    let (show_files, set_show_files) = create_signal(false);
     let (show_dial_in, set_show_dial_in) = create_signal(false);
 
     let invite_url = Signal::derive(move || {
@@ -152,6 +153,7 @@ pub fn Room() -> impl IntoView {
                             let mut margin = 0;
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
+                            if show_files.get() { margin += 320; }
                             format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}px;", margin)
                         }>
                             <Show when=move || state.show_login_dialog.get()>
@@ -177,6 +179,8 @@ pub fn Room() -> impl IntoView {
                                 is_host=state.is_host
                                 on_create=state.create_breakout_room
                                 on_join=state.join_breakout_room
+                                on_close_all=state.close_all_breakout_rooms
+                                on_auto_assign=state.auto_assign_to_breakout_rooms
                             />
                             <div style="position: relative; flex: 1; width: 100%; height: 100%;">
                                 <div class="video-container" style=move || {
@@ -351,6 +355,7 @@ pub fn Room() -> impl IntoView {
                                     state.set_show_login_dialog.set(true);
                                 })
                                 on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
+                                on_files=Callback::new(move |_| set_show_files.update(|v| *v = !*v))
                                 on_dial_in=Callback::new(move |_| set_show_dial_in.set(true))
                                 on_leave=leave_room
                                 on_end_meeting=end_meeting_and_leave
@@ -358,8 +363,10 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <div class="side-panel chat-container" style=move || {
                             if show_chat.get() {
-                                let right_pos = if show_participants.get() { "320px" } else { "0px" };
-                                format!("display: flex; position: fixed; top: 0; right: {}; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", right_pos)
+                                let mut offset = 0;
+                                if show_participants.get() { offset += 320; }
+                                if show_files.get() { offset += 320; }
+                                format!("display: flex; position: fixed; top: 0; right: {}px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", offset)
                             } else {
                                 "display: none;".to_string()
                             }
@@ -384,7 +391,9 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <div class="side-panel participants-container" style=move || {
                             if show_participants.get() {
-                                "display: flex; position: fixed; top: 0; right: 0; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;".to_string()
+                                let mut offset = 0;
+                                if show_files.get() { offset += 320; }
+                                format!("display: flex; position: fixed; top: 0; right: {}px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", offset)
                             } else {
                                 "display: none;".to_string()
                             }
@@ -416,6 +425,24 @@ pub fn Room() -> impl IntoView {
                                         let state = state.clone();
                                         move |id| state.remote_control.request_control(id)
                                     })
+                                    on_stop_screen_share_all=state.stop_screen_share_all
+                                />
+                            </div>
+                        </div>
+                        <div class="side-panel files-container" style=move || {
+                            if show_files.get() {
+                                "display: flex; position: fixed; top: 0; right: 0px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;".to_string()
+                            } else {
+                                "display: none;".to_string()
+                            }
+                        }>
+                            <div class="panel-header">
+                                <h3>"Files"</h3>
+                                <button class="close-btn" on:click=move |_| set_show_files.set(false)>"✕"</button>
+                            </div>
+                            <div class="panel-content" style="padding: 0;">
+                                <crate::components_ui::file_sharing::FileSharing
+                                    messages=state.messages
                                 />
                             </div>
                         </div>
@@ -470,6 +497,8 @@ pub fn Room() -> impl IntoView {
                             on_toggle_e2ee=state.toggle_e2ee
                             on_toggle_participant_e2ee=state.toggle_participant_e2ee
                             on_toggle_lobby=state.toggle_lobby
+                            on_set_branding=state.set_branding
+                            current_branding=state.branding.into()
                         />
                         <SharedVideoDialog
                             show=show_shared_video_dialog

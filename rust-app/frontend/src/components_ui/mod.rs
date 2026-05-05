@@ -15,3 +15,4 @@ pub mod toast;
 pub mod video_grid;
 pub mod screenshot_capture;
 pub mod dial_in;
+pub mod file_sharing;
