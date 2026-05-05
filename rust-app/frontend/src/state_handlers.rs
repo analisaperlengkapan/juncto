@@ -56,6 +56,9 @@ pub struct HandlerContext {
     pub set_is_recording_locally: WriteSignal<bool>,
     pub set_is_muted: WriteSignal<bool>,
     pub set_audio_monitor: WriteSignal<Option<AudioMonitor>>,
+    pub set_branding_sig: WriteSignal<shared::BrandingConfig>,
+    pub local_screen_stream: ReadSignal<Option<MediaStream>>,
+    pub set_local_screen_stream: WriteSignal<Option<MediaStream>>,
     pub participants: ReadSignal<Vec<Participant>>,
     pub set_last_reaction: WriteSignal<Option<(String, String, u64)>>,
     pub set_breakout_rooms: WriteSignal<Vec<shared::BreakoutRoom>>,
@@ -72,6 +75,7 @@ pub struct HandlerContext {
     pub set_calendar_events: WriteSignal<Vec<String>>,
     pub set_lobby_announcement: WriteSignal<Option<String>>,
     pub set_face_expression: WriteSignal<Option<(String, String, u64)>>,
+    pub set_current_room_id: WriteSignal<Option<String>>,
     pub remote_control: RemoteControlService,
 }
 
@@ -116,6 +120,27 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     }
                 }
             }
+        }
+        ServerMessage::ForcedMoveToRoom { target_id, room_id } => {
+             if ctx.my_id.get_untracked().as_ref() != Some(&target_id) {
+                 return;
+             }
+             // Host moved us to a different room
+             ctx.set_current_room_id.set(room_id.clone());
+
+             // Clear messages when switching rooms
+             ctx.set_messages.set(Vec::new());
+             // Clear stale indicators
+             ctx.set_speaking_peers.update(|s: &mut HashSet<String>| s.clear());
+             ctx.set_typing_users.update(|u: &mut HashSet<String>| u.clear());
+             ctx.set_power_statuses.set(HashMap::new());
+
+             // Cleanup existing WebRTC connections on room switch
+             ctx.webrtc_manager.close_all_peers();
+             ctx.set_remote_streams.set(HashMap::new());
+
+             let room_name = if room_id.is_none() { "Main Room".to_string() } else { "a breakout room".to_string() };
+             ctx.add_toast.call((format!("The host moved you to {}", room_name), ToastType::Info));
         }
         ServerMessage::CameraMutedByHost(target_id) => {
             if let Some(my) = ctx.my_id.get_untracked() {
@@ -174,6 +199,23 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 ctx.set_subtitles.set(Vec::new());
             }
             ctx.set_is_subtitles_enabled.set(config.is_subtitles_enabled);
+
+            // Apply branding to CSS variables
+            if let Some(primary) = &config.branding.primary_color {
+                if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                    if let Some(root) = document.document_element().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+                        let _ = root.style().set_property("--primary-color", primary);
+                    }
+                }
+            }
+            if let Some(bg) = &config.branding.background_color {
+                if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                    if let Some(root) = document.document_element().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+                        let _ = root.style().set_property("--background-color", bg);
+                    }
+                }
+            }
+            ctx.set_branding_sig.set(config.branding.clone());
 
             ctx.set_room_config.set(config);
         }
@@ -250,6 +292,17 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::ParticipantList(list) => {
             ctx.set_participants.set(list.clone());
 
+            // If we are currently in a room that is no longer our location according to the server
+            // (e.g. forced move by host), we should update our local current_room_id.
+            // Since ParticipantList is sent upon joining a room (or being moved),
+            // we can check if we are in the list.
+            if let Some(_my_id) = ctx.my_id.get_untracked() {
+                // We don't have the room_id in the Participant struct directly,
+                // but the backend sends the filtered list for the room we are now in.
+                // The issue is how to know WHICH room this list is for.
+                // For now, assume if the host moved us, they sent a message or we joined.
+            }
+
             // If we switched rooms (e.g. joined a breakout) and the peer we were
             // controlling — or the peer whose consent we were awaiting — is not
             // present in the new room's participant list, dismiss the overlay
@@ -325,6 +378,19 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     );
                 }
             }
+        }
+        ServerMessage::ScreenShareStoppedByHost => {
+            ctx.add_toast.call(("Your screen share has been stopped by the host.".to_string(), ToastType::Info));
+            if let Some(stream) = ctx.local_screen_stream.get_untracked() {
+                let tracks = stream.get_tracks();
+                for i in 0..tracks.length() {
+                    if let Ok(track) = tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                        track.stop();
+                    }
+                }
+            }
+            ctx.set_local_screen_stream.set(None);
+            ctx.webrtc_manager.update_local_tracks();
         }
         ServerMessage::MutedByHost(target_id) => {
             if let Some(my) = ctx.my_id.get_untracked() {

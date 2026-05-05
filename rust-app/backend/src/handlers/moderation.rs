@@ -50,6 +50,47 @@ pub fn mute_all(
     messages
 }
 
+pub fn stop_screen_share_all(
+    sender_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let is_host = {
+        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
+    };
+
+    if is_host {
+        let host_location = {
+            let locs = state.participant_locations.lock().unwrap();
+            locs.get(sender_id).cloned().flatten()
+        };
+
+        let participants = {
+            let p_map = state.participants.lock().unwrap();
+            let locs = state.participant_locations.lock().unwrap();
+            p_map.values()
+                .filter(|p| locs.get(&p.id).cloned().flatten() == host_location && p.is_sharing_screen)
+                .cloned()
+                .collect::<Vec<shared::Participant>>()
+        };
+
+        for mut p in participants {
+            if p.id != sender_id {
+                p.is_sharing_screen = false;
+                {
+                    let mut p_map = state.participants.lock().unwrap();
+                    if let Some(participant) = p_map.get_mut(&p.id) {
+                        participant.is_sharing_screen = false;
+                    }
+                }
+                messages.push(ServerMessage::ParticipantUpdated(p));
+                messages.push(ServerMessage::ScreenShareStoppedByHost);
+            }
+        }
+    }
+    messages
+}
+
 pub fn mute_camera_all(
     sender_id: &str,
     state: &Arc<AppState>,
@@ -288,5 +329,59 @@ mod tests {
         assert!(p_map.get(&user_in_main).unwrap().is_muted);
         assert!(!p_map.get(&user_in_breakout).unwrap().is_muted);
         assert!(!p_map.get(&host_id).unwrap().is_muted);
+    }
+
+    #[test]
+    fn test_stop_screen_share_all_host() {
+        let state = create_mock_state();
+        let host_id = "host".to_string();
+        let user_id = "user".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.clone());
+        }
+
+        {
+            let mut locs = state.participant_locations.lock().unwrap();
+            locs.insert(host_id.clone(), None);
+            locs.insert(user_id.clone(), None);
+        }
+
+        {
+            let mut p_map = state.participants.lock().unwrap();
+            p_map.insert(host_id.clone(), Participant {
+                id: host_id.clone(),
+                name: "Host".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: false,
+                is_muted: false,
+                speaking_time: 0,
+                presence: PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
+            });
+            p_map.insert(user_id.clone(), Participant {
+                id: user_id.clone(),
+                name: "User".to_string(),
+                is_hand_raised: false,
+                is_sharing_screen: true,
+                is_muted: false,
+                speaking_time: 0,
+                presence: PresenceStatus::Connected,
+                is_visitor: false,
+                e2ee_enabled: false,
+                hand_raised_at: None,
+                avatar_url: None,
+            });
+        }
+
+        let msgs = stop_screen_share_all(&host_id, &state);
+        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::ScreenShareStoppedByHost)));
+
+        let p_map = state.participants.lock().unwrap();
+        assert!(!p_map.get(&user_id).unwrap().is_sharing_screen);
     }
 }

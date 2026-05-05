@@ -32,6 +32,8 @@ pub fn SettingsDialog(
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_participant_e2ee: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
+    #[prop(optional)] on_set_branding: Option<Callback<shared::BrandingConfig>>,
+    #[prop(optional)] current_branding: Option<Signal<shared::BrandingConfig>>,
 ) -> impl IntoView {
     let toast_ctx = use_toast();
     let (active_tab, set_active_tab) = create_signal("profile");
@@ -45,6 +47,8 @@ pub fn SettingsDialog(
     let (display_name, set_display_name) = create_signal("".to_string());
     let (avatar_url, set_avatar_url) = create_signal("".to_string());
     let (subject, set_subject) = create_signal("".to_string());
+    let (primary_color, set_primary_color) = create_signal("#007bff".to_string());
+    let (bg_color, set_bg_color) = create_signal("#ffffff".to_string());
 
     // Sync local state with global props when dialog opens
     create_effect(move |_| {
@@ -57,6 +61,11 @@ pub fn SettingsDialog(
             }
             if let Some(sig) = current_subject {
                 set_subject.set(sig.get_untracked().unwrap_or_default());
+            }
+            if let Some(sig) = current_branding {
+                let b = sig.get_untracked();
+                set_primary_color.set(b.primary_color.unwrap_or_else(|| "#007bff".to_string()));
+                set_bg_color.set(b.background_color.unwrap_or_else(|| "#ffffff".to_string()));
             }
         }
     });
@@ -223,6 +232,12 @@ pub fn SettingsDialog(
                             "More"
                         </button>
                         <Show when=move || is_host.map(|h| h.get()).unwrap_or(false)>
+                            <button
+                                on:click=move |_| set_active_tab.set("branding")
+                                style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "branding" { "#007bff" } else { "transparent" })
+                            >
+                                "Branding"
+                            </button>
                             <button
                                 on:click=move |_| set_active_tab.set("moderator")
                                 style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "moderator" { "#007bff" } else { "transparent" })
@@ -471,6 +486,41 @@ pub fn SettingsDialog(
                                     </button>
                                 </div>
                             </div>
+                        </Show>
+                        <Show when=move || active_tab.get() == "branding">
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">"Primary Color"</label>
+                                <input
+                                    type="color"
+                                    id="branding-primary-color"
+                                    prop:value=primary_color
+                                    on:input=move |ev| set_primary_color.set(event_target_value(&ev))
+                                />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">"Background Color"</label>
+                                <input
+                                    type="color"
+                                    id="branding-bg-color"
+                                    prop:value=bg_color
+                                    on:input=move |ev| set_bg_color.set(event_target_value(&ev))
+                                />
+                            </div>
+                            <button
+                                id="save-branding-btn"
+                                on:click=move |_| {
+                                    if let Some(cb) = on_set_branding {
+                                        cb.call(shared::BrandingConfig {
+                                            primary_color: Some(primary_color.get()),
+                                            background_color: Some(bg_color.get()),
+                                            logo_url: None,
+                                        });
+                                    }
+                                }
+                                style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                            >
+                                "Apply Branding"
+                            </button>
                         </Show>
                         <Show when=move || active_tab.get() == "moderator">
                             <div class="form-group" style="margin-bottom: 15px;">

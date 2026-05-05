@@ -23,6 +23,23 @@ pub struct PowerStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BrandingConfig {
+    pub primary_color: Option<String>,
+    pub background_color: Option<String>,
+    pub logo_url: Option<String>,
+}
+
+impl Default for BrandingConfig {
+    fn default() -> Self {
+        Self {
+            primary_color: Some("#007bff".to_string()),
+            background_color: Some("#ffffff".to_string()),
+            logo_url: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,
@@ -38,6 +55,8 @@ pub struct RoomConfig {
     pub etherpad_url: Option<String>,
     #[serde(default)]
     pub subject: Option<String>,
+    #[serde(default)]
+    pub branding: BrandingConfig,
 }
 
 impl Default for RoomConfig {
@@ -53,6 +72,7 @@ impl Default for RoomConfig {
             is_subtitles_enabled: false,
             etherpad_url: None,
             subject: None,
+            branding: BrandingConfig::default(),
         }
     }
 }
@@ -207,6 +227,12 @@ pub enum ClientMessage {
     SetPresence(PresenceStatus),
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
+    CloseAllBreakoutRooms,
+    MoveParticipantToRoom {
+        target_id: String,
+        room_id: Option<String>,
+    },
+    AutoAssignToBreakoutRooms,
     Draw(DrawAction),
     ToggleSubtitles,
     Typing(bool),
@@ -217,6 +243,8 @@ pub enum ClientMessage {
     Speaking(bool),
     Ping,
     MuteAll,
+    StopScreenShareAll,
+    SetBranding(BrandingConfig),
     UpdatePowerStatus(PowerStatus),
     RequestUnmute(String), // Target ID
     ToggleLocalRecording(bool),
@@ -326,6 +354,7 @@ pub enum ServerMessage {
         requester_id: String,
         target_id: String,
     },
+    ScreenShareStoppedByHost,
     RecordingStatusChanged {
         user_id: String,
         is_recording: bool,
@@ -373,6 +402,10 @@ pub enum ServerMessage {
     LobbyAnnouncement(String),
     CameraMutedByHost(String), // Target ID
     VisitorPromoted(String), // ID
+    ForcedMoveToRoom {
+        target_id: String,
+        room_id: Option<String>,
+    },
     // WebRTC Signaling
     Offer {
         source_id: String,

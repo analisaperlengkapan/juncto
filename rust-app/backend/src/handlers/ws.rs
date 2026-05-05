@@ -179,6 +179,29 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::StopScreenShareAll => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::stop_screen_share_all(uid, &state);
+                                        for msg in msgs {
+                                            let _ = tx.send(msg);
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetBranding(branding) => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.branding = branding;
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
                                 ClientMessage::SetSubject(subject) => {
                                     // Validate subject length to prevent abuse. Use char count
                                     // (not byte length) so multi-byte UTF-8 content (CJK, emoji)
@@ -862,6 +885,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             // Deliver to same room OR if it's a command directed at myself
                                                             my_loc == *room_id || *id == my_id_clone
                                                         },
+                                                        ServerMessage::ForcedMoveToRoom { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
                                                         // Note: EtherpadUrlUpdated and GiphyShared are
                                                         // currently never broadcast by the server (etherpad
                                                         // changes go via RoomUpdated, GIFs via Chat). These
@@ -1222,6 +1248,30 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     if let Some(uid) = &my_id {
                                         match breakout::create_breakout_room(uid, name, &state) {
                                             Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
+                                ClientMessage::CloseAllBreakoutRooms => {
+                                    if let Some(uid) = &my_id {
+                                        match breakout::close_all_breakout_rooms(uid, &state) {
+                                            Ok(msgs) => { for m in msgs { let _ = tx.send(m); } },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
+                                ClientMessage::MoveParticipantToRoom { target_id, room_id } => {
+                                    if let Some(uid) = &my_id {
+                                        match breakout::move_participant_to_room(uid, target_id, room_id, &state) {
+                                            Ok(msgs) => { for m in msgs { let _ = tx.send(m); } },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
+                                ClientMessage::AutoAssignToBreakoutRooms => {
+                                    if let Some(uid) = &my_id {
+                                        match breakout::auto_assign_participants(uid, &state) {
+                                            Ok(msgs) => { for m in msgs { let _ = tx.send(m); } },
                                             Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
                                         }
                                     }
@@ -1694,6 +1744,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let locs = locations_clone.lock().unwrap();
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                     my_loc == *room_id || *id == my_id_clone
+                                                },
+                                                ServerMessage::ForcedMoveToRoom { target_id, .. } => {
+                                                    *target_id == my_id_clone
                                                 },
                                                 ServerMessage::MutedByHost(id) | ServerMessage::CameraMutedByHost(id) => {
                                                             let locs = locations_clone.lock().unwrap();
