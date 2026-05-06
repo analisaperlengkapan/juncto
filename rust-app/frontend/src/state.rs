@@ -102,6 +102,7 @@ pub struct RoomState {
     pub is_audio_only: ReadSignal<bool>,
     pub is_flipped: ReadSignal<bool>,
     pub pinned_participant: ReadSignal<Option<String>>,
+    #[expect(dead_code)]
     pub participant_volumes: ReadSignal<HashMap<String, f64>>,
     // Setters or Actions
     pub toggle_audio_only: Callback<bool>,

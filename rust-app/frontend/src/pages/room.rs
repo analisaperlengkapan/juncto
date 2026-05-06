@@ -490,10 +490,10 @@ pub fn Room() -> impl IntoView {
                                 }
                             })
                             is_face_landmarks_enabled=state.is_face_landmarks_enabled
-                            is_audio_only=state.is_audio_only.into()
-                            is_flipped=state.is_flipped.into()
-                            on_toggle_audio_only=state.toggle_audio_only.into()
-                            on_toggle_flip=state.toggle_flip.into()
+                                is_audio_only=state.is_audio_only
+                                is_flipped=state.is_flipped
+                                on_toggle_audio_only=state.toggle_audio_only
+                                on_toggle_flip=state.toggle_flip
                             on_toggle_lock=state.toggle_lock
                             on_toggle_e2ee=state.toggle_e2ee
                             on_toggle_participant_e2ee=state.toggle_participant_e2ee

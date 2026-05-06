@@ -77,6 +77,7 @@ pub struct HandlerContext {
     pub set_face_expression: WriteSignal<Option<(String, String, u64)>>,
     pub set_current_room_id: WriteSignal<Option<String>>,
     pub set_is_audio_only: WriteSignal<bool>,
+    #[expect(dead_code)]
     pub set_is_flipped: WriteSignal<bool>,
     pub set_pinned_participant: WriteSignal<Option<String>>,
     pub set_participant_volumes: WriteSignal<HashMap<String, f64>>,

@@ -50,6 +50,19 @@ pub fn Toolbox(
     #[prop(optional)] is_recording_locally: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_local_recording: Option<Callback<()>>,
 ) -> impl IntoView {
+    let _on_toggle_e2ee_sv = store_value(on_toggle_e2ee);
+    let _is_e2ee_enabled_sv = store_value(is_e2ee_enabled);
+    let _is_etherpad_active_sv = store_value(is_etherpad_active);
+    let _on_shortcuts_sv = store_value(on_shortcuts);
+    let _on_speaker_stats_sv = store_value(on_speaker_stats);
+    let _on_virtual_background_sv = store_value(on_virtual_background);
+    let _on_feedback_sv = store_value(on_feedback);
+    let _on_embed_sv = store_value(on_embed);
+    let _on_auth_dialog_sv = store_value(on_auth_dialog);
+    let _on_calendar_sv = store_value(on_calendar);
+    let _is_recording_locally_sv = store_value(is_recording_locally);
+    let _on_toggle_local_recording_sv = store_value(on_toggle_local_recording);
+
     view! {
         <div class=format!("room-toolbox {}", class) style=style>
             // Group: Leave
