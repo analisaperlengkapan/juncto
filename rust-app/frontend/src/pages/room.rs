@@ -149,7 +149,7 @@ pub fn Room() -> impl IntoView {
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <div class="main-content" style=move || {
+                        <div class="main-content room-container" style=move || {
                             let mut margin = 0;
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
@@ -194,7 +194,7 @@ pub fn Room() -> impl IntoView {
                                 } style="display: flex; flex-direction: column;">
                                     <div id="capture-area" style="flex: 1; display: flex; flex-direction: column;">
                                         <div class="room-header" style="display: flex; align-items: center; justify-content: center; gap: 15px; padding: 10px;">
-                                            <h2 style="margin: 0; font-size: 1.2rem;">{move || format!("Room: {}", room_id())}</h2>
+                                            <h2 style="margin: 0; font-size: 1.2rem;">{move || format!("Meeting Room: {}", room_id())}</h2>
                                             <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
                                                 <span id="meeting-subject" class="badge-info" style="padding: 4px 8px; border-radius: 4px; font-weight: 600;">
                                                     {move || state.room_config.get().subject.unwrap_or_default()}

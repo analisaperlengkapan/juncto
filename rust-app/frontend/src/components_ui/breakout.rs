@@ -119,10 +119,10 @@ pub fn BreakoutRooms(
                         type="text"
                         prop:value=new_room_name
                         on:input=move |ev| set_new_room_name.set(event_target_value(&ev))
-                        placeholder="New breakout room..."
+                        placeholder="New Room Name"
                         style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: white; flex: 1; max-width: 250px;"
                     />
-                    <button on:click=create class="btn btn-success" style="font-size: 0.8rem; padding: 6px 12px;">"Create Room"</button>
+                    <button on:click=create class="btn btn-success" style="font-size: 0.8rem; padding: 6px 12px;">"Create"</button>
                 </div>
             </Show>
         </div>

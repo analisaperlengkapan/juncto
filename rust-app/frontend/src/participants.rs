@@ -177,7 +177,7 @@ pub fn ParticipantsList(
                                         <div style="font-size: 0.9rem; font-weight: 500;">
                                             {move || p_sv.get_value().name}
                                             <Show when=move || host_id.get() == Some(p_sv.get_value().id)>
-                                                <span style="color: var(--primary-color); margin-left: 4px;">"★"</span>
+                                                <span style="color: var(--primary-color); margin-left: 4px;">" (Host)"</span>
                                             </Show>
                                         </div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">

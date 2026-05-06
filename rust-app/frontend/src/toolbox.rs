@@ -26,9 +26,9 @@ pub fn Toolbox(
     on_polls: Callback<()>,
     on_shortcuts: Callback<()>,
     on_speaker_stats: Callback<()>,
-    on_virtual_background: Callback<()>,
+    #[prop(optional)] on_virtual_background: Option<Callback<()>>,
     on_feedback: Callback<()>,
-    on_embed: Callback<()>,
+    #[prop(optional)] on_embed: Option<Callback<()>>,
     on_raise_hand: Callback<()>,
     on_screen_share: Callback<()>,
     on_share_video: Callback<()>,
@@ -40,7 +40,7 @@ pub fn Toolbox(
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
     on_auth_dialog: Callback<()>,
-    on_calendar: Callback<()>,
+    #[prop(optional)] on_calendar: Option<Callback<()>>,
     on_files: Callback<()>,
     #[prop(optional)] on_dial_in: Option<Callback<()>>,
     #[prop(optional)] on_leave: Option<Callback<()>>,
@@ -53,18 +53,9 @@ pub fn Toolbox(
     let _on_toggle_e2ee_sv = store_value(on_toggle_e2ee);
     let _is_e2ee_enabled_sv = store_value(is_e2ee_enabled);
     let _is_etherpad_active_sv = store_value(is_etherpad_active);
-    let _on_shortcuts_sv = store_value(on_shortcuts);
-    let _on_speaker_stats_sv = store_value(on_speaker_stats);
-    let _on_virtual_background_sv = store_value(on_virtual_background);
-    let _on_feedback_sv = store_value(on_feedback);
-    let _on_embed_sv = store_value(on_embed);
-    let _on_auth_dialog_sv = store_value(on_auth_dialog);
-    let _on_calendar_sv = store_value(on_calendar);
-    let _is_recording_locally_sv = store_value(is_recording_locally);
-    let _on_toggle_local_recording_sv = store_value(on_toggle_local_recording);
 
     view! {
-        <div class=format!("room-toolbox {}", class) style=style>
+        <div class=format!("toolbox room-toolbox {}", class) style=style>
             // Group: Leave
             <div class="toolbox-group">
                 <button
@@ -81,7 +72,7 @@ pub fn Toolbox(
                         style="color: var(--danger-color); border-color: var(--danger-color);"
                         title="End Meeting for Everyone"
                     >
-                        "End"
+                        "End Meeting"
                     </button>
                 </Show>
                 <button
@@ -124,7 +115,7 @@ pub fn Toolbox(
                         class=move || format!("btn {}", if is_recording.get() { "btn-danger" } else { "btn-outline" })
                         title="Toggle Server Recording"
                     >
-                        "REC"
+                        {move || if is_recording.get() { "Stop Recording" } else { "Start Recording" }}
                     </button>
                 </Show>
             </div>
@@ -137,23 +128,32 @@ pub fn Toolbox(
                         class="btn btn-outline"
                         title="Share Screen"
                     >
-                        "Screen"
+                        "Share Screen"
                     </button>
                     <button
                         on:click=move |_| on_raise_hand.call(())
                         class="btn btn-warning"
                         title="Raise Hand"
                     >
-                        "✋"
+                        "Raise Hand"
                     </button>
                 </Show>
                 <button
                     on:click=move |_| on_whiteboard.call(())
                     class="btn btn-outline"
-                    title="Toggle Whiteboard"
+                    title="Whiteboard"
                 >
-                    "Draw"
+                    "Whiteboard"
                 </button>
+                <Show when=move || on_virtual_background.is_some() && !is_visitor.get()>
+                    <button
+                        on:click=move |_| on_virtual_background.unwrap().call(())
+                        class="btn btn-outline"
+                        title="Virtual Background"
+                    >
+                        "Background"
+                    </button>
+                </Show>
                 <Show when=move || !is_visitor.get()>
                     <button
                         on:click=move |_| {
@@ -220,6 +220,54 @@ pub fn Toolbox(
 
             // Group: More
             <div class="toolbox-group" style="border-right: none;">
+                <button
+                    on:click=move |_| on_auth_dialog.call(())
+                    class="btn btn-outline"
+                    title="Login"
+                >
+                    "Login"
+                </button>
+                <button
+                    on:click=move |_| on_speaker_stats.call(())
+                    class="btn btn-outline"
+                    title="Speaker Stats"
+                >
+                    "Stats"
+                </button>
+                <button
+                    on:click=move |_| on_feedback.call(())
+                    class="btn btn-outline"
+                    title="Feedback"
+                >
+                    "Feedback"
+                </button>
+                <Show when=move || on_calendar.is_some()>
+                    <button
+                        on:click=move |_| on_calendar.unwrap().call(())
+                        class="btn btn-outline"
+                        title="Calendar"
+                    >
+                        "Calendar"
+                    </button>
+                </Show>
+                <Show when=move || on_embed.is_some()>
+                    <button
+                        on:click=move |_| on_embed.unwrap().call(())
+                        class="btn btn-outline"
+                        title="Embed Meeting"
+                    >
+                        "Embed"
+                    </button>
+                </Show>
+                <Show when=move || on_toggle_local_recording.is_some()>
+                    <button
+                        on:click=move |_| on_toggle_local_recording.unwrap().call(())
+                        class=move || format!("btn {}", if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "btn-danger" } else { "btn-outline" })
+                        title="Toggle Local Recording"
+                    >
+                        "LR"
+                    </button>
+                </Show>
                 <Show when=move || on_dial_in.is_some()>
                     <button
                         on:click=move |_| { if let Some(cb) = on_dial_in { cb.call(()); } }
@@ -230,11 +278,18 @@ pub fn Toolbox(
                     </button>
                 </Show>
                 <button
+                    on:click=move |_| on_shortcuts.call(())
+                    class="btn btn-outline"
+                    title="Keyboard Shortcuts"
+                >
+                    "?"
+                </button>
+                <button
                     on:click=move |_| on_settings.call(())
                     class="btn btn-outline"
                     title="Settings"
                 >
-                    "⚙️"
+                    "Settings"
                 </button>
                 <div class="presence-selector" style="display: flex; gap: 5px; align-items: center;">
                     <select
