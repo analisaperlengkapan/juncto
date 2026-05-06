@@ -76,6 +76,10 @@ pub struct HandlerContext {
     pub set_lobby_announcement: WriteSignal<Option<String>>,
     pub set_face_expression: WriteSignal<Option<(String, String, u64)>>,
     pub set_current_room_id: WriteSignal<Option<String>>,
+    pub set_is_audio_only: WriteSignal<bool>,
+    pub set_is_flipped: WriteSignal<bool>,
+    pub set_pinned_participant: WriteSignal<Option<String>>,
+    pub set_participant_volumes: WriteSignal<HashMap<String, f64>>,
     pub remote_control: RemoteControlService,
 }
 
@@ -515,6 +519,29 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::FaceExpression { sender_id, expression } => {
             ctx.set_face_expression.set(Some((sender_id, expression.expression, expression.timestamp)));
+        }
+        ServerMessage::AudioOnlyChanged { user_id, enabled } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == user_id {
+                    ctx.set_is_audio_only.set(enabled);
+                }
+            }
+        }
+        ServerMessage::ParticipantPinned { user_id, target_id } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == user_id {
+                    ctx.set_pinned_participant.set(target_id);
+                }
+            }
+        }
+        ServerMessage::ParticipantVolumeChanged { user_id, target_id, volume } => {
+            if let Some(my) = ctx.my_id.get_untracked() {
+                if my == user_id {
+                    ctx.set_participant_volumes.update(|map| {
+                        map.insert(target_id, volume);
+                    });
+                }
+            }
         }
         ServerMessage::RemoteControlRequest { requester_id, target_id } => {
             if let Some(my) = ctx.my_id.get_untracked() {

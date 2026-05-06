@@ -228,6 +228,11 @@ pub enum ClientMessage {
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     CloseAllBreakoutRooms,
+    RemoveBreakoutRoom(String),       // Room ID
+    RenameBreakoutRoom {
+        room_id: String,
+        new_name: String,
+    },
     MoveParticipantToRoom {
         target_id: String,
         room_id: Option<String>,
@@ -264,6 +269,14 @@ pub enum ClientMessage {
     /// Kept for protocol completeness; wire up when the E2EE settings panel
     /// is migrated.
     UpdateE2EE(bool),
+    SetAudioOnly(bool),
+    FlipLocalVideo(bool),
+    PinParticipant(Option<String>),
+    SetParticipantVolume {
+        target_id: String,
+        volume: f64,
+    },
+    MuteEveryoneElse(String), // Target ID
     BroadcastToLobby(String),
     PromoteVisitor(String),
     // WebRTC Signaling
@@ -402,6 +415,19 @@ pub enum ServerMessage {
     LobbyAnnouncement(String),
     CameraMutedByHost(String), // Target ID
     VisitorPromoted(String), // ID
+    AudioOnlyChanged {
+        user_id: String,
+        enabled: bool,
+    },
+    ParticipantPinned {
+        user_id: String,
+        target_id: Option<String>,
+    },
+    ParticipantVolumeChanged {
+        user_id: String,
+        target_id: String,
+        volume: f64,
+    },
     ForcedMoveToRoom {
         target_id: String,
         room_id: Option<String>,

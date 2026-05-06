@@ -119,7 +119,7 @@ pub fn Room() -> impl IntoView {
     };
 
     view! {
-        <div style="height: 100vh;">
+        <div class="room-wrapper">
             {move || match state.connection_state.get() {
                 RoomConnectionState::Prejoin => view! {
                     <PrejoinScreen
@@ -131,7 +131,7 @@ pub fn Room() -> impl IntoView {
                     <LobbyScreen announcement=state.lobby_announcement />
                 }.into_view(),
                 RoomConnectionState::Joined => view! {
-                    <div class="room-container" style="display: flex; height: 100vh;">
+                    <div class="room-container">
                         <RemoteControlLayer />
                         <PowerMonitor on_update=state.update_power_status />
                         <DeepLinking />
@@ -154,7 +154,7 @@ pub fn Room() -> impl IntoView {
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
                             if show_files.get() { margin += 320; }
-                            format!("flex: 1; display: flex; flex-direction: column; background: #333; color: white; margin-right: {}px;", margin)
+                            format!("margin-right: {}px;", margin)
                         }>
                             <Show when=move || state.show_login_dialog.get()>
                                 <LoginDialog
@@ -178,27 +178,29 @@ pub fn Room() -> impl IntoView {
                                 current_room_id=state.current_room_id
                                 is_host=state.is_host
                                 on_create=state.create_breakout_room
+                                on_remove=state.remove_breakout_room
+                                on_rename=state.rename_breakout_room
                                 on_join=state.join_breakout_room
                                 on_close_all=state.close_all_breakout_rooms
                                 on_auto_assign=state.auto_assign_to_breakout_rooms
                             />
-                            <div style="position: relative; flex: 1; width: 100%; height: 100%;">
+                            <div style="position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                                 <div class="video-container" style=move || {
                                     if state.show_etherpad.get() {
-                                        "display: flex; justify-content: center; align-items: center; height: 30%; border-bottom: 2px solid #555;"
+                                        "height: 30%; border-bottom: 1px solid var(--border-color);"
                                     } else {
-                                        "display: flex; justify-content: center; align-items: center; height: 100%;"
+                                        "height: 100%;"
                                     }
-                                }>
-                                    <div id="capture-area" style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
-                                            <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
+                                } style="display: flex; flex-direction: column;">
+                                    <div id="capture-area" style="flex: 1; display: flex; flex-direction: column;">
+                                        <div class="room-header" style="display: flex; align-items: center; justify-content: center; gap: 15px; padding: 10px;">
+                                            <h2 style="margin: 0; font-size: 1.2rem;">{move || format!("Room: {}", room_id())}</h2>
                                             <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
-                                                <span id="meeting-subject" style="font-size: 1.2em; font-weight: bold; color: #007bff;">
+                                                <span id="meeting-subject" class="badge-info" style="padding: 4px 8px; border-radius: 4px; font-weight: 600;">
                                                     {move || state.room_config.get().subject.unwrap_or_default()}
                                                 </span>
                                             </Show>
-                                            <span class="meeting-timer" style="font-family: monospace; font-size: 1.2em; color: #aaa;">
+                                            <span class="meeting-timer" style="font-family: monospace; font-size: 1.1rem; color: var(--text-muted);">
                                                 {format_time}
                                             </span>
                                         </div>
@@ -237,6 +239,9 @@ pub fn Room() -> impl IntoView {
                                             remote_streams=state.remote_streams
                                             layout=state.grid_layout
                                             on_set_layout=state.set_grid_layout
+                                            pinned_participant=state.pinned_participant
+                                            is_audio_only=state.is_audio_only.into()
+                                            is_flipped=state.is_flipped.into()
                                         />
                                     </div>
                                 </div>
@@ -276,7 +281,7 @@ pub fn Room() -> impl IntoView {
                                 </Show>
                             </div>
                             <Toolbox
-                                is_locked=state.is_locked
+                                _is_locked=state.is_locked
                                 is_host=state.is_host
                                 is_visitor=state.is_visitor
                                 _is_lobby_enabled=state.is_lobby_enabled
@@ -362,18 +367,14 @@ pub fn Room() -> impl IntoView {
                             />
                         </div>
                         <div class="side-panel chat-container" style=move || {
-                            if show_chat.get() {
-                                let mut offset = 0;
-                                if show_participants.get() { offset += 320; }
-                                if show_files.get() { offset += 320; }
-                                format!("display: flex; position: fixed; top: 0; right: {}px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", offset)
-                            } else {
-                                "display: none;".to_string()
-                            }
+                            let mut offset = 0;
+                            if show_participants.get() { offset += 320; }
+                            if show_files.get() { offset += 320; }
+                            format!("transform: translateX({}px); right: {}px;", if show_chat.get() { 0 } else { 320 }, offset)
                         }>
                             <div class="panel-header">
                                 <h3>"Chat"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"✕"</button>
+                                <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"×"</button>
                             </div>
                             <div class="panel-content" style="padding: 0;">
                                 <Chat
@@ -390,17 +391,13 @@ pub fn Room() -> impl IntoView {
                             </div>
                         </div>
                         <div class="side-panel participants-container" style=move || {
-                            if show_participants.get() {
-                                let mut offset = 0;
-                                if show_files.get() { offset += 320; }
-                                format!("display: flex; position: fixed; top: 0; right: {}px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;", offset)
-                            } else {
-                                "display: none;".to_string()
-                            }
+                            let mut offset = 0;
+                            if show_files.get() { offset += 320; }
+                            format!("transform: translateX({}px); right: {}px;", if show_participants.get() { 0 } else { 320 }, offset)
                         }>
                             <div class="panel-header">
                                 <h3>"Participants"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"✕"</button>
+                                <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"×"</button>
                             </div>
                             <div class="panel-content" style="padding: 0;">
                                 <ParticipantsList
@@ -416,29 +413,29 @@ pub fn Room() -> impl IntoView {
                                     on_mute_camera=state.mute_camera_participant
                                     on_mute_all=state.mute_all
                                     on_mute_camera_all=state.mute_camera_all
-                                    on_transfer_host=state.transfer_host
-                                    power_statuses=state.power_statuses
-                                    on_request_unmute=state.request_unmute
+                                    _on_transfer_host=state.transfer_host
+                                    _power_statuses=state.power_statuses
+                                    _on_request_unmute=state.request_unmute
                                     on_broadcast_lobby=state.broadcast_to_lobby
-                                    on_promote=state.promote_visitor
-                                    on_request_remote_control=Callback::new({
+                                    _on_promote=state.promote_visitor
+                                    _on_request_remote_control=Callback::new({
                                         let state = state.clone();
                                         move |id| state.remote_control.request_control(id)
                                     })
                                     on_stop_screen_share_all=state.stop_screen_share_all
+                                        pinned_participant=state.pinned_participant
+                                        on_pin=state.pin_participant
+                                        _on_set_volume=state.set_participant_volume
+                                        _on_mute_everyone_else=state.mute_everyone_else
                                 />
                             </div>
                         </div>
                         <div class="side-panel files-container" style=move || {
-                            if show_files.get() {
-                                "display: flex; position: fixed; top: 0; right: 0px; width: 320px; height: 100vh; box-shadow: -2px 0 5px rgba(0,0,0,0.2); z-index: 10;".to_string()
-                            } else {
-                                "display: none;".to_string()
-                            }
+                            format!("transform: translateX({}px); right: 0;", if show_files.get() { 0 } else { 320 })
                         }>
                             <div class="panel-header">
                                 <h3>"Files"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_files.set(false)>"✕"</button>
+                                <button class="close-btn" on:click=move |_| set_show_files.set(false)>"×"</button>
                             </div>
                             <div class="panel-content" style="padding: 0;">
                                 <crate::components_ui::file_sharing::FileSharing
@@ -493,6 +490,10 @@ pub fn Room() -> impl IntoView {
                                 }
                             })
                             is_face_landmarks_enabled=state.is_face_landmarks_enabled
+                            is_audio_only=state.is_audio_only.into()
+                            is_flipped=state.is_flipped.into()
+                            on_toggle_audio_only=state.toggle_audio_only.into()
+                            on_toggle_flip=state.toggle_flip.into()
                             on_toggle_lock=state.toggle_lock
                             on_toggle_e2ee=state.toggle_e2ee
                             on_toggle_participant_e2ee=state.toggle_participant_e2ee

@@ -33,7 +33,7 @@ pub fn AudioLevelIndicator(
     }).collect::<Vec<_>>();
 
     view! {
-        <span class="audioindicator">
+        <span class="audio-level-indicator">
             {dots}
         </span>
     }

@@ -55,6 +55,9 @@ pub fn VideoGrid(
     remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
     layout: ReadSignal<String>,
     on_set_layout: Callback<String>,
+    #[prop(optional)] pinned_participant: Option<ReadSignal<Option<String>>>,
+    #[prop(optional)] is_audio_only: Option<Signal<bool>>,
+    #[prop(optional)] is_flipped: Option<Signal<bool>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -87,12 +90,13 @@ pub fn VideoGrid(
         let is_spotlight = layout.get() == "spotlight";
         let dominant = dominant_speaker.get();
         let my_id_val = my_id.get();
+        let pinned = pinned_participant.and_then(|s| s.get());
 
         let list = participants.get();
 
         if is_spotlight {
-            // Find dominant speaker or first participant
-            let spotlight_id = dominant.or_else(|| {
+            // Find spotlight participant: pinned takes priority over dominant speaker
+            let spotlight_id = pinned.or(dominant).or_else(|| {
                 list.iter()
                     .find(|p| Some(p.id.clone()) != my_id_val)
                     .map(|p| p.id.clone())
@@ -257,7 +261,10 @@ pub fn VideoGrid(
                         autoplay
                         playsinline
                         muted // Mute local video to avoid feedback
-                        style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" // Mirror
+                        style=move || {
+                            let flipped = is_flipped.map(|s| s.get()).unwrap_or(true);
+                            format!("width: 100%; height: 100%; object-fit: cover; transform: {};", if flipped { "scaleX(-1)" } else { "none" })
+                        }
                     />
                     <button
                         on:click=move |_| {
@@ -353,6 +360,7 @@ pub fn VideoGrid(
                             let is_screen = item.is_screen();
                             let id_clone = p.id.clone();
                             let id_clone_2 = id_clone.clone();
+                            let id_clone_3 = id_clone.clone();
 
                             // Determine whether this tile should be visually
                             // "featured" (large) in spotlight mode. The
@@ -583,7 +591,7 @@ pub fn VideoGrid(
                                         format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
                                     }
                                 }>
-                                    <Show when=move || stream_signal.get().is_some() fallback=move || {
+                                    <Show when=move || stream_signal.get().is_some() && !is_audio_only.map(|s| s.get()).unwrap_or(false) fallback=move || {
                                         if is_screen {
                                             view! {
                                                 <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
@@ -652,6 +660,12 @@ pub fn VideoGrid(
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
                                         </Show>
                                         <AudioLevelIndicator audio_level=audio_level_sig />
+                                        <Show when=move || {
+                                            let id = id_clone_3.clone();
+                                            pinned_participant.and_then(|s| s.get()) == Some(id)
+                                        }>
+                                            <span style="font-size: 20px;" title="Pinned">"📍"</span>
+                                        </Show>
                                     </div>
                                 </div>
                             }

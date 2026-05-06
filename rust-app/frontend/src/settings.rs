@@ -28,6 +28,10 @@ pub fn SettingsDialog(
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_participant_e2ee_enabled: Option<Signal<bool>>,
     #[prop(optional)] is_face_landmarks_enabled: Option<RwSignal<bool>>,
+    #[prop(optional)] is_audio_only: Option<ReadSignal<bool>>,
+    #[prop(optional)] is_flipped: Option<ReadSignal<bool>>,
+    #[prop(optional)] on_toggle_audio_only: Option<Callback<bool>>,
+    #[prop(optional)] on_toggle_flip: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_participant_e2ee: Option<Callback<bool>>,
@@ -203,7 +207,7 @@ pub fn SettingsDialog(
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
                         <h3>{move || t("settings")}</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+                        <button id="close-settings-btn" class="close-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
                     <div class="tabs" style="display: flex; border-bottom: 1px solid #ccc; margin-bottom: 20px;">
@@ -453,6 +457,38 @@ pub fn SettingsDialog(
                                         style="margin-right: 10px;"
                                     />
                                     "Enable Face Landmarks (Expressions)"
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="audio-only-toggle"
+                                        prop:checked=move || is_audio_only.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |ev| {
+                                            if let Some(cb) = on_toggle_audio_only {
+                                                cb.call(event_target_checked(&ev));
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Audio-Only Mode (Hide remote videos)"
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="flip-video-toggle"
+                                        prop:checked=move || is_flipped.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |ev| {
+                                            if let Some(cb) = on_toggle_flip {
+                                                cb.call(event_target_checked(&ev));
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Mirror Local Video"
                                 </label>
                             </div>
                         </Show>

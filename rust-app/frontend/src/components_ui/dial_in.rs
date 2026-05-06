@@ -31,7 +31,7 @@ pub fn DialInDialog(
                 <div class="modal-content" style="background: white; padding: 25px; border-radius: 8px; width: 400px; max-width: 90%; text-align: center;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 style="margin: 0;">"Dial-in Information"</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+                        <button class="close-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
@@ -50,6 +50,7 @@ pub fn DialInDialog(
                     </p>
 
                     <button
+                        id="dial-in-close-btn"
                         on:click=move |_| on_close.call(())
                         style="margin-top: 20px; padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;"
                     >

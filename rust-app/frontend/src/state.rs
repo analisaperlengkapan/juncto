@@ -99,7 +99,16 @@ pub struct RoomState {
     pub dominant_speaker: ReadSignal<Option<String>>,
     pub _last_face_expression: ReadSignal<Option<(String, String, u64)>>,
     pub is_face_landmarks_enabled: RwSignal<bool>,
+    pub is_audio_only: ReadSignal<bool>,
+    pub is_flipped: ReadSignal<bool>,
+    pub pinned_participant: ReadSignal<Option<String>>,
+    pub participant_volumes: ReadSignal<HashMap<String, f64>>,
     // Setters or Actions
+    pub toggle_audio_only: Callback<bool>,
+    pub toggle_flip: Callback<bool>,
+    pub pin_participant: Callback<Option<String>>,
+    pub set_participant_volume: Callback<(String, f64)>,
+    pub mute_everyone_else: Callback<String>,
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
     pub set_grid_layout: Callback<String>,
@@ -143,6 +152,8 @@ pub struct RoomState {
     pub send_draw: Callback<DrawAction>,
     pub set_is_typing: Callback<bool>,
     pub create_breakout_room: Callback<String>,
+    pub remove_breakout_room: Callback<String>,
+    pub rename_breakout_room: Callback<(String, String)>,
     pub join_breakout_room: Callback<Option<String>>,
     pub close_all_breakout_rooms: Callback<()>,
     #[allow(dead_code)]
@@ -231,6 +242,10 @@ pub fn use_room_state() -> RoomState {
     let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
     let (_last_face_expression, set_face_expression) = create_signal(None::<(String, String, u64)>);
     let is_face_landmarks_enabled = create_rw_signal(false);
+    let (is_audio_only, set_is_audio_only) = create_signal(false);
+    let (is_flipped, set_is_flipped) = create_signal(false);
+    let (pinned_participant, set_pinned_participant) = create_signal(None::<String>);
+    let (participant_volumes, set_participant_volumes) = create_signal(HashMap::<String, f64>::new());
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
@@ -831,6 +846,10 @@ pub fn use_room_state() -> RoomState {
                                 set_lobby_announcement,
                                 set_face_expression,
                                 set_current_room_id,
+                                set_is_audio_only,
+                                set_is_flipped,
+                                set_pinned_participant,
+                                set_participant_volumes,
                                 remote_control: remote_control_clone.clone(),
                             };
                             handle_server_message(server_msg, &ctx);
@@ -1038,6 +1057,57 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let toggle_audio_only = Callback::new(move |enabled: bool| {
+        set_is_audio_only.set(enabled);
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetAudioOnly(enabled);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_flip = Callback::new(move |enabled: bool| {
+        set_is_flipped.set(enabled);
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::FlipLocalVideo(enabled);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let pin_participant = Callback::new(move |target_id: Option<String>| {
+        set_pinned_participant.set(target_id.clone());
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::PinParticipant(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let set_participant_volume = Callback::new(move |(target_id, volume): (String, f64)| {
+        set_participant_volumes.update(|map| {
+            map.insert(target_id.clone(), volume);
+        });
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetParticipantVolume { target_id, volume };
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let mute_everyone_else = Callback::new(move |target_id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::MuteEveryoneElse(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
         if is_visitor.get_untracked() { return; }
@@ -1197,6 +1267,24 @@ pub fn use_room_state() -> RoomState {
     let create_breakout_room = Callback::new(move |name: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::CreateBreakoutRoom(name);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let remove_breakout_room = Callback::new(move |room_id: String| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RemoveBreakoutRoom(room_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let rename_breakout_room = Callback::new(move |(room_id, new_name): (String, String)| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RenameBreakoutRoom { room_id, new_name };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1747,6 +1835,8 @@ pub fn use_room_state() -> RoomState {
         send_draw,
         set_is_typing,
         create_breakout_room,
+        remove_breakout_room,
+        rename_breakout_room,
         join_breakout_room,
         close_all_breakout_rooms,
         move_participant_to_room,
@@ -1772,6 +1862,15 @@ pub fn use_room_state() -> RoomState {
         analytics,
         _face_landmarks: face_landmarks,
         remote_control,
+        is_audio_only,
+        is_flipped,
+        pinned_participant,
+        participant_volumes,
+        toggle_audio_only,
+        toggle_flip,
+        pin_participant,
+        set_participant_volume,
+        mute_everyone_else,
     }
 }
 
