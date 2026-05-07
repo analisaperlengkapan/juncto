@@ -86,6 +86,90 @@ pub fn join_breakout_room(
     Ok((room_id, messages))
 }
 
+pub fn remove_breakout_room(
+    user_id: &str,
+    room_id: String,
+    state: &Arc<AppState>,
+) -> Result<Vec<ServerMessage>, String> {
+    let is_host = {
+        let config = state.room_config.lock().unwrap();
+        config.host_id.as_deref() == Some(user_id)
+    };
+
+    if !is_host {
+        return Err("Only host can remove breakout rooms".to_string());
+    }
+
+    let mut messages = Vec::new();
+
+    // 1. Find all participants in this room and move them back to main
+    let participant_ids: Vec<String> = {
+        let locs = state.participant_locations.lock().unwrap();
+        locs.iter()
+            .filter(|(_, loc)| loc.as_deref() == Some(&room_id))
+            .map(|(id, _)| id.clone())
+            .collect()
+    };
+
+    for id in participant_ids {
+        {
+            let mut locs = state.participant_locations.lock().unwrap();
+            locs.insert(id.clone(), None);
+        }
+        messages.push(ServerMessage::ForcedMoveToRoom {
+            target_id: id,
+            room_id: None,
+        });
+    }
+
+    // 2. Remove the room
+    {
+        let mut rooms = state.breakout_rooms.lock().unwrap();
+        rooms.remove(&room_id);
+    }
+
+    // 3. Broadcast updated list
+    let all_rooms: Vec<shared::BreakoutRoom> = {
+        let rooms = state.breakout_rooms.lock().unwrap();
+        rooms.values().cloned().collect()
+    };
+    messages.push(ServerMessage::BreakoutRoomsList(all_rooms));
+
+    Ok(messages)
+}
+
+pub fn rename_breakout_room(
+    user_id: &str,
+    room_id: String,
+    new_name: String,
+    state: &Arc<AppState>,
+) -> Result<ServerMessage, String> {
+    let is_host = {
+        let config = state.room_config.lock().unwrap();
+        config.host_id.as_deref() == Some(user_id)
+    };
+
+    if !is_host {
+        return Err("Only host can rename breakout rooms".to_string());
+    }
+
+    {
+        let mut rooms = state.breakout_rooms.lock().unwrap();
+        if let Some(room) = rooms.get_mut(&room_id) {
+            room.name = new_name;
+        } else {
+            return Err("Breakout room not found".to_string());
+        }
+    }
+
+    let all_rooms: Vec<shared::BreakoutRoom> = {
+        let rooms = state.breakout_rooms.lock().unwrap();
+        rooms.values().cloned().collect()
+    };
+
+    Ok(ServerMessage::BreakoutRoomsList(all_rooms))
+}
+
 pub fn close_all_breakout_rooms(
     user_id: &str,
     state: &Arc<AppState>,
@@ -344,5 +428,52 @@ mod tests {
         let locs = state.participant_locations.lock().unwrap();
         assert!(locs.get(user1).unwrap().is_some());
         assert!(locs.get(user2).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_remove_breakout_room() {
+        let state = create_mock_state();
+        let host_id = "host123";
+        let user_id = "user1";
+        let room_id = "room1".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.to_string());
+            let mut rooms = state.breakout_rooms.lock().unwrap();
+            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Room 1".to_string() });
+            let mut participants = state.participants.lock().unwrap();
+            participants.insert(user_id.to_string(), shared::Participant { id: user_id.to_string(), name: "User".to_string(), is_hand_raised: false, is_sharing_screen: false, is_muted: false, speaking_time: 0, presence: shared::PresenceStatus::Connected, is_visitor: false, e2ee_enabled: false, hand_raised_at: None, avatar_url: None });
+            let mut locs = state.participant_locations.lock().unwrap();
+            locs.insert(user_id.to_string(), Some(room_id.clone()));
+        }
+
+        let res = remove_breakout_room(host_id, room_id.clone(), &state);
+        assert!(res.is_ok());
+
+        let locs = state.participant_locations.lock().unwrap();
+        assert_eq!(locs.get(user_id), Some(&None));
+        let rooms = state.breakout_rooms.lock().unwrap();
+        assert!(rooms.get(&room_id).is_none());
+    }
+
+    #[test]
+    fn test_rename_breakout_room() {
+        let state = create_mock_state();
+        let host_id = "host123";
+        let room_id = "room1".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.to_string());
+            let mut rooms = state.breakout_rooms.lock().unwrap();
+            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Old Name".to_string() });
+        }
+
+        let res = rename_breakout_room(host_id, room_id.clone(), "New Name".to_string(), &state);
+        assert!(res.is_ok());
+
+        let rooms = state.breakout_rooms.lock().unwrap();
+        assert_eq!(rooms.get(&room_id).unwrap().name, "New Name");
     }
 }

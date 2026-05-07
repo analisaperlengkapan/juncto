@@ -38,7 +38,7 @@ test.describe('Meeting Subject', () => {
 
         await page.fill('#settings-subject', 'Project Alpha');
         await page.click('#update-subject-btn');
-        await page.click('button:has-text("×")');
+        await page.click('#close-settings-btn');
 
         const subject = page.locator('#meeting-subject');
         await expect(subject).toBeVisible({ timeout: 10000 });

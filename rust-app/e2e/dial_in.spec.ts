@@ -23,7 +23,7 @@ test.describe('Dial-in Information', () => {
         await expect(page.locator('text=+1 555 012 3456')).toBeVisible();
         await expect(page.locator('text=123 456 789')).toBeVisible();
 
-        await page.click('button:has-text("Close")');
+        await page.click('#dial-in-close-btn');
         await expect(page.locator('h3:has-text("Dial-in Information")')).not.toBeVisible();
     });
 });

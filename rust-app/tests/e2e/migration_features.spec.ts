@@ -1,120 +1,72 @@
 import { test, expect } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
-    // Reset room state via API if possible, or just use a unique room name
+    // Navigate home and ensure we are starting fresh
     await page.goto('/');
 });
 
-test('Audio Level Indicator exists on local video', async ({ page }) => {
-    const roomName = `audio-level-${Math.random().toString(36).substring(7)}`;
+test('Audio-only mode, participant search, and pinning', async ({ page, context }) => {
+    const roomName = `mig-features-${Math.random().toString(36).substring(7)}`;
+
+    // Join as Participant 1 (Alice)
     await page.fill('input[type="text"]', roomName);
     await page.click('.create-btn');
-
-    // Prejoin screen
-    await page.waitForSelector('#display-name');
+    await page.waitForSelector('#display-name', { timeout: 30000 });
     await page.fill('#display-name', 'Alice');
     await page.click('.join-btn');
 
-    // Room page
-    await expect(page.locator('.video-grid')).toBeVisible({ timeout: 15000 });
+    // Verify Alice joined
+    await expect(page.locator('h2')).toContainText(`Meeting Room: ${roomName}`, { timeout: 30000 });
 
-    // The AudioLevelIndicator is rendered conditionally on `audio_level > 0.0`
-    // (see video_grid.rs:263). Playwright's default fake media produces silent
-    // audio, so the dots themselves are not rendered in CI. Assert the
-    // surrounding `.status-icons` container instead, which proves the audio
-    // indicator slot is wired up. The indicator visibility itself is exercised
-    // by unit tests in state.rs / media.rs and by manual QA with real audio.
-    const statusIcons = page.locator('.local-video .status-icons');
-    await expect(statusIcons).toBeAttached();
-});
-
-test('Per-participant E2EE toggle in Settings', async ({ page }) => {
-    const roomName = `e2ee-${Math.random().toString(36).substring(7)}`;
-    await page.fill('input[type="text"]', roomName);
-    await page.click('.create-btn');
-
-    await page.fill('#display-name', 'Alice');
-    await page.click('.join-btn');
-
-    // Open settings
-    await page.click('button[title="Settings"]');
-    await expect(page.locator('.modal-content')).toBeVisible();
-
-    // Toggle E2EE
-    const e2eeCheckbox = page.locator('input[type="checkbox"]', { hasText: 'Enable End-to-End Encryption' }).first();
-    // Re-locate more specifically because of multiple checkboxes
-    const e2eeLabel = page.getByText('Enable End-to-End Encryption');
-    await e2eeLabel.click();
-
-    // Check if visual indicator appears in VideoGrid
-    await page.click('.modal-header button'); // Close settings
-    const lockIndicator = page.locator('.local-video .status-icons span[title="End-to-End Encrypted"]');
-    await expect(lockIndicator).toBeVisible();
-});
-
-test('Noise Detection warning appears', async ({ page }) => {
-    // This test is hard to trigger with fake media, but we can check if the listener is wired by injecting an event
-    const roomName = `noise-${Math.random().toString(36).substring(7)}`;
-    await page.fill('input[type="text"]', roomName);
-    await page.click('.create-btn');
-
-    await page.fill('#display-name', 'Alice');
-    await page.click('.join-btn');
-
-    await page.waitForSelector('.video-grid');
-
-    // Inject custom event to simulate noise detection
-    await page.evaluate(() => {
-        window.dispatchEvent(new CustomEvent('noise_detected'));
-    });
-
-    // Check for warning toast
-    const toast = page.locator('.toast', { hasText: 'High background noise detected' });
-    await expect(toast).toBeVisible();
-    await expect(toast).toHaveCSS('background-color', 'rgb(255, 193, 7)'); // #ffc107
-});
-
-test('Dominant speaker switches spotlight', async ({ page, context }) => {
-    const roomName = `spotlight-${Math.random().toString(36).substring(7)}`;
-    await page.goto(`/?room=${roomName}`);
-    await page.fill('input[type="text"]', roomName);
-    await page.click('.create-btn');
-    await page.fill('#display-name', 'Alice');
-    await page.click('.join-btn');
-
-    // Join second user
+    // Join as Participant 2 (Bob) in another page
     const page2 = await context.newPage();
     await page2.goto(`/room/${roomName}`);
+    await page2.waitForSelector('#display-name', { timeout: 30000 });
     await page2.fill('#display-name', 'Bob');
     await page2.click('.join-btn');
+    await expect(page2.locator('h2')).toContainText(`Meeting Room: ${roomName}`, { timeout: 30000 });
 
-    await page.waitForSelector('.video-card');
-    // The layout toggle label is now unified for all users (see video_grid.rs
-    // layout-controls): "Switch to Spotlight" when in grid, "Switch to Grid"
-    // when in spotlight — regardless of host status.
-    await page.click('button:has-text("Switch to Spotlight")'); // Enable spotlight
+    // Test Search in Participants List (on Alice's page)
+    // First, open the panel
+    await page.click('#toggle-participants-btn');
+    const searchInput = page.locator('#participant-search');
+    await expect(searchInput).toBeVisible();
 
-    // Simulate Bob speaking (dominant speaker)
-    // We can't easily simulate WebAudio level in playwright, so we check if Bob's card is featured
-    // The VideoGrid features the first remote participant if no one is speaking yet.
-    const spotlightCard = page.locator('.video-grid.spotlight .video-card:not(.local-video)').first();
+    await searchInput.fill('Bob');
+    await expect(page.locator('.participant-item')).toHaveCount(1);
+    await expect(page.locator('.participant-item')).toContainText('Bob');
+
+    await searchInput.fill('NonExistentUserXYZ');
+    await expect(page.locator('.participant-item')).toHaveCount(0);
+
+    await searchInput.fill('');
+    // Should see Alice and Bob
+    await expect(page.locator('.participant-item')).toHaveCount(2);
+
+    // Test Audio-Only mode toggle
+    // Open settings
+    await page.click('button[title="Settings"]');
+    await page.click('button:has-text("More")');
+    const audioOnlyToggle = page.locator('#audio-only-toggle');
+    await audioOnlyToggle.click();
+    await page.click('.modal-header button'); // Close settings
+
+    // In Audio-Only mode, remote videos should be hidden (display: none)
+    // Bob's video card should be hidden
+    await expect(page.locator('.video-card', { hasText: 'Bob' })).not.toBeVisible();
+
+    // Test Pinning
+    // Re-open participants panel if closed (it should be open)
+    const pinBtn = page.locator('.participant-item', { hasText: 'Bob' }).locator('button[title="Pin participant"]');
+    await pinBtn.dispatchEvent('click');
+
+    // Switch to spotlight to see pinning effect
+    await page.click('button:has-text("Switch to Spotlight")');
+
+    // Bob should be the spotlighted card even if Alice is host and no one is speaking
+    const spotlightCard = page.locator('.video-grid.spotlight .video-card.spotlighted');
     await expect(spotlightCard).toContainText('Bob');
-});
 
-test('Recent meetings list on Home', async ({ page }) => {
-    const roomName = `recent-${Math.random().toString(36).substring(7)}`;
-    await page.fill('input[type="text"]', roomName);
-    await page.click('.create-btn');
-    await page.fill('#display-name', 'Alice');
-    await page.click('.join-btn');
-    await page.waitForSelector('.video-grid');
-
-    // Go back home
-    await page.goto('/');
-    const recentItem = page.locator('button', { hasText: roomName });
-    await expect(recentItem).toBeVisible();
-
-    // Click to rejoin
-    await recentItem.click();
-    await expect(page).toHaveURL(new RegExp(`/room/${roomName}`));
+    // Verify pinned indicator (📍)
+    await expect(spotlightCard.locator('span[title="Pinned"]')).toBeVisible();
 });

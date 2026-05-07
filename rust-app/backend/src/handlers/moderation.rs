@@ -50,6 +50,52 @@ pub fn mute_all(
     messages
 }
 
+pub fn mute_everyone_else(
+    sender_id: &str,
+    target_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let is_host = {
+        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
+    };
+
+    if is_host {
+        let host_location = {
+            let locs = state.participant_locations.lock().unwrap();
+            locs.get(sender_id).cloned().flatten()
+        };
+
+        let participants = {
+            let p_map = state.participants.lock().unwrap();
+            let locs = state.participant_locations.lock().unwrap();
+            p_map.keys()
+                .filter(|id| locs.get(*id).cloned().flatten() == host_location)
+                .cloned()
+                .collect::<Vec<String>>()
+        };
+
+        for pid in participants {
+            if pid != sender_id && pid != target_id {
+                let updated_participant = {
+                    let mut p_map = state.participants.lock().unwrap();
+                    if let Some(p) = p_map.get_mut(&pid) {
+                        p.is_muted = true;
+                        Some(p.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(p) = updated_participant {
+                    messages.push(ServerMessage::ParticipantUpdated(p));
+                    messages.push(ServerMessage::MutedByHost(pid));
+                }
+            }
+        }
+    }
+    messages
+}
+
 pub fn stop_screen_share_all(
     sender_id: &str,
     state: &Arc<AppState>,

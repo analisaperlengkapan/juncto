@@ -179,6 +179,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::RemoveBreakoutRoom(room_id) => {
+                                    if let Some(uid) = &my_id {
+                                        match breakout::remove_breakout_room(uid, room_id, &state) {
+                                            Ok(msgs) => { for m in msgs { let _ = tx.send(m); } },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
+                                ClientMessage::RenameBreakoutRoom { room_id, new_name } => {
+                                    if let Some(uid) = &my_id {
+                                        match breakout::rename_breakout_room(uid, room_id, new_name, &state) {
+                                            Ok(msg) => { let _ = tx.send(msg); },
+                                            Err(e) => { let _ = internal_tx.send(ServerMessage::Error(e)).await; }
+                                        }
+                                    }
+                                },
                                 ClientMessage::StopScreenShareAll => {
                                     if let Some(uid) = &my_id {
                                         let msgs = moderation::stop_screen_share_all(uid, &state);
@@ -1538,6 +1554,41 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::Ping => {
                                     let _ = internal_tx.send(ServerMessage::Pong { timestamp: chrono::Utc::now().timestamp_millis() as u64 }).await;
+                                },
+                                ClientMessage::SetAudioOnly(enabled) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::AudioOnlyChanged {
+                                            user_id: uid.clone(),
+                                            enabled,
+                                        });
+                                    }
+                                },
+                                ClientMessage::FlipLocalVideo(_enabled) => {
+                                },
+                                ClientMessage::PinParticipant(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::ParticipantPinned {
+                                            user_id: uid.clone(),
+                                            target_id,
+                                        });
+                                    }
+                                },
+                                ClientMessage::SetParticipantVolume { target_id, volume } => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::ParticipantVolumeChanged {
+                                            user_id: uid.clone(),
+                                            target_id,
+                                            volume,
+                                        });
+                                    }
+                                },
+                                ClientMessage::MuteEveryoneElse(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::mute_everyone_else(uid, &target_id, &state);
+                                        for m in msgs {
+                                            let _ = tx.send(m);
+                                        }
+                                    }
                                 },
                                 ClientMessage::MuteAll => {
                                     if let Some(uid) = &my_id {
