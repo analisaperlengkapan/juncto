@@ -305,8 +305,8 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 is_subtitles_enabled=state.is_subtitles_enabled
                                 on_toggle_subtitles=state.toggle_subtitles
-                                on_toggle_e2ee=state.toggle_e2ee
-                                is_e2ee_enabled=state.is_e2ee_enabled
+                                _on_toggle_e2ee=state.toggle_e2ee
+                                _is_e2ee_enabled=state.is_e2ee_enabled
                                 on_toggle_etherpad=Callback::new({
                                     let state = state.clone();
                                     let room_id_fn = room_id;
@@ -334,7 +334,7 @@ pub fn Room() -> impl IntoView {
                                         }
                                     }
                                 })
-                                is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
+                                _is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
                                 is_etherpad_open=Signal::derive(move || state.show_etherpad.get())
                                 current_presence=Signal::derive(move || {
                                     if let Some(my_id) = state.my_id.get() {
