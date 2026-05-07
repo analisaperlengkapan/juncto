@@ -171,7 +171,7 @@ pub struct RoomState {
     pub set_branding: Callback<shared::BrandingConfig>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
-    pub toggle_local_recording: Callback<()>,
+    pub toggle_local_recording: Callback<bool>,
     pub request_unmute: Callback<String>,
     pub update_power_status: Callback<shared::PowerStatus>,
     pub broadcast_to_lobby: Callback<String>,
@@ -1429,8 +1429,9 @@ pub fn use_room_state() -> RoomState {
         let local_recorder = local_recorder.clone();
         let pending_recorders = pending_recorders.clone();
         let recording_stream_id = recording_stream_id.clone();
-        move |_: ()| {
+        move |explicit_state: bool| {
             let is_active = is_recording_locally.get_untracked();
+            if is_active == explicit_state { return; }
             if is_active {
                 // Call stop() but keep the LocalRecorder alive so its Closure
                 // callbacks (_on_data_available, _on_stop) remain valid when

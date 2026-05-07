@@ -275,3 +275,7 @@ body {
     border-radius: 8px;
     padding: 10px;
 }
+
+.panel-hidden {
+    display: none !important;
+}

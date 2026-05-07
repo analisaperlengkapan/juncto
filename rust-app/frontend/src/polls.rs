@@ -65,7 +65,7 @@ pub fn PollsDialog(
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 450px; max-width: 95%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
                         <h3>"Polls"</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+                        <button id="close-polls-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
                     <div class="tabs" style="display: flex; border-bottom: 1px solid #ccc; margin-bottom: 20px;">

@@ -64,7 +64,7 @@ pub fn ParticipantsList(
     let _on_mute_everyone_else_sv = store_value(_on_mute_everyone_else);
 
     view! {
-        <div class="panel-content" style="padding: 10px;">
+        <div class="panel-content participants-list" style="padding: 10px;">
             <Show when=move || !knocking_participants.get().is_empty()>
                 <div class="knocking-list" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -103,7 +103,7 @@ pub fn ParticipantsList(
                         </div>
                     </Show>
 
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <ul class="knocking-list-items" style="display: flex; flex-direction: column; gap: 8px; padding: 0; list-style: none;">
                         <For
                             each=move || knocking_participants.get()
                             key=|p| p.id.clone()
@@ -111,17 +111,17 @@ pub fn ParticipantsList(
                                 let id_allow = p.id.clone();
                                 let id_deny = p.id.clone();
                                 view! {
-                                    <div style="padding: 8px; background: var(--card-bg); border-radius: 6px;">
+                                    <li style="padding: 8px; background: var(--card-bg); border-radius: 6px;">
                                         <div style="font-weight: 500; font-size: 0.9rem;">{p.name}</div>
                                         <div style="display: flex; gap: 5px; margin-top: 5px;">
                                             <button on:click=move |_| on_allow.call(id_allow.clone()) class="btn btn-success" style="font-size: 0.75rem; padding: 2px 6px;">"Allow"</button>
                                             <button on:click=move |_| on_deny.call(id_deny.clone()) class="btn btn-danger" style="font-size: 0.75rem; padding: 2px 6px;">"Deny"</button>
                                         </div>
-                                    </div>
+                                    </li>
                                 }
                             }
                         />
-                    </div>
+                    </ul>
                 </div>
             </Show>
 
@@ -145,6 +145,7 @@ pub fn ParticipantsList(
             </Show>
 
             <div style="display: flex; flex-direction: column;">
+                <ul style="padding: 0; margin: 0; list-style: none;">
                 <For
                     each=move || {
                         let query = search_query.get().to_lowercase();
@@ -159,7 +160,7 @@ pub fn ParticipantsList(
                         let (avatar_failed, set_avatar_failed) = create_signal(false);
 
                         view! {
-                            <div class="participant-item">
+                            <li class="participant-item">
                                 <div class="participant-info">
                                     <Show when=move || p_sv.get_value().avatar_url.is_some() && !avatar_failed.get() fallback=move || view! {
                                         <div class="avatar-sm">
@@ -190,6 +191,7 @@ pub fn ParticipantsList(
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     {move || if p_sv.get_value().is_hand_raised { view! { <span title="Hand Raised">"✋"</span> }.into_view() } else { view! { <span/> }.into_view() }}
+                                    {move || if p_sv.get_value().is_sharing_screen { view! { <span title="Sharing Screen">"🖥️"</span> }.into_view() } else { view! { <span/> }.into_view() }}
                                     {move || if p_sv.get_value().is_muted { view! { <span title="Muted" style="color: var(--danger-color);">"🔇"</span> }.into_view() } else { view! { <span/> }.into_view() }}
 
                                     <div style="display: flex; gap: 4px; align-items: center;">
@@ -231,16 +233,40 @@ pub fn ParticipantsList(
                                             </button>
                                         </Show>
                                         <Show when=move || is_host.get() && my_id.get() != Some(p_sv.get_value().id)>
+                                            <Show when=move || !p_sv.get_value().is_muted>
+                                                <button
+                                                    on:click={
+                                                        let id = p_sv.get_value().id.clone();
+                                                        move |_| { on_mute_sv.get_value().call(id.clone()); }
+                                                    }
+                                                    class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                    title="Mute Participant"
+                                                >
+                                                    "Mute"
+                                                </button>
+                                            </Show>
                                             <button
                                                 on:click={
                                                     let id = p_sv.get_value().id.clone();
-                                                    move |_| { on_mute_sv.get_value().call(id.clone()); }
+                                                    move |_| { _on_transfer_host_sv.get_value().call(id.clone()); }
                                                 }
                                                 class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
-                                                title="Mute Participant"
+                                                title="Transfer Host"
                                             >
-                                                "Mic"
+                                                "Host"
                                             </button>
+                                            <Show when=move || _on_request_unmute_sv.get_value().is_some() && p_sv.get_value().is_muted>
+                                                <button
+                                                    on:click={
+                                                        let id = p_sv.get_value().id.clone();
+                                                        move |_| { _on_request_unmute_sv.get_value().unwrap().call(id.clone()); }
+                                                    }
+                                                    class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                    title="Request Unmute"
+                                                >
+                                                    "Unmute"
+                                                </button>
+                                            </Show>
                                             <Show when=move || _on_mute_everyone_else_sv.get_value().is_some()>
                                                 <button
                                                     on:click={
@@ -261,15 +287,16 @@ pub fn ParticipantsList(
                                                 class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem; color: var(--danger-color); border-color: var(--danger-color);"
                                                 title="Kick Participant"
                                             >
-                                                "×"
+                                                "Kick"
                                             </button>
                                         </Show>
                                     </div>
                                 </div>
-                            </div>
+                            </li>
                         }
                     }
                 />
+                </ul>
             </div>
         </div>
     }

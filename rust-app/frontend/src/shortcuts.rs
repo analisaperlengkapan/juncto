@@ -88,7 +88,7 @@ pub fn ShortcutsDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl I
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 400px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
                         <h3>"Keyboard Shortcuts"</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+                        <button id="close-shortcuts-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
                     <ul style="list-style: none; padding: 0;">
                         <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">

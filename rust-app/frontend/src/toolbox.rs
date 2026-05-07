@@ -50,10 +50,6 @@ pub fn Toolbox(
     #[prop(optional)] is_recording_locally: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_local_recording: Option<Callback<()>>,
 ) -> impl IntoView {
-    let _on_toggle_e2ee_sv = store_value(on_toggle_e2ee);
-    let _is_e2ee_enabled_sv = store_value(is_e2ee_enabled);
-    let _is_etherpad_active_sv = store_value(is_etherpad_active);
-
     view! {
         <div class=format!("toolbox room-toolbox {}", class) style=style>
             // Group: Leave
@@ -88,13 +84,15 @@ pub fn Toolbox(
             <div class="toolbox-group">
                 <Show when=move || !is_visitor.get()>
                     <button
+                        id="toggle-camera-btn"
                         on:click=move |_| on_toggle_camera.call(())
                         class="btn btn-outline"
                         title="Toggle Camera"
                     >
-                        "Cam"
+                        "Toggle Camera"
                     </button>
                     <button
+                        id="toggle-mic-btn"
                         on:click=move |_| on_toggle_mic.call(())
                         class=move || format!("btn {}", if is_muted.get() { "btn-danger" } else { "btn-success" })
                         title=move || if is_muted.get() { "Unmute" } else { "Mute" }
@@ -139,6 +137,7 @@ pub fn Toolbox(
                     </button>
                 </Show>
                 <button
+                    id="toggle-whiteboard-btn"
                     on:click=move |_| on_whiteboard.call(())
                     class="btn btn-outline"
                     title="Whiteboard"
@@ -261,11 +260,12 @@ pub fn Toolbox(
                 </Show>
                 <Show when=move || on_toggle_local_recording.is_some()>
                     <button
+                        id="toggle-local-record-btn"
                         on:click=move |_| on_toggle_local_recording.unwrap().call(())
                         class=move || format!("btn {}", if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "btn-danger" } else { "btn-outline" })
-                        title="Toggle Local Recording"
+                        title="Local Record"
                     >
-                        "LR"
+                        {move || if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "Stop Local Rec" } else { "Local Record" }}
                     </button>
                 </Show>
                 <Show when=move || on_dial_in.is_some()>
@@ -285,6 +285,7 @@ pub fn Toolbox(
                     "?"
                 </button>
                 <button
+                    id="settings-btn"
                     on:click=move |_| on_settings.call(())
                     class="btn btn-outline"
                     title="Settings"
@@ -321,14 +322,5 @@ pub fn Toolbox(
                 </div>
             </div>
         </div>
-    }
-}
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_toolbox_compiles() {
-        // dummy test
-        let _ = true;
     }
 }

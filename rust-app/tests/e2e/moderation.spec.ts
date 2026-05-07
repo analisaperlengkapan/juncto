@@ -51,7 +51,7 @@ test.describe('Moderation Controls', () => {
     // If User B joined muted, Host would see NO "Mute" button (because of `Show when=!is_muted`).
     // So if "Mute" button is missing, B is muted.
     // Let's wait for participant list to populate.
-    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('.toolbox button:has-text("Participants")'); }
+    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('#toggle-participants-btn'); }
     const userBRow = pageA.locator('.participants-list li').filter({ hasText: 'User B' });
     await expect(userBRow).toBeVisible();
 
@@ -115,7 +115,7 @@ test.describe('Moderation Controls', () => {
     await expect(pageB.locator('button:has-text("End Meeting")')).not.toBeVisible();
 
     // 3. Host transfers role to User B
-    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('.toolbox button:has-text("Participants")'); }
+    if (await pageA.locator('.participants-list').isHidden()) { await pageA.click('#toggle-participants-btn'); }
     const userBRow = pageA.locator('.participants-list li').filter({ hasText: 'User B' });
     await expect(userBRow).toBeVisible();
     const hostBtn = userBRow.getByRole('button', { name: 'Host', exact: true });
@@ -157,7 +157,7 @@ test.describe('Moderation Controls', () => {
     await expect(pageB.locator('.video-grid')).toBeVisible();
 
     // 3. Host opens settings and sees Moderator tab
-    await pageA.click('.toolbox button:has-text("Settings")');
+    await pageA.click('#settings-btn');
     await expect(pageA.locator('.modal-content')).toBeVisible();
     const moderatorTabButtonA = pageA.locator('.modal-content .tabs button:has-text("Moderator")');
     await expect(moderatorTabButtonA).toBeVisible();
@@ -175,7 +175,7 @@ test.describe('Moderation Controls', () => {
     await pageA.click('.modal-content button:has-text("×")'); // Close settings
 
     // 5. Participant opens settings and does NOT see Moderator tab
-    await pageB.click('.toolbox button:has-text("Settings")');
+    await pageB.click('#settings-btn');
     await expect(pageB.locator('.modal-content')).toBeVisible();
     const moderatorTabButtonB = pageB.locator('.modal-content .tabs button:has-text("Moderator")');
     await expect(moderatorTabButtonB).not.toBeVisible();

@@ -29,18 +29,18 @@ test.describe('Migration Parity Features', () => {
         await expect(page.locator('.modal-content')).toContainText('Toggle Participants');
         await expect(page.locator('.modal-content')).toContainText('Local Recording');
 
-        await page.click('button:has-text("×")');
+        await page.click('#close-shortcuts-btn');
 
         // Test Chat shortcut 'C'
-        await page.keyboard.press('c');
+        await page.keyboard.press('C');
         await expect(page.locator('.side-panel.chat-container')).toBeHidden(); // It was open by default, so 'c' should hide it
-        await page.keyboard.press('c');
+        await page.keyboard.press('C');
         await expect(page.locator('.side-panel.chat-container')).toBeVisible();
 
         // Test Participants shortcut 'P'
-        await page.keyboard.press('p');
+        await page.keyboard.press('P');
         await expect(page.locator('.participants-container')).toBeHidden();
-        await page.keyboard.press('p');
+        await page.keyboard.press('P');
         await expect(page.locator('.participants-container')).toBeVisible();
     });
 

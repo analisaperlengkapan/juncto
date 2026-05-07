@@ -143,13 +143,19 @@ pub fn Room() -> impl IntoView {
                             on_screen_share=state.toggle_screen_share
                             on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                             on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
-                            on_toggle_local_recording=state.toggle_local_recording
+                            on_toggle_local_recording=Callback::new({
+                                let toggle = state.toggle_local_recording;
+                                move |_| {
+                                    let current = state.is_recording_locally.get_untracked();
+                                    toggle.call(!current);
+                                }
+                            })
                         />
                         <ConnectionStats
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <div class="main-content room-container" style=move || {
+                        <div class="main-content room-root" style=move || {
                             let mut margin = 0;
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
@@ -203,12 +209,18 @@ pub fn Room() -> impl IntoView {
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.1rem; color: var(--text-muted);">
                                                 {format_time}
                                             </span>
+                                            <Show when=move || !state.is_locked.get()>
+                                                <span class="badge-success" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Unlocked"</span>
+                                            </Show>
+                                            <Show when=move || state.is_locked.get()>
+                                                <span class="badge-danger" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Locked"</span>
+                                            </Show>
                                         </div>
                                         <Show when=move || state.current_room_id.get().is_some()>
                                             <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
                                         </Show>
                                         <Show when=move || state.is_recording.get()>
-                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
+                                            <div class="rec-indicator" style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
                                                 "REC"
                                             </div>
                                         </Show>
@@ -338,7 +350,13 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 is_recording_locally=state.is_recording_locally
-                                on_toggle_local_recording=state.toggle_local_recording
+                                on_toggle_local_recording=Callback::new({
+                                    let toggle = state.toggle_local_recording;
+                                    move |_| {
+                                        let current = state.is_recording_locally.get_untracked();
+                                        toggle.call(!current);
+                                    }
+                                })
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
@@ -366,7 +384,9 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=end_meeting_and_leave
                             />
                         </div>
-                        <div class="side-panel chat-container" style=move || {
+                        <div class="side-panel chat-container"
+                            class:panel-hidden=move || !show_chat.get()
+                            style=move || {
                             let mut offset = 0;
                             if show_participants.get() { offset += 320; }
                             if show_files.get() { offset += 320; }
@@ -390,7 +410,9 @@ pub fn Room() -> impl IntoView {
                                 />
                             </div>
                         </div>
-                        <div class="side-panel participants-container" style=move || {
+                        <div class="side-panel participants-container"
+                            class:panel-hidden=move || !show_participants.get()
+                            style=move || {
                             let mut offset = 0;
                             if show_files.get() { offset += 320; }
                             format!("transform: translateX({}px); right: {}px;", if show_participants.get() { 0 } else { 320 }, offset)
@@ -547,26 +569,5 @@ pub fn Room() -> impl IntoView {
                 }.into_view()
             }}
         </div>
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_room_compiles() {
-        // dummy test
-        let _ = true;
-    }
-
-    #[test]
-    fn test_subtitle_overlay_logic() {
-        let _runtime = create_runtime();
-        let (subtitles, _set_subtitles) = create_signal(vec![("u1".to_string(), "hello".to_string(), 123u64)]);
-        let (is_enabled, _set_is_enabled) = create_signal(true);
-
-        // Verification of logic used in component
-        assert!(is_enabled.get());
-        assert_eq!(subtitles.get().len(), 1);
     }
 }
