@@ -165,7 +165,7 @@ pub fn Toolbox(
                         class=move || format!("btn {}", if is_sharing_video.get() { "btn-danger" } else { "btn-outline" })
                         title="Share Video"
                     >
-                        "Video"
+                        "Share Video"
                     </button>
                 </Show>
                 <div class="reactions" style="display: flex; gap: 4px; align-items: center; margin-left: 5px;">
@@ -209,11 +209,12 @@ pub fn Toolbox(
                     "Files"
                 </button>
                 <button
+                    id="toggle-etherpad-btn"
                     on:click=move |_| on_toggle_etherpad.call(())
                     class=move || format!("btn {}", if is_etherpad_open.get() { "btn-primary" } else { "btn-outline" })
-                    title="Toggle Etherpad"
+                    title="Shared Document (Etherpad)"
                 >
-                    "Pad"
+                    "Etherpad"
                 </button>
             </div>
 

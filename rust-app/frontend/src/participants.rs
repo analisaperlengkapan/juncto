@@ -182,7 +182,7 @@ pub fn ParticipantsList(
                                             </Show>
                                         </div>
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">
-                                            {move || format!("{:?}", p_sv.get_value().presence)}
+                                            {move || format!("[{:?}]", p_sv.get_value().presence)}
                                             <Show when=move || !p_sv.get_value().is_visitor>
                                                 " • " {move || format_time(p_sv.get_value().speaking_time)}
                                             </Show>
@@ -195,6 +195,18 @@ pub fn ParticipantsList(
                                     {move || if p_sv.get_value().is_muted { view! { <span title="Muted" style="color: var(--danger-color);">"🔇"</span> }.into_view() } else { view! { <span/> }.into_view() }}
 
                                     <div style="display: flex; gap: 4px; align-items: center;">
+                                        <Show when=move || _on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
+                                            <button
+                                                on:click={
+                                                    let id = p_sv.get_value().id.clone();
+                                                    move |_| { if let Some(cb) = _on_request_remote_control_sv.get_value() { cb.call(id.clone()); } }
+                                                }
+                                                class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                title="Request Remote Control"
+                                            >
+                                                "RC"
+                                            </button>
+                                        </Show>
                                         <Show when=move || _on_set_volume_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
                                             <input
                                                 type="range"
@@ -264,7 +276,7 @@ pub fn ParticipantsList(
                                                     class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
                                                     title="Request Unmute"
                                                 >
-                                                    "Unmute"
+                                                    "Request Unmute"
                                                 </button>
                                             </Show>
                                             <Show when=move || _on_mute_everyone_else_sv.get_value().is_some()>
