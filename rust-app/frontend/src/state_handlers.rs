@@ -1,16 +1,16 @@
-use leptos::*;
-use shared::{ServerMessage, ChatMessage, Participant, Poll, DrawAction, ClientMessage};
-use std::collections::{HashMap, HashSet};
-use web_sys::{MediaStream, WebSocket};
-use crate::components_ui::toast::{ToastType};
 use crate::analytics::AnalyticsService;
-use crate::webrtc::WebRTCManager;
+use crate::components_ui::toast::ToastType;
 use crate::media::AudioMonitor;
 use crate::remote_control::RemoteControlService;
 use crate::state::RoomConnectionState;
-use std::rc::Rc;
+use crate::webrtc::WebRTCManager;
+use leptos::*;
+use shared::{ChatMessage, ClientMessage, DrawAction, Participant, Poll, ServerMessage};
 use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
+use web_sys::{MediaStream, WebSocket};
 
 #[derive(Clone)]
 pub struct HandlerContext {
@@ -112,7 +112,8 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
 
             // Auto-start media if requested from prejoin
             if ctx.start_media_on_join.get_untracked() {
-                ctx.start_media_stream.call(ctx.initial_cam_on.get_untracked());
+                ctx.start_media_stream
+                    .call(ctx.initial_cam_on.get_untracked());
                 ctx.set_start_media_on_join.set(false);
             }
 
@@ -127,31 +128,41 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
         }
         ServerMessage::ForcedMoveToRoom { target_id, room_id } => {
-             if ctx.my_id.get_untracked().as_ref() != Some(&target_id) {
-                 return;
-             }
-             // Host moved us to a different room
-             ctx.set_current_room_id.set(room_id.clone());
+            if ctx.my_id.get_untracked().as_ref() != Some(&target_id) {
+                return;
+            }
+            // Host moved us to a different room
+            ctx.set_current_room_id.set(room_id.clone());
 
-             // Clear messages when switching rooms
-             ctx.set_messages.set(Vec::new());
-             // Clear stale indicators
-             ctx.set_speaking_peers.update(|s: &mut HashSet<String>| s.clear());
-             ctx.set_typing_users.update(|u: &mut HashSet<String>| u.clear());
-             ctx.set_power_statuses.set(HashMap::new());
+            // Clear messages when switching rooms
+            ctx.set_messages.set(Vec::new());
+            // Clear stale indicators
+            ctx.set_speaking_peers
+                .update(|s: &mut HashSet<String>| s.clear());
+            ctx.set_typing_users
+                .update(|u: &mut HashSet<String>| u.clear());
+            ctx.set_power_statuses.set(HashMap::new());
 
-             // Cleanup existing WebRTC connections on room switch
-             ctx.webrtc_manager.close_all_peers();
-             ctx.set_remote_streams.set(HashMap::new());
+            // Cleanup existing WebRTC connections on room switch
+            ctx.webrtc_manager.close_all_peers();
+            ctx.set_remote_streams.set(HashMap::new());
 
-             let room_name = if room_id.is_none() { "Main Room".to_string() } else { "a breakout room".to_string() };
-             ctx.add_toast.call((format!("The host moved you to {}", room_name), ToastType::Info));
+            let room_name = if room_id.is_none() {
+                "Main Room".to_string()
+            } else {
+                "a breakout room".to_string()
+            };
+            ctx.add_toast.call((
+                format!("The host moved you to {}", room_name),
+                ToastType::Info,
+            ));
         }
         ServerMessage::CameraMutedByHost(target_id) => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
                     let has_video = ctx.local_stream.with_untracked(|s| {
-                        s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
+                        s.as_ref()
+                            .is_some_and(|stream| stream.get_video_tracks().length() > 0)
                     });
                     if has_video {
                         ctx.add_toast.call((
@@ -162,7 +173,9 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                         if let Some(raw) = ctx.raw_local_stream.get_untracked() {
                             let video_tracks = raw.get_video_tracks();
                             for i in 0..video_tracks.length() {
-                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                if let Ok(track) =
+                                    video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                                {
                                     track.set_enabled(false);
                                 }
                             }
@@ -170,7 +183,9 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                         if let Some(stream) = ctx.local_stream.get_untracked() {
                             let video_tracks = stream.get_video_tracks();
                             for i in 0..video_tracks.length() {
-                                if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                                if let Ok(track) =
+                                    video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                                {
                                     track.set_enabled(false);
                                 }
                             }
@@ -191,9 +206,11 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             let was_recording = ctx.is_recording.get_untracked();
             if config.is_recording != was_recording && ctx.my_id.get_untracked().is_some() {
                 if config.is_recording {
-                    ctx.add_toast.call(("Recording Started".to_string(), ToastType::Info));
+                    ctx.add_toast
+                        .call(("Recording Started".to_string(), ToastType::Info));
                 } else {
-                    ctx.add_toast.call(("Recording Stopped".to_string(), ToastType::Info));
+                    ctx.add_toast
+                        .call(("Recording Stopped".to_string(), ToastType::Info));
                 }
             }
             ctx.set_is_recording.set(config.is_recording);
@@ -203,19 +220,26 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             if !config.is_subtitles_enabled && ctx.is_subtitles_enabled.get_untracked() {
                 ctx.set_subtitles.set(Vec::new());
             }
-            ctx.set_is_subtitles_enabled.set(config.is_subtitles_enabled);
+            ctx.set_is_subtitles_enabled
+                .set(config.is_subtitles_enabled);
 
             // Apply branding to CSS variables
             if let Some(primary) = &config.branding.primary_color {
                 if let Some(document) = web_sys::window().and_then(|w| w.document()) {
-                    if let Some(root) = document.document_element().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+                    if let Some(root) = document
+                        .document_element()
+                        .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+                    {
                         let _ = root.style().set_property("--primary-color", primary);
                     }
                 }
             }
             if let Some(bg) = &config.branding.background_color {
                 if let Some(document) = web_sys::window().and_then(|w| w.document()) {
-                    if let Some(root) = document.document_element().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+                    if let Some(root) = document
+                        .document_element()
+                        .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+                    {
                         let _ = root.style().set_property("--background-color", bg);
                     }
                 }
@@ -236,7 +260,8 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
         }
         ServerMessage::ParticipantJoined(p) => {
-            ctx.set_knocking_participants.update(|list| list.retain(|x| x.id != p.id));
+            ctx.set_knocking_participants
+                .update(|list| list.retain(|x| x.id != p.id));
             ctx.set_participants.update(|list| {
                 if !list.iter().any(|x| x.id == p.id) {
                     list.push(p.clone());
@@ -250,10 +275,12 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
         }
         ServerMessage::KnockingParticipantLeft(id) => {
-            ctx.set_knocking_participants.update(|list| list.retain(|x| x.id != id));
+            ctx.set_knocking_participants
+                .update(|list| list.retain(|x| x.id != id));
         }
         ServerMessage::ParticipantLeft { id, .. } => {
-            ctx.set_participants.update(|list| list.retain(|p| p.id != id));
+            ctx.set_participants
+                .update(|list| list.retain(|p| p.id != id));
             ctx.set_typing_users.update(|users| {
                 users.remove(&id);
             });
@@ -265,7 +292,13 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             });
             // If we were remote-controlling this peer, clear the overlay so
             // we don't keep capturing input for a peer that no longer exists.
-            if ctx.remote_control.controlled_peer.get_untracked().as_deref() == Some(&id) {
+            if ctx
+                .remote_control
+                .controlled_peer
+                .get_untracked()
+                .as_deref()
+                == Some(&id)
+            {
                 ctx.remote_control.set_controlled_peer(None);
                 ctx.add_toast.call((
                     "Remote control session ended (peer disconnected)".to_string(),
@@ -275,7 +308,13 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             // If we were being controlled by this peer, clear the banner so
             // the user isn't left with a stale "you are being controlled"
             // indicator after the controller disconnects.
-            if ctx.remote_control.controlling_peer.get_untracked().as_deref() == Some(&id) {
+            if ctx
+                .remote_control
+                .controlling_peer
+                .get_untracked()
+                .as_deref()
+                == Some(&id)
+            {
                 ctx.remote_control.set_controlling_peer(None);
                 ctx.add_toast.call((
                     "Remote control session ended (controller disconnected)".to_string(),
@@ -284,7 +323,9 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
             // If a pending incoming request from this peer is still on screen,
             // dismiss the consent modal — there's no one left to grant access to.
-            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+            if let Some((requester_id, _)) =
+                ctx.remote_control.pending_incoming_request.get_untracked()
+            {
                 if requester_id == id {
                     ctx.remote_control.pending_incoming_request.set(None);
                 }
@@ -332,7 +373,9 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     ));
                 }
             }
-            if let Some((requester_id, _)) = ctx.remote_control.pending_incoming_request.get_untracked() {
+            if let Some((requester_id, _)) =
+                ctx.remote_control.pending_incoming_request.get_untracked()
+            {
                 if !list.iter().any(|p| p.id == requester_id) {
                     ctx.remote_control.pending_incoming_request.set(None);
                 }
@@ -350,7 +393,8 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_current_state.set(RoomConnectionState::Lobby);
         }
         ServerMessage::AccessDenied => {
-            ctx.add_toast.call(("Access Denied".to_string(), ToastType::Error));
+            ctx.add_toast
+                .call(("Access Denied".to_string(), ToastType::Error));
             ctx.set_current_state.set(RoomConnectionState::Prejoin);
         }
         ServerMessage::Kicked { target_id, .. } => {
@@ -385,7 +429,10 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
         }
         ServerMessage::ScreenShareStoppedByHost => {
-            ctx.add_toast.call(("Your screen share has been stopped by the host.".to_string(), ToastType::Info));
+            ctx.add_toast.call((
+                "Your screen share has been stopped by the host.".to_string(),
+                ToastType::Info,
+            ));
             if let Some(stream) = ctx.local_screen_stream.get_untracked() {
                 let tracks = stream.get_tracks();
                 for i in 0..tracks.length() {
@@ -408,7 +455,9 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     if let Some(stream) = ctx.local_stream.get_untracked() {
                         let audio_tracks = stream.get_audio_tracks();
                         for i in 0..audio_tracks.length() {
-                            if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
+                            if let Ok(track) =
+                                audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>()
+                            {
                                 track.set_enabled(false);
                             }
                         }
@@ -462,21 +511,16 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_participants.update(|list| {
                 if let Some(existing) = list.iter_mut().find(|x| x.id == p.id) {
                     if p.is_hand_raised && !existing.is_hand_raised {
-                        ctx.add_toast.call((
-                            format!("{} raised their hand", p.name),
-                            ToastType::Info,
-                        ));
+                        ctx.add_toast
+                            .call((format!("{} raised their hand", p.name), ToastType::Info));
                     }
                     *existing = p;
                 }
             });
         }
         ServerMessage::Reaction { sender_id, emoji } => {
-            ctx.set_last_reaction.set(Some((
-                sender_id,
-                emoji,
-                js_sys::Date::now() as u64,
-            )));
+            ctx.set_last_reaction
+                .set(Some((sender_id, emoji, js_sys::Date::now() as u64)));
         }
         ServerMessage::PeerTyping {
             user_id, is_typing, ..
@@ -501,9 +545,7 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::PollUpdated(poll) => {
             ctx.set_polls.update(|list| {
-                if let Some(existing) =
-                    list.iter_mut().find(|x| x.id == poll.id)
-                {
+                if let Some(existing) = list.iter_mut().find(|x| x.id == poll.id) {
                     *existing = poll;
                 }
             });
@@ -518,8 +560,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::FollowMe(layout) => {
             ctx.set_grid_layout_sig.set(layout);
         }
-        ServerMessage::FaceExpression { sender_id, expression } => {
-            ctx.set_face_expression.set(Some((sender_id, expression.expression, expression.timestamp)));
+        ServerMessage::FaceExpression {
+            sender_id,
+            expression,
+        } => {
+            ctx.set_face_expression.set(Some((
+                sender_id,
+                expression.expression,
+                expression.timestamp,
+            )));
         }
         ServerMessage::AudioOnlyChanged { user_id, enabled } => {
             if let Some(my) = ctx.my_id.get_untracked() {
@@ -535,7 +584,11 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             }
         }
-        ServerMessage::ParticipantVolumeChanged { user_id, target_id, volume } => {
+        ServerMessage::ParticipantVolumeChanged {
+            user_id,
+            target_id,
+            volume,
+        } => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == user_id {
                     ctx.set_participant_volumes.update(|map| {
@@ -544,11 +597,18 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             }
         }
-        ServerMessage::RemoteControlRequest { requester_id, target_id } => {
+        ServerMessage::RemoteControlRequest {
+            requester_id,
+            target_id,
+        } => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
                     let parts = ctx.participants.get_untracked();
-                    let name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or_else(|| requester_id.clone());
+                    let name = parts
+                        .iter()
+                        .find(|p| p.id == requester_id)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| requester_id.clone());
 
                     // Set a signal that drives a non-blocking in-app modal in
                     // `RemoteControlLayer`. We deliberately avoid
@@ -556,18 +616,25 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     // loop, which would freeze WebSocket message processing
                     // (chat, signaling, heartbeats) for as long as the dialog
                     // is open.
-                    ctx.remote_control.set_pending_incoming_request(requester_id, name);
+                    ctx.remote_control
+                        .set_pending_incoming_request(requester_id, name);
                 }
             }
         }
-        ServerMessage::RemoteControlAllowed { requester_id, target_id, allowed } => {
+        ServerMessage::RemoteControlAllowed {
+            requester_id,
+            target_id,
+            allowed,
+        } => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == requester_id {
                     if allowed {
                         ctx.remote_control.set_controlled_peer(Some(target_id));
-                        ctx.add_toast.call(("Remote control granted".to_string(), ToastType::Success));
+                        ctx.add_toast
+                            .call(("Remote control granted".to_string(), ToastType::Success));
                     } else {
-                        ctx.add_toast.call(("Remote control denied".to_string(), ToastType::Error));
+                        ctx.add_toast
+                            .call(("Remote control denied".to_string(), ToastType::Error));
                     }
                 } else if allowed && my == target_id {
                     // We are the controlled party; the server confirmed our
@@ -585,7 +652,8 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             // party ended the session.
             if ctx.remote_control.controlled_peer.get_untracked() == Some(sender_id.clone()) {
                 ctx.remote_control.set_controlled_peer(None);
-                ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+                ctx.add_toast
+                    .call(("Remote control session ended".to_string(), ToastType::Info));
             } else if let Some(my) = ctx.my_id.get_untracked() {
                 // If we're the controlled party (i.e. `peer_id` identifies us
                 // and the controller stopped the session), clear the banner
@@ -594,7 +662,8 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 // where we optimistically set `controlling_peer` on grant.
                 if my == peer_id && my != sender_id {
                     ctx.remote_control.set_controlling_peer(None);
-                    ctx.add_toast.call(("Remote control session ended".to_string(), ToastType::Info));
+                    ctx.add_toast
+                        .call(("Remote control session ended".to_string(), ToastType::Info));
                 }
             }
         }
@@ -623,22 +692,41 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 map.insert(user_id, status);
             });
         }
-        ServerMessage::RecordingStatusChanged { user_id, is_recording: is_locally_recording } => {
+        ServerMessage::RecordingStatusChanged {
+            user_id,
+            is_recording: is_locally_recording,
+        } => {
             let is_self = ctx.my_id.get_untracked().as_deref() == Some(&user_id);
             if !is_self {
                 if is_locally_recording {
-                    ctx.add_toast.call(("A participant started recording locally".to_string(), ToastType::Info));
+                    ctx.add_toast.call((
+                        "A participant started recording locally".to_string(),
+                        ToastType::Info,
+                    ));
                 } else {
-                    ctx.add_toast.call(("A participant stopped their local recording".to_string(), ToastType::Info));
+                    ctx.add_toast.call((
+                        "A participant stopped their local recording".to_string(),
+                        ToastType::Info,
+                    ));
                 }
             }
         }
-        ServerMessage::UnmuteRequested { requester_id, target_id } => {
+        ServerMessage::UnmuteRequested {
+            requester_id,
+            target_id,
+        } => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
                     let parts = ctx.participants.get_untracked();
-                    let sender_name = parts.iter().find(|p| p.id == requester_id).map(|p| p.name.clone()).unwrap_or(requester_id);
-                    ctx.add_toast.call((format!("Host ({}) asked you to unmute", sender_name), ToastType::Info));
+                    let sender_name = parts
+                        .iter()
+                        .find(|p| p.id == requester_id)
+                        .map(|p| p.name.clone())
+                        .unwrap_or(requester_id);
+                    ctx.add_toast.call((
+                        format!("Host ({}) asked you to unmute", sender_name),
+                        ToastType::Info,
+                    ));
                 }
             }
         }
@@ -648,7 +736,10 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         ServerMessage::VisitorPromoted(target_id) => {
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
-                    ctx.add_toast.call(("You have been promoted to a full participant".to_string(), ToastType::Info));
+                    ctx.add_toast.call((
+                        "You have been promoted to a full participant".to_string(),
+                        ToastType::Info,
+                    ));
                 }
             }
         }
@@ -661,7 +752,11 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 }
             });
         }
-        ServerMessage::Transcription { user_id, text, timestamp } => {
+        ServerMessage::Transcription {
+            user_id,
+            text,
+            timestamp,
+        } => {
             ctx.set_subtitles.update(|subs| {
                 subs.push((user_id, text, timestamp));
                 if subs.len() > 5 {
@@ -682,9 +777,13 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 ctx.set_is_authenticated.set(true);
                 ctx.set_show_login_dialog.set(false);
                 ctx.set_auth_error.set(None);
-                ctx.add_toast.call(("Authenticated successfully (mock)".to_string(), ToastType::Info));
+                ctx.add_toast.call((
+                    "Authenticated successfully (mock)".to_string(),
+                    ToastType::Info,
+                ));
             } else {
-                ctx.set_auth_error.set(Some("Invalid username or password".to_string()));
+                ctx.set_auth_error
+                    .set(Some("Invalid username or password".to_string()));
             }
         }
         ServerMessage::CalendarEvents(events) => {

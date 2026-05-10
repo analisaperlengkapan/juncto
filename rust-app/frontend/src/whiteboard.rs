@@ -60,7 +60,9 @@ pub fn Whiteboard(
     });
 
     let on_mousedown = move |ev: web_sys::MouseEvent| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         set_is_drawing.set(true);
         set_last_pos.set(Some((ev.offset_x() as f64, ev.offset_y() as f64)));
     };

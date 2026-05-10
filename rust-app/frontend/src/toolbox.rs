@@ -101,6 +101,7 @@ pub fn Toolbox(
                     </button>
                 </Show>
                 <button
+                    id="toggle-subtitles-btn"
                     on:click=move |_| on_toggle_subtitles.call(())
                     class=move || format!("btn {}", if is_subtitles_enabled.get() { "btn-primary" } else { "btn-outline" })
                     title="Toggle Subtitles"

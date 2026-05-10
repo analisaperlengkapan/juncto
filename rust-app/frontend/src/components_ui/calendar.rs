@@ -9,9 +9,12 @@ pub fn CalendarList(
     // Automatically refresh on mount
     create_effect(move |_| {
         // Trigger fetch asynchronously to avoid potential sync borrow issues during mount
-        set_timeout(move || {
-            on_refresh.call(());
-        }, std::time::Duration::from_millis(100));
+        set_timeout(
+            move || {
+                on_refresh.call(());
+            },
+            std::time::Duration::from_millis(100),
+        );
     });
 
     view! {
@@ -82,13 +85,11 @@ mod tests {
         let on_refresh = Callback::new(|_: ()| {});
         let on_close = Callback::new(|_: ()| {});
 
-        let _view = CalendarList(
-            CalendarListProps {
-                events: events.into(),
-                on_refresh,
-                on_close,
-            }
-        );
+        let _view = CalendarList(CalendarListProps {
+            events: events.into(),
+            on_refresh,
+            on_close,
+        });
         let _ = true; // Verifies that instantiation succeeds within a reactive scope
     }
 }

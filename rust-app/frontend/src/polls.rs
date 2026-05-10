@@ -52,11 +52,19 @@ pub fn PollsDialog(
     };
 
     let active_polls = create_memo(move |_| {
-        polls.get().into_iter().filter(|p| !p.is_closed).collect::<Vec<_>>()
+        polls
+            .get()
+            .into_iter()
+            .filter(|p| !p.is_closed)
+            .collect::<Vec<_>>()
     });
 
     let history_polls = create_memo(move |_| {
-        polls.get().into_iter().filter(|p| p.is_closed).collect::<Vec<_>>()
+        polls
+            .get()
+            .into_iter()
+            .filter(|p| p.is_closed)
+            .collect::<Vec<_>>()
     });
 
     view! {

@@ -1,9 +1,7 @@
 use leptos::*;
 
 #[component]
-pub fn LobbyScreen(
-    announcement: ReadSignal<Option<String>>,
-) -> impl IntoView {
+pub fn LobbyScreen(announcement: ReadSignal<Option<String>>) -> impl IntoView {
     view! {
         <div class="lobby-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #333; color: white;">
             <div class="card" style="background: #444; padding: 40px; border-radius: 8px; text-align: center; max-width: 500px; width: 90%;">

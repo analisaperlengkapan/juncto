@@ -31,7 +31,9 @@ pub fn ParticipantsList(
     #[prop(optional)] on_mute_all: Option<Callback<()>>,
     #[prop(optional)] on_mute_camera_all: Option<Callback<()>>,
     _on_transfer_host: Callback<String>,
-    #[prop(optional)] _power_statuses: Option<ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>>,
+    #[prop(optional)] _power_statuses: Option<
+        ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
+    >,
     #[prop(optional)] _on_request_unmute: Option<Callback<String>>,
     #[prop(optional)] on_broadcast_lobby: Option<Callback<String>>,
     #[prop(optional)] _on_promote: Option<Callback<String>>,
@@ -408,7 +410,8 @@ mod tests {
         let participants = vec![p1, p2];
         let query = "al".to_string();
 
-        let filtered: Vec<_> = participants.iter()
+        let filtered: Vec<_> = participants
+            .iter()
             .filter(|p| p.name.to_lowercase().contains(&query.to_lowercase()))
             .collect();
 

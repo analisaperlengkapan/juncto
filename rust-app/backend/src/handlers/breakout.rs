@@ -184,9 +184,8 @@ pub fn close_all_breakout_rooms(
     }
 
     // 1. Move all participants back to Main Room (None)
-    let participant_ids: Vec<String> = {
-        state.participants.lock().unwrap().keys().cloned().collect()
-    };
+    let participant_ids: Vec<String> =
+        { state.participants.lock().unwrap().keys().cloned().collect() };
 
     let mut messages = Vec::new();
 
@@ -250,10 +249,7 @@ pub fn move_participant_to_room(
         locations.insert(target_id.clone(), room_id.clone());
     }
 
-    Ok(vec![ServerMessage::ForcedMoveToRoom {
-        target_id,
-        room_id,
-    }])
+    Ok(vec![ServerMessage::ForcedMoveToRoom { target_id, room_id }])
 }
 
 pub fn auto_assign_participants(
@@ -270,7 +266,13 @@ pub fn auto_assign_participants(
     }
 
     let rooms: Vec<String> = {
-        state.breakout_rooms.lock().unwrap().keys().cloned().collect()
+        state
+            .breakout_rooms
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect()
     };
 
     if rooms.is_empty() {
@@ -278,7 +280,11 @@ pub fn auto_assign_participants(
     }
 
     let participants: Vec<String> = {
-        state.participants.lock().unwrap().keys()
+        state
+            .participants
+            .lock()
+            .unwrap()
+            .keys()
             .filter(|id| *id != sender_id) // Don't move host
             .cloned()
             .collect()
@@ -363,7 +369,13 @@ mod tests {
 
         {
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Room 1".to_string() });
+            rooms.insert(
+                room_id.clone(),
+                shared::BreakoutRoom {
+                    id: room_id.clone(),
+                    name: "Room 1".to_string(),
+                },
+            );
         }
 
         let res = join_breakout_room(user_id, Some(room_id.clone()), &state);
@@ -384,10 +396,46 @@ mod tests {
             let mut config = state.room_config.lock().unwrap();
             config.host_id = Some(host_id.to_string());
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Room 1".to_string() });
+            rooms.insert(
+                room_id.clone(),
+                shared::BreakoutRoom {
+                    id: room_id.clone(),
+                    name: "Room 1".to_string(),
+                },
+            );
             let mut participants = state.participants.lock().unwrap();
-            participants.insert(host_id.to_string(), shared::Participant { id: host_id.to_string(), name: "Host".to_string(), is_hand_raised: false, is_sharing_screen: false, is_muted: false, speaking_time: 0, presence: shared::PresenceStatus::Connected, is_visitor: false, e2ee_enabled: false, hand_raised_at: None, avatar_url: None });
-            participants.insert(user_id.to_string(), shared::Participant { id: user_id.to_string(), name: "User".to_string(), is_hand_raised: false, is_sharing_screen: false, is_muted: false, speaking_time: 0, presence: shared::PresenceStatus::Connected, is_visitor: false, e2ee_enabled: false, hand_raised_at: None, avatar_url: None });
+            participants.insert(
+                host_id.to_string(),
+                shared::Participant {
+                    id: host_id.to_string(),
+                    name: "Host".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: shared::PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
+            participants.insert(
+                user_id.to_string(),
+                shared::Participant {
+                    id: user_id.to_string(),
+                    name: "User".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: shared::PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
             let mut locs = state.participant_locations.lock().unwrap();
             locs.insert(host_id.to_string(), None);
             locs.insert(user_id.to_string(), Some(room_id.clone()));
@@ -413,12 +461,39 @@ mod tests {
             let mut config = state.room_config.lock().unwrap();
             config.host_id = Some(host_id.to_string());
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert("r1".to_string(), shared::BreakoutRoom { id: "r1".to_string(), name: "R1".to_string() });
-            rooms.insert("r2".to_string(), shared::BreakoutRoom { id: "r2".to_string(), name: "R2".to_string() });
+            rooms.insert(
+                "r1".to_string(),
+                shared::BreakoutRoom {
+                    id: "r1".to_string(),
+                    name: "R1".to_string(),
+                },
+            );
+            rooms.insert(
+                "r2".to_string(),
+                shared::BreakoutRoom {
+                    id: "r2".to_string(),
+                    name: "R2".to_string(),
+                },
+            );
 
             let mut participants = state.participants.lock().unwrap();
             for id in [host_id, user1, user2] {
-                participants.insert(id.to_string(), shared::Participant { id: id.to_string(), name: id.to_string(), is_hand_raised: false, is_sharing_screen: false, is_muted: false, speaking_time: 0, presence: shared::PresenceStatus::Connected, is_visitor: false, e2ee_enabled: false, hand_raised_at: None, avatar_url: None });
+                participants.insert(
+                    id.to_string(),
+                    shared::Participant {
+                        id: id.to_string(),
+                        name: id.to_string(),
+                        is_hand_raised: false,
+                        is_sharing_screen: false,
+                        is_muted: false,
+                        speaking_time: 0,
+                        presence: shared::PresenceStatus::Connected,
+                        is_visitor: false,
+                        e2ee_enabled: false,
+                        hand_raised_at: None,
+                        avatar_url: None,
+                    },
+                );
             }
         }
 
@@ -441,9 +516,30 @@ mod tests {
             let mut config = state.room_config.lock().unwrap();
             config.host_id = Some(host_id.to_string());
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Room 1".to_string() });
+            rooms.insert(
+                room_id.clone(),
+                shared::BreakoutRoom {
+                    id: room_id.clone(),
+                    name: "Room 1".to_string(),
+                },
+            );
             let mut participants = state.participants.lock().unwrap();
-            participants.insert(user_id.to_string(), shared::Participant { id: user_id.to_string(), name: "User".to_string(), is_hand_raised: false, is_sharing_screen: false, is_muted: false, speaking_time: 0, presence: shared::PresenceStatus::Connected, is_visitor: false, e2ee_enabled: false, hand_raised_at: None, avatar_url: None });
+            participants.insert(
+                user_id.to_string(),
+                shared::Participant {
+                    id: user_id.to_string(),
+                    name: "User".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: shared::PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
             let mut locs = state.participant_locations.lock().unwrap();
             locs.insert(user_id.to_string(), Some(room_id.clone()));
         }
@@ -467,7 +563,13 @@ mod tests {
             let mut config = state.room_config.lock().unwrap();
             config.host_id = Some(host_id.to_string());
             let mut rooms = state.breakout_rooms.lock().unwrap();
-            rooms.insert(room_id.clone(), shared::BreakoutRoom { id: room_id.clone(), name: "Old Name".to_string() });
+            rooms.insert(
+                room_id.clone(),
+                shared::BreakoutRoom {
+                    id: room_id.clone(),
+                    name: "Old Name".to_string(),
+                },
+            );
         }
 
         let res = rename_breakout_room(host_id, room_id.clone(), "New Name".to_string(), &state);

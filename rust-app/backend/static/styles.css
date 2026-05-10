@@ -277,5 +277,7 @@ body {
 }
 
 .panel-hidden {
-    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
 }

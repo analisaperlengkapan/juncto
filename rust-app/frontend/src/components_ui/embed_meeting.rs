@@ -1,12 +1,11 @@
 use leptos::*;
 use wasm_bindgen::JsCast;
 
-
 fn escape_html(s: &str) -> String {
     s.replace("&", "&amp;")
-     .replace("<", "&lt;")
-     .replace(">", "&gt;")
-     .replace("\"", "&quot;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
 }
 
 #[component]

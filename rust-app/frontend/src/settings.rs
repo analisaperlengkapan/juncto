@@ -649,7 +649,12 @@ mod tests {
 
     #[test]
     fn test_device_settings_tuple() {
-        let settings: DeviceSettings = (Some("cam1".to_string()), Some("mic1".to_string()), "hd".to_string(), false);
+        let settings: DeviceSettings = (
+            Some("cam1".to_string()),
+            Some("mic1".to_string()),
+            "hd".to_string(),
+            false,
+        );
         assert_eq!(settings.0.unwrap(), "cam1");
         assert_eq!(settings.1.unwrap(), "mic1");
         assert_eq!(settings.2, "hd");

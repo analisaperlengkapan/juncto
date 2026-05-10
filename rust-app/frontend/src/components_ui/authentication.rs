@@ -78,13 +78,11 @@ mod tests {
         let on_login = Callback::new(|_: (String, Option<String>)| {});
         let on_cancel = Callback::new(|_: ()| {});
 
-        let _view = LoginDialog(
-            LoginDialogProps {
-                auth_error: auth_error.into(),
-                on_login,
-                on_cancel,
-            }
-        );
+        let _view = LoginDialog(LoginDialogProps {
+            auth_error: auth_error.into(),
+            on_login,
+            on_cancel,
+        });
         let _ = true; // Verifies that instantiation succeeds within a reactive scope
     }
 }

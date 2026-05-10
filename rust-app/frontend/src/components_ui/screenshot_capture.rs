@@ -10,7 +10,11 @@ pub fn ScreenshotCapture() -> impl IntoView {
 
         // Target the main video grid area
         if let Some(capture_area) = document.get_element_by_id("capture-area") {
-            let canvas = document.create_element("canvas").unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+            let canvas = document
+                .create_element("canvas")
+                .unwrap()
+                .dyn_into::<HtmlCanvasElement>()
+                .unwrap();
 
             let el = capture_area.dyn_ref::<web_sys::Element>().unwrap();
             let rect = el.get_bounding_client_rect();
@@ -18,7 +22,12 @@ pub fn ScreenshotCapture() -> impl IntoView {
             canvas.set_width(rect.width() as u32);
             canvas.set_height(rect.height() as u32);
 
-            let ctx = canvas.get_context("2d").unwrap().unwrap().dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap();
+            let ctx = canvas
+                .get_context("2d")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::CanvasRenderingContext2d>()
+                .unwrap();
 
             // Draw background
             #[allow(deprecated)]
@@ -37,14 +46,22 @@ pub fn ScreenshotCapture() -> impl IntoView {
                     let y = v_rect.top() - rect.top();
 
                     let _ = ctx.draw_image_with_html_video_element_and_dw_and_dh(
-                        &video_el, x, y, v_rect.width(), v_rect.height()
+                        &video_el,
+                        x,
+                        y,
+                        v_rect.width(),
+                        v_rect.height(),
                     );
                 }
             }
 
             // Download the result
             let data_url = canvas.to_data_url().unwrap();
-            let link = document.create_element("a").unwrap().dyn_into::<web_sys::HtmlAnchorElement>().unwrap();
+            let link = document
+                .create_element("a")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlAnchorElement>()
+                .unwrap();
             link.set_href(&data_url);
             link.set_download("juncto-screenshot.png");
             link.click();
@@ -57,12 +74,19 @@ pub fn ScreenshotCapture() -> impl IntoView {
                 capture(());
             }) as Box<dyn FnMut(_)>);
 
-            let _ = window.add_event_listener_with_callback("screenshot_trigger", closure.as_ref().unchecked_ref());
+            let _ = window.add_event_listener_with_callback(
+                "screenshot_trigger",
+                closure.as_ref().unchecked_ref(),
+            );
 
-            let closure_for_cleanup: js_sys::Function = closure.as_ref().unchecked_ref::<js_sys::Function>().clone();
+            let closure_for_cleanup: js_sys::Function =
+                closure.as_ref().unchecked_ref::<js_sys::Function>().clone();
             on_cleanup(move || {
                 if let Some(win) = web_sys::window() {
-                    let _ = win.remove_event_listener_with_callback("screenshot_trigger", &closure_for_cleanup);
+                    let _ = win.remove_event_listener_with_callback(
+                        "screenshot_trigger",
+                        &closure_for_cleanup,
+                    );
                 }
             });
             closure.forget();

@@ -108,8 +108,7 @@ pub struct ChatMessage {
     pub room_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-#[derive(Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, Eq, Hash)]
 pub enum PresenceStatus {
     #[default]
     Connected,
@@ -202,8 +201,8 @@ pub enum ClientMessage {
         content: String,
         recipient_id: Option<String>,
         attachment: Option<FileAttachment>,
-    #[serde(default)]
-    room_id: Option<String>,
+        #[serde(default)]
+        room_id: Option<String>,
     },
     ToggleRoomLock,
     ToggleRecording,
@@ -228,7 +227,7 @@ pub enum ClientMessage {
     CreateBreakoutRoom(String),       // Room Name
     JoinBreakoutRoom(Option<String>), // Room ID (None for Main)
     CloseAllBreakoutRooms,
-    RemoveBreakoutRoom(String),       // Room ID
+    RemoveBreakoutRoom(String), // Room ID
     RenameBreakoutRoom {
         room_id: String,
         new_name: String,
@@ -253,7 +252,7 @@ pub enum ClientMessage {
     UpdatePowerStatus(PowerStatus),
     RequestUnmute(String), // Target ID
     ToggleLocalRecording(bool),
-    FollowMe(String), // Layout name (e.g., "grid", "spotlight")
+    FollowMe(String),  // Layout name (e.g., "grid", "spotlight")
     ClosePoll(String), // Poll ID
     FaceExpression(FaceExpression),
     RequestRemoteControl(String), // Target ID
@@ -316,23 +315,26 @@ pub struct BreakoutRoom {
 pub enum ServerMessage {
     Chat {
         message: ChatMessage,
-    #[serde(default)]
-    room_id: Option<String>,
+        #[serde(default)]
+        room_id: Option<String>,
     },
     PeerTyping {
         user_id: String,
         is_typing: bool,
-    #[serde(default)]
-    room_id: Option<String>,
+        #[serde(default)]
+        room_id: Option<String>,
     },
-    Kicked { target_id: String, room_id: Option<String> },
+    Kicked {
+        target_id: String,
+        room_id: Option<String>,
+    },
     MutedByHost(String), // Target ID (Broadcasted, filtered by client)
     BreakoutRoomsList(Vec<BreakoutRoom>),
     ParticipantJoined(Participant),
     ParticipantLeft {
         id: String,
-    #[serde(default)]
-    room_id: Option<String>,
+        #[serde(default)]
+        room_id: Option<String>,
     },
     ParticipantList(Vec<Participant>),
     KnockingParticipant(Participant),
@@ -354,8 +356,15 @@ pub enum ServerMessage {
     },
     Knocking,
     AccessDenied,
-    EtherpadUrlUpdated { url: Option<String>, room_id: Option<String> },
-    GiphyShared { url: String, sender_id: String, room_id: Option<String> },
+    EtherpadUrlUpdated {
+        url: Option<String>,
+        room_id: Option<String>,
+    },
+    GiphyShared {
+        url: String,
+        sender_id: String,
+        room_id: Option<String>,
+    },
     RoomEnded,
     VideoShared(String), // URL
     VideoStopped,
@@ -384,7 +393,7 @@ pub enum ServerMessage {
         text: String,
         timestamp: u64,
     },
-    FollowMe(String), // Layout name
+    FollowMe(String),   // Layout name
     PollClosed(String), // Poll ID
     FaceExpression {
         sender_id: String,
@@ -414,7 +423,7 @@ pub enum ServerMessage {
     },
     LobbyAnnouncement(String),
     CameraMutedByHost(String), // Target ID
-    VisitorPromoted(String), // ID
+    VisitorPromoted(String),   // ID
     AudioOnlyChanged {
         user_id: String,
         enabled: bool,

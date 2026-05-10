@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
@@ -193,7 +193,8 @@ impl VideoProcessor {
             match current_mode.as_str() {
                 "blur" => {
                     context_clone.set_filter("blur(5px)");
-                    let _ = context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
+                    let _ =
+                        context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
                 }
                 "image" => {
                     // Draw a placeholder background color (representing an image)
@@ -202,11 +203,13 @@ impl VideoProcessor {
                     #[allow(deprecated)]
                     context_clone.set_fill_style(&style);
                     context_clone.fill_rect(0.0, 0.0, width, height);
-                    let _ = context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
+                    let _ =
+                        context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
                 }
                 _ => {
                     context_clone.set_filter("none");
-                    let _ = context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
+                    let _ =
+                        context_clone.draw_image_with_html_video_element(&video_clone, 0.0, 0.0);
                 }
             }
         }) as Box<dyn FnMut()>);
@@ -217,12 +220,13 @@ impl VideoProcessor {
         )?;
 
         // capture_stream is not directly in web_sys for all browsers, use Reflect as fallback
-        let processed_stream = if let Ok(func) = js_sys::Reflect::get(&canvas, &"captureStream".into()) {
-            let func = func.dyn_into::<js_sys::Function>()?;
-            func.call0(&canvas)?.dyn_into::<MediaStream>()?
-        } else {
-            return Err(JsValue::from_str("Canvas captureStream not supported"));
-        };
+        let processed_stream =
+            if let Ok(func) = js_sys::Reflect::get(&canvas, &"captureStream".into()) {
+                let func = func.dyn_into::<js_sys::Function>()?;
+                func.call0(&canvas)?.dyn_into::<MediaStream>()?
+            } else {
+                return Err(JsValue::from_str("Canvas captureStream not supported"));
+            };
 
         // Canvas captureStream only contains video tracks. Copy audio tracks from the
         // original stream so that WebRTC peers still receive audio and mute/unmute
@@ -247,7 +251,6 @@ impl VideoProcessor {
             processed_stream,
         ))
     }
-
 }
 
 impl Drop for VideoProcessor {
@@ -289,10 +292,7 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
             if let Some(name) = name.as_string() {
                 return matches!(
                     name.as_str(),
-                    "NotSupportedError"
-                        | "TypeError"
-                        | "OverconstrainedError"
-                        | "NotFoundError"
+                    "NotSupportedError" | "TypeError" | "OverconstrainedError" | "NotFoundError"
                 );
             }
         }
@@ -300,10 +300,21 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
     }
 
     let constraints_with_audio = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&constraints_with_audio, &"video".into(), &wasm_bindgen::JsValue::TRUE);
-    let _ = js_sys::Reflect::set(&constraints_with_audio, &"audio".into(), &wasm_bindgen::JsValue::TRUE);
+    let _ = js_sys::Reflect::set(
+        &constraints_with_audio,
+        &"video".into(),
+        &wasm_bindgen::JsValue::TRUE,
+    );
+    let _ = js_sys::Reflect::set(
+        &constraints_with_audio,
+        &"audio".into(),
+        &wasm_bindgen::JsValue::TRUE,
+    );
 
-    let result: JsValue = match func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_with_audio)) {
+    let result: JsValue = match func.call1(
+        &media_devices,
+        &wasm_bindgen::JsValue::from(constraints_with_audio),
+    ) {
         Ok(promise) => {
             // The picker has been (or will be) shown by the browser. Any
             // error from awaiting this promise — including capability
@@ -320,8 +331,15 @@ pub async fn get_display_media() -> Result<MediaStream, JsValue> {
                 return Err(e);
             }
             let constraints_video_only = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&constraints_video_only, &"video".into(), &wasm_bindgen::JsValue::TRUE);
-            let promise = func.call1(&media_devices, &wasm_bindgen::JsValue::from(constraints_video_only))?;
+            let _ = js_sys::Reflect::set(
+                &constraints_video_only,
+                &"video".into(),
+                &wasm_bindgen::JsValue::TRUE,
+            );
+            let promise = func.call1(
+                &media_devices,
+                &wasm_bindgen::JsValue::from(constraints_video_only),
+            )?;
             JsFuture::from(js_sys::Promise::from(promise)).await?
         }
     };
@@ -364,10 +382,12 @@ impl AudioMonitor {
                 // We need to truly clone the JS MediaStreamTrack, not just the Rust reference
                 let clone_fn = js_sys::Reflect::get(&track, &"clone".into())
                     .map_err(|_| JsValue::from_str("No clone method on MediaStreamTrack"))?;
-                let clone_fn = clone_fn.dyn_into::<js_sys::Function>()
+                let clone_fn = clone_fn
+                    .dyn_into::<js_sys::Function>()
                     .map_err(|_| JsValue::from_str("clone is not a function"))?;
                 let cloned_val = clone_fn.call0(&track)?;
-                let cloned_track = cloned_val.dyn_into::<web_sys::MediaStreamTrack>()
+                let cloned_track = cloned_val
+                    .dyn_into::<web_sys::MediaStreamTrack>()
                     .map_err(|_| JsValue::from_str("Clone did not return MediaStreamTrack"))?;
 
                 // Ensure the cloned track remains enabled for local analysis even if original is disabled
@@ -503,7 +523,8 @@ impl AudioMonitor {
             // separated by quieter gaps add up to the 5-second threshold.
             if avg > 12.0 && !is_talking {
                 noise_counter += 1;
-                if noise_counter > 50 && !noise_triggered { // 5 seconds of consistent noise
+                if noise_counter > 50 && !noise_triggered {
+                    // 5 seconds of consistent noise
                     noise_triggered = true;
                     if let Some(window) = web_sys::window() {
                         if let Ok(event) = web_sys::CustomEvent::new("noise_detected") {
@@ -523,7 +544,8 @@ impl AudioMonitor {
             // If audio level is practically zero for a long time, and we haven't triggered yet
             if avg < 1.0 && !has_ever_talked {
                 silence_counter += 1;
-                if silence_counter > 100 && !no_audio_triggered { // 100 * 100ms = 10 seconds
+                if silence_counter > 100 && !no_audio_triggered {
+                    // 100 * 100ms = 10 seconds
                     no_audio_triggered = true;
                     if let Some(cb) = on_no_audio.as_mut() {
                         cb();
@@ -532,7 +554,6 @@ impl AudioMonitor {
             } else {
                 silence_counter = 0;
             }
-
         }) as Box<dyn FnMut()>);
 
         // Run interval

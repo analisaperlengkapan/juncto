@@ -1,5 +1,5 @@
-use leptos::*;
 use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
+use leptos::*;
 use shared::Participant;
 use std::collections::{HashMap, HashSet};
 use wasm_bindgen::JsCast;

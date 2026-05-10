@@ -1,5 +1,5 @@
-use leptos::*;
 use leptos::leptos_dom::helpers::IntervalHandle;
+use leptos::*;
 use shared::{ClientMessage, FaceExpression};
 use std::cell::RefCell;
 use std::rc::Rc;

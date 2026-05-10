@@ -42,12 +42,14 @@ impl RemoteControlService {
     }
 
     pub fn request_control(&self, target_id: String) {
-        self.send_signal.call(ClientMessage::RequestRemoteControl(target_id));
+        self.send_signal
+            .call(ClientMessage::RequestRemoteControl(target_id));
     }
 
     pub fn stop_control(&self) {
         if let Some(peer_id) = self.controlled_peer.get_untracked() {
-            self.send_signal.call(ClientMessage::StopRemoteControl(peer_id));
+            self.send_signal
+                .call(ClientMessage::StopRemoteControl(peer_id));
             self.controlled_peer.set(None);
         }
     }
@@ -57,7 +59,8 @@ impl RemoteControlService {
     /// `controlling_peer` signal so the banner disappears immediately.
     pub fn stop_being_controlled(&self) {
         if let Some(peer_id) = self.controlling_peer.get_untracked() {
-            self.send_signal.call(ClientMessage::StopRemoteControl(peer_id));
+            self.send_signal
+                .call(ClientMessage::StopRemoteControl(peer_id));
             self.controlling_peer.set(None);
         }
     }
@@ -72,10 +75,8 @@ impl RemoteControlService {
 
     pub fn send_action(&self, action: RemoteControlAction) {
         if let Some(target_id) = self.controlled_peer.get_untracked() {
-            self.send_signal.call(ClientMessage::RemoteControlAction {
-                target_id,
-                action,
-            });
+            self.send_signal
+                .call(ClientMessage::RemoteControlAction { target_id, action });
         }
     }
 
@@ -94,10 +95,12 @@ impl RemoteControlService {
         if self.pending_incoming_request.get_untracked().is_some() {
             // Auto-deny the new request so the server clears its pending
             // entry. The original requester will receive a `RemoteControlAllowed { allowed: false }`.
-            self.send_signal.call(ClientMessage::DenyRemoteControl(requester_id));
+            self.send_signal
+                .call(ClientMessage::DenyRemoteControl(requester_id));
             return;
         }
-        self.pending_incoming_request.set(Some((requester_id, requester_name)));
+        self.pending_incoming_request
+            .set(Some((requester_id, requester_name)));
     }
 
     /// Respond to a pending incoming request and clear the signal. The

@@ -104,7 +104,7 @@ mod tests {
     fn test_feedback_dialog_compiles() {
         let _ = create_runtime();
         let _show = create_rw_signal(true);
-                let on_cancel = Callback::new(|_: ()| {});
+        let on_cancel = Callback::new(|_: ()| {});
 
         let show = create_rw_signal(true);
         let _view = view! {

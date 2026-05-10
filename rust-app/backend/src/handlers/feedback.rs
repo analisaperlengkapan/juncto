@@ -25,7 +25,6 @@ pub async fn submit_feedback(
 
     feedback_store.push(payload);
 
-
     // TODO: Add rate limiting and authentication for production (Bug 3)
     (StatusCode::OK, "Feedback received").into_response()
 }

@@ -1,4 +1,9 @@
-pub type ChatSendCallback = Callback<(String, Option<String>, Option<shared::FileAttachment>, Option<String>)>;
+pub type ChatSendCallback = Callback<(
+    String,
+    Option<String>,
+    Option<shared::FileAttachment>,
+    Option<String>,
+)>;
 use crate::components_ui::giphy::GiphySearch;
 use gloo_timers::callback::Timeout;
 use leptos::*;
@@ -81,7 +86,9 @@ pub fn Chat(
     let last_typing_sent = create_rw_signal(0.0);
 
     let handle_input = move |ev: web_sys::Event| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         set_input_value.set(event_target_value(&ev));
 
         let now = js_sys::Date::now();
@@ -107,7 +114,9 @@ pub fn Chat(
     let file_reader_closure = store_value(None::<Closure<dyn FnMut(web_sys::Event)>>);
 
     let handle_file_change = move |ev: web_sys::Event| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         let input: web_sys::HtmlInputElement = event_target(&ev);
         if let Some(files) = input.files() {
             if let Some(file) = files.get(0) {
@@ -155,7 +164,9 @@ pub fn Chat(
     };
 
     let send = move |_| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         let content = input_value.get();
         let target = recipient.get();
         let attachment = selected_file.get();

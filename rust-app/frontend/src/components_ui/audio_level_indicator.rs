@@ -4,9 +4,7 @@ const AUDIO_LEVEL_DOTS: i32 = 5;
 const CENTER_DOT_INDEX: i32 = AUDIO_LEVEL_DOTS / 2;
 
 #[component]
-pub fn AudioLevelIndicator(
-    #[prop(into)] audio_level: Signal<f64>,
-) -> impl IntoView {
+pub fn AudioLevelIndicator(#[prop(into)] audio_level: Signal<f64>) -> impl IntoView {
     // Generate the 5 dots based on the audio level
     let dots = (0..AUDIO_LEVEL_DOTS).map(|i| {
         let distance_from_center = CENTER_DOT_INDEX - i;
