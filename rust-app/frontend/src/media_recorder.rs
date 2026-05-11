@@ -1,9 +1,9 @@
+use leptos::{Callable, Callback};
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{MediaRecorder, MediaStream, BlobEvent, MediaRecorderOptions};
-use std::rc::Rc;
-use std::cell::RefCell;
-use leptos::{Callback, Callable};
+use web_sys::{BlobEvent, MediaRecorder, MediaRecorderOptions, MediaStream};
 
 pub struct LocalRecorder {
     recorder: MediaRecorder,
@@ -17,7 +17,8 @@ impl LocalRecorder {
         let options = MediaRecorderOptions::new();
         options.set_mime_type("video/webm;codecs=vp8,opus");
 
-        let recorder = MediaRecorder::new_with_media_stream_and_media_recorder_options(&stream, &options)?;
+        let recorder =
+            MediaRecorder::new_with_media_stream_and_media_recorder_options(&stream, &options)?;
 
         let chunks: Rc<RefCell<Vec<web_sys::Blob>>> = Rc::new(RefCell::new(Vec::new()));
 
@@ -39,14 +40,17 @@ impl LocalRecorder {
 
             let property_bag = web_sys::BlobPropertyBag::new();
             property_bag.set_type("video/webm");
-            if let Ok(blob) = web_sys::Blob::new_with_blob_sequence_and_options(
-                &blob_parts,
-                &property_bag
-            ) {
+            if let Ok(blob) =
+                web_sys::Blob::new_with_blob_sequence_and_options(&blob_parts, &property_bag)
+            {
                 if let Some(window) = web_sys::window() {
                     if let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) {
                         let document = window.document().unwrap();
-                        let a = document.create_element("a").unwrap().dyn_into::<web_sys::HtmlAnchorElement>().unwrap();
+                        let a = document
+                            .create_element("a")
+                            .unwrap()
+                            .dyn_into::<web_sys::HtmlAnchorElement>()
+                            .unwrap();
                         a.set_href(&url);
                         a.set_download(&format!("juncto-recording-{}.webm", js_sys::Date::now()));
                         a.click();
@@ -80,10 +84,8 @@ impl LocalRecorder {
         recorder.set_ondataavailable(Some(on_data_available.as_ref().unchecked_ref()));
         recorder.set_onstop(Some(on_stop.as_ref().unchecked_ref()));
         let error_target: &web_sys::EventTarget = recorder.unchecked_ref();
-        let _ = error_target.add_event_listener_with_callback(
-            "error",
-            on_error_cb.as_ref().unchecked_ref(),
-        );
+        let _ = error_target
+            .add_event_listener_with_callback("error", on_error_cb.as_ref().unchecked_ref());
 
         recorder.start_with_time_slice(5000)?; // 5s slices
 
@@ -112,10 +114,8 @@ impl Drop for LocalRecorder {
         // Remove the error event listener added via addEventListener so
         // the browser doesn't try to invoke the dropped Closure.
         let error_target: &web_sys::EventTarget = self.recorder.unchecked_ref();
-        let _ = error_target.remove_event_listener_with_callback(
-            "error",
-            self._on_error.as_ref().unchecked_ref(),
-        );
+        let _ = error_target
+            .remove_event_listener_with_callback("error", self._on_error.as_ref().unchecked_ref());
         // Clear property-based handlers for the same reason.
         self.recorder.set_ondataavailable(None);
         self.recorder.set_onstop(None);

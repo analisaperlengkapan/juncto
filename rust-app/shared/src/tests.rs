@@ -153,7 +153,7 @@ fn test_etherpad_messages_serialization() {
 
     let msg_server = ServerMessage::EtherpadUrlUpdated {
         url: Some("https://pad.org/test".to_string()),
-        room_id: Some("room1".to_string())
+        room_id: Some("room1".to_string()),
     };
     let json_server = serde_json::to_string(&msg_server).unwrap();
     let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
@@ -170,7 +170,7 @@ fn test_giphy_messages_serialization() {
     let msg_server = ServerMessage::GiphyShared {
         url: "https://giphy.com/gif1".to_string(),
         sender_id: "u1".to_string(),
-        room_id: None
+        room_id: None,
     };
     let json_server = serde_json::to_string(&msg_server).unwrap();
     let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
@@ -199,7 +199,10 @@ fn test_transcription_serialization() {
 
 #[test]
 fn test_authenticate_message() {
-    let msg = ClientMessage::Authenticate { username: "test_user".to_string(), password: Some("secret".to_string()) };
+    let msg = ClientMessage::Authenticate {
+        username: "test_user".to_string(),
+        password: Some("secret".to_string()),
+    };
     let serialized = serde_json::to_string(&msg).unwrap();
     assert!(serialized.contains(r#""type":"Authenticate""#));
     assert!(serialized.contains(r#""username":"test_user""#));
@@ -225,7 +228,10 @@ fn test_calendar_events_message() {
 
 #[test]
 fn test_analytics_event_message() {
-    let msg = ClientMessage::AnalyticsEvent { name: "TestEvent".to_string(), properties: "{}".to_string() };
+    let msg = ClientMessage::AnalyticsEvent {
+        name: "TestEvent".to_string(),
+        properties: "{}".to_string(),
+    };
     let serialized = serde_json::to_string(&msg).unwrap();
     assert!(serialized.contains(r#""type":"AnalyticsEvent""#));
     assert!(serialized.contains(r#""name":"TestEvent""#));
@@ -279,16 +285,30 @@ fn test_room_config_subtitles_default() {
 
 #[test]
 fn test_is_giphy_cdn_url() {
-    assert!(is_giphy_cdn_url("https://media.giphy.com/media/abc/giphy.gif"));
-    assert!(is_giphy_cdn_url("https://media0.giphy.com/media/abc/giphy.gif"));
-    assert!(is_giphy_cdn_url("https://media4.giphy.com/media/abc/giphy.gif"));
-    assert!(is_giphy_cdn_url("https://media5.giphy.com/media/abc/giphy.gif"));
-    assert!(is_giphy_cdn_url("https://media9.giphy.com/media/abc/giphy.gif"));
+    assert!(is_giphy_cdn_url(
+        "https://media.giphy.com/media/abc/giphy.gif"
+    ));
+    assert!(is_giphy_cdn_url(
+        "https://media0.giphy.com/media/abc/giphy.gif"
+    ));
+    assert!(is_giphy_cdn_url(
+        "https://media4.giphy.com/media/abc/giphy.gif"
+    ));
+    assert!(is_giphy_cdn_url(
+        "https://media5.giphy.com/media/abc/giphy.gif"
+    ));
+    assert!(is_giphy_cdn_url(
+        "https://media9.giphy.com/media/abc/giphy.gif"
+    ));
     assert!(is_giphy_cdn_url("https://i.giphy.com/abc.gif"));
     assert!(!is_giphy_cdn_url("https://evil.com/tracker.png"));
     assert!(!is_giphy_cdn_url("https://media.giphy.com@evil.com/"));
-    assert!(!is_giphy_cdn_url("https://mediaX.giphy.com/media/abc/giphy.gif"));
-    assert!(!is_giphy_cdn_url("https://media99.giphy.com/media/abc/giphy.gif"));
+    assert!(!is_giphy_cdn_url(
+        "https://mediaX.giphy.com/media/abc/giphy.gif"
+    ));
+    assert!(!is_giphy_cdn_url(
+        "https://media99.giphy.com/media/abc/giphy.gif"
+    ));
     assert!(!is_giphy_cdn_url("not-a-url"));
 }
 

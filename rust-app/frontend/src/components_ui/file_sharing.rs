@@ -3,11 +3,11 @@ use shared::ChatMessage;
 use wasm_bindgen::JsCast;
 
 #[component]
-pub fn FileSharing(
-    messages: ReadSignal<Vec<ChatMessage>>,
-) -> impl IntoView {
+pub fn FileSharing(messages: ReadSignal<Vec<ChatMessage>>) -> impl IntoView {
     let files = Signal::derive(move || {
-        messages.get().into_iter()
+        messages
+            .get()
+            .into_iter()
             .filter_map(|m| m.attachment.map(|a| (m.user_id.clone(), m.timestamp, a)))
             .collect::<Vec<_>>()
     });
@@ -97,7 +97,9 @@ mod tests {
         let messages = create_rw_signal(vec![m1, m2]);
 
         // This is a simple logic test that mirrors the derive in component
-        let files: Vec<_> = messages.get().into_iter()
+        let files: Vec<_> = messages
+            .get()
+            .into_iter()
             .filter_map(|m| m.attachment.map(|a| (m.user_id.clone(), m.timestamp, a)))
             .collect();
 

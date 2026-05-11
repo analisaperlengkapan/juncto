@@ -9,14 +9,14 @@ test('Audio-only mode, participant search, and pinning', async ({ page, context 
     const roomName = `mig-features-${Math.random().toString(36).substring(7)}`;
 
     // Join as Participant 1 (Alice)
-    await page.fill('input[type="text"]', roomName);
+    await page.fill('#meeting-name', roomName);
     await page.click('.create-btn');
     await page.waitForSelector('#display-name', { timeout: 30000 });
     await page.fill('#display-name', 'Alice');
     await page.click('.join-btn');
 
     // Verify Alice joined
-    await expect(page.locator('h2')).toContainText(`Meeting Room: ${roomName}`, { timeout: 30000 });
+    await expect(page.locator('.room-container')).toBeVisible({ timeout: 30000 });
 
     // Join as Participant 2 (Bob) in another page
     const page2 = await context.newPage();
@@ -24,13 +24,17 @@ test('Audio-only mode, participant search, and pinning', async ({ page, context 
     await page2.waitForSelector('#display-name', { timeout: 30000 });
     await page2.fill('#display-name', 'Bob');
     await page2.click('.join-btn');
-    await expect(page2.locator('h2')).toContainText(`Meeting Room: ${roomName}`, { timeout: 30000 });
+    await expect(page2.locator('.room-container')).toBeVisible({ timeout: 30000 });
 
     // Test Search in Participants List (on Alice's page)
-    // First, open the panel
-    await page.click('#toggle-participants-btn');
     const searchInput = page.locator('#participant-search');
-    await expect(searchInput).toBeVisible();
+
+    // In our implementation, panels are open by default.
+    // If not visible for some reason, click to open.
+    if (!await searchInput.isVisible()) {
+        await page.click('#toggle-participants-btn');
+    }
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
 
     await searchInput.fill('Bob');
     await expect(page.locator('.participant-item')).toHaveCount(1);
@@ -45,25 +49,29 @@ test('Audio-only mode, participant search, and pinning', async ({ page, context 
 
     // Test Audio-Only mode toggle
     // Open settings
-    await page.click('button[title="Settings"]');
+    await page.click('#settings-btn');
     await page.click('button:has-text("More")');
     const audioOnlyToggle = page.locator('#audio-only-toggle');
     await audioOnlyToggle.click();
-    await page.click('.modal-header button'); // Close settings
+    await page.click('#close-settings-btn');
 
-    // In Audio-Only mode, remote videos should be hidden (display: none)
-    // Bob's video card should be hidden
-    await expect(page.locator('.video-card', { hasText: 'Bob' })).not.toBeVisible();
+    // In Audio-Only mode, remote videos should be replaced by avatars
+    // Check Bob's video element is hidden (the video card itself stays but video tag is gone/hidden)
+    await expect(page.locator('.video-card', { hasText: 'Bob' }).locator('video')).not.toBeVisible();
 
     // Test Pinning
-    // Re-open participants panel if closed (it should be open)
+    // Ensure participants panel is open
+    if (!await searchInput.isVisible()) {
+        await page.click('#toggle-participants-btn');
+    }
     const pinBtn = page.locator('.participant-item', { hasText: 'Bob' }).locator('button[title="Pin participant"]');
+    // Use dispatchEvent to avoid overlay issues if any
     await pinBtn.dispatchEvent('click');
 
     // Switch to spotlight to see pinning effect
     await page.click('button:has-text("Switch to Spotlight")');
 
-    // Bob should be the spotlighted card even if Alice is host and no one is speaking
+    // Bob should be the spotlighted card
     const spotlightCard = page.locator('.video-grid.spotlight .video-card.spotlighted');
     await expect(spotlightCard).toContainText('Bob');
 

@@ -25,19 +25,21 @@ test.describe('Shared Video', () => {
         await pageA.goto('/');
 
         // User A (Host)
-        await pageA.fill('input[type="text"]', roomName);
-        await pageA.click('button:has-text("Start Meeting")');
-        await pageA.locator('.prejoin-container input[type="text"]').fill('Alice');
-        await pageA.click('button:has-text("Join Meeting")');
+        await pageA.fill('#meeting-name', roomName);
+        await pageA.click('.create-btn');
+        await pageA.waitForSelector('#display-name');
+        await pageA.fill('#display-name', 'Alice');
+        await pageA.click('.join-btn');
+        await pageA.waitForSelector('.room-container');
 
         // Click Share Video
-        await pageA.click('button:has-text("Share Video")');
+        await pageA.click('button:has-text("Video")');
 
         // Verify Modal appears and submit
         await expect(pageA.locator('h3:has-text("Share Video")')).toBeVisible();
         await pageA.locator('input[placeholder*="youtube.com"]').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-        // Click Share inside the modal (exact match to avoid "Share Screen")
-        await pageA.locator('.modal-content button:has-text("Share")').click();
+        // Click Share inside the modal
+        await pageA.locator('#submit-shared-video-btn').click();
 
         // Verify Video Card appears
         await expect(pageA.locator('.shared-video')).toBeVisible();
@@ -47,14 +49,18 @@ test.describe('Shared Video', () => {
         const contextB = await browser.newContext();
         const pageB = await contextB.newPage();
         await pageB.goto(`/room/${roomName}`);
-        await pageB.locator('.prejoin-container input[type="text"]').fill('Bob');
-        await pageB.click('button:has-text("Join Meeting")');
+        await pageB.waitForSelector('#display-name');
+        await pageB.fill('#display-name', 'Bob');
+        await pageB.click('.join-btn');
+        await pageB.waitForSelector('.room-container');
 
         // Verify Video Card appears for Bob
         await expect(pageB.locator('.shared-video')).toBeVisible();
         await expect(pageB.locator('iframe[src*="dQw4w9WgXcQ"]')).toBeVisible();
 
         // Host Stops Video
+        // When sharing video, button text should change to "Stop Video" or similar
+        // Let's check what the button says or use ID if available
         await pageA.click('button:has-text("Stop Video")');
 
         // Verify removed

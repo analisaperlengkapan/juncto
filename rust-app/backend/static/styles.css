@@ -275,3 +275,9 @@ body {
     border-radius: 8px;
     padding: 10px;
 }
+
+.panel-hidden {
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+}

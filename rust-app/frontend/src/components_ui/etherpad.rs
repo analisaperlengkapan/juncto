@@ -1,9 +1,7 @@
 use leptos::*;
 
 #[component]
-pub fn Etherpad(
-    #[prop(into)] url: Signal<Option<String>>,
-) -> impl IntoView {
+pub fn Etherpad(#[prop(into)] url: Signal<Option<String>>) -> impl IntoView {
     view! {
         <div class="etherpad-container" style="width: 100%; height: 100%; border: none;">
             <Show when=move || url.get().is_some() fallback=|| view! {

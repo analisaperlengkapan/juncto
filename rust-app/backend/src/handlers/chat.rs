@@ -97,17 +97,23 @@ mod tests {
 
         // Valid Giphy URL should succeed
         let res = process_chat_message(
-            "user1", &None,
+            "user1",
+            &None,
             "GIF:https://media.giphy.com/media/abc/giphy.gif".to_string(),
-            None, None, &state,
+            None,
+            None,
+            &state,
         );
         assert!(res.is_ok());
 
         // Invalid GIF URL should be rejected
         let res = process_chat_message(
-            "user1", &None,
+            "user1",
+            &None,
             "GIF:https://evil.com/tracker.png".to_string(),
-            None, None, &state,
+            None,
+            None,
+            &state,
         );
         assert!(res.is_err());
         assert_eq!(
@@ -117,9 +123,12 @@ mod tests {
 
         // Non-GIF messages should pass through unchanged
         let res = process_chat_message(
-            "user1", &None,
+            "user1",
+            &None,
             "GIF:not-a-url".to_string(),
-            None, None, &state,
+            None,
+            None,
+            &state,
         );
         assert!(res.is_err());
     }
@@ -136,8 +145,7 @@ mod tests {
         });
 
         let res =
-            process_chat_message("user1", &None, "file".to_string(), None, attachment,
-            &state);
+            process_chat_message("user1", &None, "file".to_string(), None, attachment, &state);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), "File too large");
     }

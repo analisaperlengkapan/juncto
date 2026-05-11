@@ -1,9 +1,9 @@
 pub mod breakout;
 pub mod chat;
-pub mod moderation;
-pub mod remote_control;
 pub mod feedback;
+pub mod moderation;
 pub mod polls;
+pub mod remote_control;
 pub mod room;
 pub mod whiteboard;
 pub mod ws;

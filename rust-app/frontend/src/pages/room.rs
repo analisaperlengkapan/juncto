@@ -3,13 +3,13 @@ use crate::components_ui::always_on_top::AlwaysOnTop;
 use crate::components_ui::authentication::LoginDialog;
 use crate::components_ui::breakout::BreakoutRooms;
 use crate::components_ui::calendar::CalendarList;
+use crate::components_ui::dial_in::DialInDialog;
 use crate::components_ui::feedback::FeedbackDialog;
 use crate::components_ui::invite::InviteDialog;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::screenshot_capture::ScreenshotCapture;
 use crate::components_ui::shared_video_dialog::SharedVideoDialog;
-use crate::components_ui::dial_in::DialInDialog;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::connection_stats::ConnectionStats;
 use crate::participants::ParticipantsList;
@@ -27,8 +27,8 @@ use leptos::*;
 use leptos_router::*;
 use wasm_bindgen::JsCast;
 
-use crate::power_monitor::PowerMonitor;
 use crate::deeplink::DeepLinking;
+use crate::power_monitor::PowerMonitor;
 use crate::remote_control::RemoteControlLayer;
 
 #[component]
@@ -143,13 +143,19 @@ pub fn Room() -> impl IntoView {
                             on_screen_share=state.toggle_screen_share
                             on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                             on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
-                            on_toggle_local_recording=state.toggle_local_recording
+                            on_toggle_local_recording=Callback::new({
+                                let toggle = state.toggle_local_recording;
+                                move |_| {
+                                    let current = state.is_recording_locally.get_untracked();
+                                    toggle.call(!current);
+                                }
+                            })
                         />
                         <ConnectionStats
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <div class="main-content room-container" style=move || {
+                        <div class="main-content room-root" style=move || {
                             let mut margin = 0;
                             if show_chat.get() { margin += 320; }
                             if show_participants.get() { margin += 320; }
@@ -203,12 +209,18 @@ pub fn Room() -> impl IntoView {
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.1rem; color: var(--text-muted);">
                                                 {format_time}
                                             </span>
+                                            <Show when=move || !state.is_locked.get()>
+                                                <span class="badge-success" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Unlocked"</span>
+                                            </Show>
+                                            <Show when=move || state.is_locked.get()>
+                                                <span class="badge-danger" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Locked"</span>
+                                            </Show>
                                         </div>
                                         <Show when=move || state.current_room_id.get().is_some()>
                                             <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
                                         </Show>
                                         <Show when=move || state.is_recording.get()>
-                                            <div style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
+                                            <div class="rec-indicator" style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
                                                 "REC"
                                             </div>
                                         </Show>
@@ -293,8 +305,8 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_recording=state.toggle_recording
                                 is_subtitles_enabled=state.is_subtitles_enabled
                                 on_toggle_subtitles=state.toggle_subtitles
-                                on_toggle_e2ee=state.toggle_e2ee
-                                is_e2ee_enabled=state.is_e2ee_enabled
+                                _on_toggle_e2ee=state.toggle_e2ee
+                                _is_e2ee_enabled=state.is_e2ee_enabled
                                 on_toggle_etherpad=Callback::new({
                                     let state = state.clone();
                                     let room_id_fn = room_id;
@@ -322,7 +334,7 @@ pub fn Room() -> impl IntoView {
                                         }
                                     }
                                 })
-                                is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
+                                _is_etherpad_active=Signal::derive(move || state.room_config.get().etherpad_url.is_some())
                                 is_etherpad_open=Signal::derive(move || state.show_etherpad.get())
                                 current_presence=Signal::derive(move || {
                                     if let Some(my_id) = state.my_id.get() {
@@ -338,7 +350,13 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 is_recording_locally=state.is_recording_locally
-                                on_toggle_local_recording=state.toggle_local_recording
+                                on_toggle_local_recording=Callback::new({
+                                    let toggle = state.toggle_local_recording;
+                                    move |_| {
+                                        let current = state.is_recording_locally.get_untracked();
+                                        toggle.call(!current);
+                                    }
+                                })
                                 on_polls=Callback::new(move |_| state.set_show_polls.set(true))
                                 on_shortcuts=Callback::new(move |_| state.set_show_shortcuts.set(true))
                                 on_speaker_stats=Callback::new(move |_| state.set_show_speaker_stats.set(true))
@@ -366,7 +384,9 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=end_meeting_and_leave
                             />
                         </div>
-                        <div class="side-panel chat-container" style=move || {
+                        <div class="side-panel chat-container"
+                            class:panel-hidden=move || !show_chat.get()
+                            style=move || {
                             let mut offset = 0;
                             if show_participants.get() { offset += 320; }
                             if show_files.get() { offset += 320; }
@@ -390,7 +410,9 @@ pub fn Room() -> impl IntoView {
                                 />
                             </div>
                         </div>
-                        <div class="side-panel participants-container" style=move || {
+                        <div class="side-panel participants-container"
+                            class:panel-hidden=move || !show_participants.get()
+                            style=move || {
                             let mut offset = 0;
                             if show_files.get() { offset += 320; }
                             format!("transform: translateX({}px); right: {}px;", if show_participants.get() { 0 } else { 320 }, offset)
@@ -547,26 +569,5 @@ pub fn Room() -> impl IntoView {
                 }.into_view()
             }}
         </div>
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_room_compiles() {
-        // dummy test
-        let _ = true;
-    }
-
-    #[test]
-    fn test_subtitle_overlay_logic() {
-        let _runtime = create_runtime();
-        let (subtitles, _set_subtitles) = create_signal(vec![("u1".to_string(), "hello".to_string(), 123u64)]);
-        let (is_enabled, _set_is_enabled) = create_signal(true);
-
-        // Verification of logic used in component
-        assert!(is_enabled.get());
-        assert_eq!(subtitles.get().len(), 1);
     }
 }

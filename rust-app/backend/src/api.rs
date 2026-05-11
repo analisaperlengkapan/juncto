@@ -18,7 +18,15 @@ mod tests {
     #[tokio::test]
     async fn test_health_check() {
         let app = axum::Router::new().route("/health", get(health_check));
-        let response = app.oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), axum::http::StatusCode::OK);
     }
 }

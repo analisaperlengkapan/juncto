@@ -12,7 +12,12 @@ pub fn PrejoinScreen(
     is_connected: ReadSignal<bool>,
 ) -> impl IntoView {
     let initial_settings = crate::storage::load_settings();
-    let (display_name, set_display_name) = create_signal(initial_settings.display_name.clone().unwrap_or_else(|| "Guest".to_string()));
+    let (display_name, set_display_name) = create_signal(
+        initial_settings
+            .display_name
+            .clone()
+            .unwrap_or_else(|| "Guest".to_string()),
+    );
     let (avatar_url, set_avatar_url) = create_signal("".to_string());
 
     // Device Lists
@@ -20,7 +25,8 @@ pub fn PrejoinScreen(
     let (audio_devices, set_audio_devices) = create_signal(Vec::<DeviceInfo>::new());
 
     // Selected Devices
-    let (selected_video_device, set_selected_video_device) = create_signal(initial_settings.camera_id);
+    let (selected_video_device, set_selected_video_device) =
+        create_signal(initial_settings.camera_id);
     let (selected_audio_device, set_selected_audio_device) = create_signal(initial_settings.mic_id);
 
     // Toggles
@@ -45,9 +51,9 @@ pub fn PrejoinScreen(
                 // Fall back to first device if no saved ID or if the saved ID
                 // is stale (device was unplugged since settings were persisted).
                 let saved_vid = selected_video_device.get_untracked();
-                let vid_valid = saved_vid.as_ref().is_some_and(|id| {
-                    v_devices.iter().any(|d| &d.device_id == id)
-                });
+                let vid_valid = saved_vid
+                    .as_ref()
+                    .is_some_and(|id| v_devices.iter().any(|d| &d.device_id == id));
                 if !vid_valid {
                     if let Some(first) = v_devices.first() {
                         set_selected_video_device.set(Some(first.device_id.clone()));
@@ -56,9 +62,9 @@ pub fn PrejoinScreen(
 
                 set_audio_devices.set(a_devices.clone());
                 let saved_aid = selected_audio_device.get_untracked();
-                let aid_valid = saved_aid.as_ref().is_some_and(|id| {
-                    a_devices.iter().any(|d| &d.device_id == id)
-                });
+                let aid_valid = saved_aid
+                    .as_ref()
+                    .is_some_and(|id| a_devices.iter().any(|d| &d.device_id == id));
                 if !aid_valid {
                     if let Some(first) = a_devices.first() {
                         set_selected_audio_device.set(Some(first.device_id.clone()));
@@ -147,7 +153,9 @@ pub fn PrejoinScreen(
                         let on_speaking = Box::new(move |speaking: bool| {
                             set_is_speaking.set(speaking);
                         });
-                        if let Ok(monitor) = AudioMonitor::new(&stream, on_speaking, None, None, false) {
+                        if let Ok(monitor) =
+                            AudioMonitor::new(&stream, on_speaking, None, None, false)
+                        {
                             set_audio_monitor.set(Some(monitor));
                         }
                     }

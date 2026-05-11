@@ -75,7 +75,7 @@ test('Integrations UI', async ({ page }) => {
 
   await page.waitForSelector('.room-container', { timeout: 30000 });
 
-  const settingsBtn = page.locator('button').filter({ hasText: 'Settings' }).first();
+  const settingsBtn = page.locator('#settings-btn');
   await expect(settingsBtn).toBeVisible();
   await settingsBtn.click();
 

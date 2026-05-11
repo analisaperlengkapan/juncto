@@ -1,11 +1,10 @@
 mod analytics;
 mod chat;
-mod giphy;
 mod components_ui;
 mod connection_stats;
 mod deeplink;
 mod face_landmarks;
-mod remote_control;
+mod giphy;
 mod i18n;
 mod media;
 mod media_recorder;
@@ -14,6 +13,7 @@ mod participants;
 mod polls;
 mod power_monitor;
 mod reactions;
+mod remote_control;
 mod settings;
 mod shortcuts;
 mod speaker_stats;
@@ -68,7 +68,8 @@ fn App() -> impl IntoView {
                 </Routes>
             </main>
         </Router>
-    }.into_view()
+    }
+    .into_view()
 }
 
 #[wasm_bindgen(start)]

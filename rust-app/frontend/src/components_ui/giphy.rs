@@ -1,12 +1,11 @@
-use leptos::*;
 use crate::giphy::{GiphyData, GiphyService};
 use gloo_timers::callback::Timeout;
+use leptos::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[component]
-pub fn GiphySearch(
-    on_select: Callback<String>, // returns the URL
+pub fn GiphySearch(on_select: Callback<String>, // returns the URL
 ) -> impl IntoView {
     let (query, set_query) = create_signal("".to_string());
     let (debounced_query, set_debounced_query) = create_signal("".to_string());
@@ -31,9 +30,7 @@ pub fn GiphySearch(
     let search_action = create_action(move |q: &String| {
         let q = q.clone();
         let service = GiphyService::new(crate::giphy::GIPHY_API_KEY.to_string());
-        async move {
-            service.search(&q).await
-        }
+        async move { service.search(&q).await }
     });
 
     // Track whether this is the first run to avoid an unnecessary trending API

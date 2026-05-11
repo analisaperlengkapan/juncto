@@ -32,7 +32,11 @@ impl AnalyticsService {
         #[cfg(target_arch = "wasm32")]
         {
             let props = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&props, &JsValue::from_str("room_id"), &JsValue::from_str(_room_id));
+            let _ = js_sys::Reflect::set(
+                &props,
+                &JsValue::from_str("room_id"),
+                &JsValue::from_str(_room_id),
+            );
             self.track_event("join_room", props.into());
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -43,8 +47,16 @@ impl AnalyticsService {
         #[cfg(target_arch = "wasm32")]
         {
             let props = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&props, &JsValue::from_str("type"), &JsValue::from_str(_media_type));
-            let _ = js_sys::Reflect::set(&props, &JsValue::from_str("enabled"), &JsValue::from_bool(_enabled));
+            let _ = js_sys::Reflect::set(
+                &props,
+                &JsValue::from_str("type"),
+                &JsValue::from_str(_media_type),
+            );
+            let _ = js_sys::Reflect::set(
+                &props,
+                &JsValue::from_str("enabled"),
+                &JsValue::from_bool(_enabled),
+            );
             self.track_event("toggle_media", props.into());
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -74,8 +86,8 @@ pub fn use_analytics() -> AnalyticsService {
 mod tests {
     use super::*;
     use shared::ClientMessage;
-    use std::rc::Rc;
     use std::cell::RefCell;
+    use std::rc::Rc;
 
     #[test]
     fn test_analytics_event_formatting() {

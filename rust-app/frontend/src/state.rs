@@ -1,10 +1,14 @@
 use crate::analytics::{provide_analytics_context, use_analytics, AnalyticsService};
-use crate::face_landmarks::{provide_face_landmarks_context, use_face_landmarks, FaceLandmarksService};
-use crate::remote_control::{provide_remote_control_context, use_remote_control, RemoteControlService};
+use crate::components_ui::toast::{use_toast, ToastType};
+use crate::face_landmarks::{
+    provide_face_landmarks_context, use_face_landmarks, FaceLandmarksService,
+};
+use crate::media::{get_display_media, get_user_media, AudioMonitor};
+use crate::remote_control::{
+    provide_remote_control_context, use_remote_control, RemoteControlService,
+};
 use crate::state_handlers::{handle_server_message, HandlerContext};
 use crate::storage::{load_settings, update_setting};
-use crate::components_ui::toast::{use_toast, ToastType};
-use crate::media::{get_display_media, get_user_media, AudioMonitor};
 use crate::webrtc::WebRTCManager;
 use leptos::*;
 use serde::{Deserialize, Serialize};
@@ -171,7 +175,7 @@ pub struct RoomState {
     pub set_branding: Callback<shared::BrandingConfig>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
-    pub toggle_local_recording: Callback<()>,
+    pub toggle_local_recording: Callback<bool>,
     pub request_unmute: Callback<String>,
     pub update_power_status: Callback<shared::PowerStatus>,
     pub broadcast_to_lobby: Callback<String>,
@@ -233,7 +237,8 @@ pub fn use_room_state() -> RoomState {
     let (last_ping_time, set_last_ping_time) = create_signal(0f64);
     let (selected_camera_id, set_selected_camera_id) = create_signal(settings.camera_id);
     let (selected_mic_id, set_selected_mic_id) = create_signal(settings.mic_id);
-    let (video_resolution, set_video_resolution) = create_signal(settings.resolution.unwrap_or("hd".to_string()));
+    let (video_resolution, set_video_resolution) =
+        create_signal(settings.resolution.unwrap_or("hd".to_string()));
     let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
@@ -246,19 +251,23 @@ pub fn use_room_state() -> RoomState {
     let (is_audio_only, set_is_audio_only) = create_signal(false);
     let (is_flipped, set_is_flipped) = create_signal(false);
     let (pinned_participant, set_pinned_participant) = create_signal(None::<String>);
-    let (participant_volumes, set_participant_volumes) = create_signal(HashMap::<String, f64>::new());
+    let (participant_volumes, set_participant_volumes) =
+        create_signal(HashMap::<String, f64>::new());
 
     let (remote_streams, set_remote_streams) =
         create_signal(HashMap::<String, Vec<MediaStream>>::new());
 
-    let (power_statuses, set_power_statuses) = create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
+    let (power_statuses, set_power_statuses) =
+        create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
     let (is_recording_locally, set_is_recording_locally) = create_signal(false);
-    let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(None));
+    let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> =
+        Rc::new(RefCell::new(None));
     // Holds previously-stopped recorders whose async `onstop` callbacks may
     // not have fired yet. They are kept alive here so the wasm-bindgen
     // Closures remain valid until the browser event loop processes the stop
     // event. Entries are cleared each time a new recording starts.
-    let pending_recorders: Rc<RefCell<Vec<crate::media_recorder::LocalRecorder>>> = Rc::new(RefCell::new(Vec::new()));
+    let pending_recorders: Rc<RefCell<Vec<crate::media_recorder::LocalRecorder>>> =
+        Rc::new(RefCell::new(Vec::new()));
     // Tracks the stream ID that the active LocalRecorder was created with.
     // Used by a reactive effect to detect when `local_stream` is replaced
     // (e.g. camera toggle, device switch) and automatically restart the
@@ -283,7 +292,12 @@ pub fn use_room_state() -> RoomState {
 
     let is_visitor = Signal::derive(move || {
         if let Some(me_id) = my_id.get() {
-            participants.get().iter().find(|p| p.id == me_id).map(|p| p.is_visitor).unwrap_or(false)
+            participants
+                .get()
+                .iter()
+                .find(|p| p.id == me_id)
+                .map(|p| p.is_visitor)
+                .unwrap_or(false)
         } else {
             false
         }
@@ -524,12 +538,18 @@ pub fn use_room_state() -> RoomState {
                 );
             }) as Box<dyn FnMut(_)>);
 
-            let _ = window.add_event_listener_with_callback("talk_while_muted", closure.as_ref().unchecked_ref());
+            let _ = window.add_event_listener_with_callback(
+                "talk_while_muted",
+                closure.as_ref().unchecked_ref(),
+            );
 
             // Clean up the event listener when the component is unmounted
             on_cleanup(move || {
                 if let Some(win) = web_sys::window() {
-                    let _ = win.remove_event_listener_with_callback("talk_while_muted", closure.as_ref().unchecked_ref());
+                    let _ = win.remove_event_listener_with_callback(
+                        "talk_while_muted",
+                        closure.as_ref().unchecked_ref(),
+                    );
                 }
             });
         }
@@ -548,11 +568,17 @@ pub fn use_room_state() -> RoomState {
                     );
                 }) as Box<dyn FnMut(_)>);
 
-                let _ = window.add_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+                let _ = window.add_event_listener_with_callback(
+                    "noise_detected",
+                    closure.as_ref().unchecked_ref(),
+                );
 
                 on_cleanup(move || {
                     if let Some(win) = web_sys::window() {
-                        let _ = win.remove_event_listener_with_callback("noise_detected", closure.as_ref().unchecked_ref());
+                        let _ = win.remove_event_listener_with_callback(
+                            "noise_detected",
+                            closure.as_ref().unchecked_ref(),
+                        );
                     }
                 });
             }
@@ -616,10 +642,12 @@ pub fn use_room_state() -> RoomState {
                     }
                 });
 
-
                 let add_toast_clone = add_toast;
                 let on_no_audio = Box::new(move || {
-                    add_toast_clone("No audio input detected. Please check your microphone.".to_string(), crate::components_ui::toast::ToastType::Error);
+                    add_toast_clone(
+                        "No audio input detected. Please check your microphone.".to_string(),
+                        crate::components_ui::toast::ToastType::Error,
+                    );
                 });
 
                 // Only push a new value when it meaningfully differs from the
@@ -629,24 +657,26 @@ pub fn use_room_state() -> RoomState {
                 // per second for no visible change.
                 let on_level = Box::new(move |level: f64| {
                     let prev = audio_level.get_untracked();
-                    if (level == 0.0 && prev != 0.0) || (level != 0.0 && (prev - level).abs() > 0.01) {
+                    if (level == 0.0 && prev != 0.0)
+                        || (level != 0.0 && (prev - level).abs() > 0.01)
+                    {
                         set_audio_level.set(level);
                     }
                 });
 
-            if let Ok(monitor) = AudioMonitor::new(
-                &stream,
-                on_speaking,
-                Some(on_level as Box<dyn FnMut(f64)>),
-                Some(on_no_audio as Box<dyn FnMut()>),
-                is_noise_suppression_enabled.get_untracked(),
-            ) {
-                // Inherit the current mute state so the monitor doesn't fire
-                // false-positive speaking callbacks while the user is muted
-                // (e.g. after a noise-suppression restart or device change).
-                monitor.set_muted(is_muted.get_untracked());
-                set_audio_monitor.set(Some(monitor));
-            }
+                if let Ok(monitor) = AudioMonitor::new(
+                    &stream,
+                    on_speaking,
+                    Some(on_level as Box<dyn FnMut(f64)>),
+                    Some(on_no_audio as Box<dyn FnMut()>),
+                    is_noise_suppression_enabled.get_untracked(),
+                ) {
+                    // Inherit the current mute state so the monitor doesn't fire
+                    // false-positive speaking callbacks while the user is muted
+                    // (e.g. after a noise-suppression restart or device change).
+                    monitor.set_muted(is_muted.get_untracked());
+                    set_audio_monitor.set(Some(monitor));
+                }
             }
         });
     });
@@ -668,8 +698,7 @@ pub fn use_room_state() -> RoomState {
     // doesn't visually shift to an arbitrary participant during natural
     // pauses in conversation. The signal is only cleared when the last
     // dominant speaker leaves the room.
-    let speaker_starts: Rc<RefCell<HashMap<String, f64>>> =
-        Rc::new(RefCell::new(HashMap::new()));
+    let speaker_starts: Rc<RefCell<HashMap<String, f64>>> = Rc::new(RefCell::new(HashMap::new()));
     create_effect(move |_| {
         let peers = speaking_peers.get();
         let me = my_id.get();
@@ -716,8 +745,7 @@ pub fn use_room_state() -> RoomState {
             None => {
                 let prev = dominant_speaker.get_untracked();
                 if let Some(prev_id) = prev {
-                    let still_present =
-                        participants_list.iter().any(|p| p.id == prev_id);
+                    let still_present = participants_list.iter().any(|p| p.id == prev_id);
                     if !still_present {
                         set_dominant_speaker.set(None);
                     }
@@ -743,7 +771,8 @@ pub fn use_room_state() -> RoomState {
             // Restart media to recreate the AudioMonitor with the correct setting.
             // Preserve current video state.
             let has_video = local_stream.with_untracked(|s| {
-                s.as_ref().is_some_and(|stream| stream.get_video_tracks().length() > 0)
+                s.as_ref()
+                    .is_some_and(|stream| stream.get_video_tracks().length() > 0)
             });
             if local_stream.get_untracked().is_some() {
                 start_media_stream.call(has_video);
@@ -935,7 +964,11 @@ pub fn use_room_state() -> RoomState {
     let toggle_participant_e2ee = Callback::new({
         let analytics = analytics.clone();
         move |enabled: bool| {
-            analytics.track_interaction(if enabled { "enable_e2ee" } else { "disable_e2ee" });
+            analytics.track_interaction(if enabled {
+                "enable_e2ee"
+            } else {
+                "disable_e2ee"
+            });
             if enabled {
                 // Generate a mock key for this participant
                 set_e2ee_key.set(Some(js_sys::Math::random().to_string()));
@@ -1050,7 +1083,11 @@ pub fn use_room_state() -> RoomState {
         if let Some(socket) = ws.get() {
             // Normalize empty strings to `None` so clearing the subject stores
             // `None` rather than `Some("")` in the room config.
-            let payload = if subject.is_empty() { None } else { Some(subject) };
+            let payload = if subject.is_empty() {
+                None
+            } else {
+                Some(subject)
+            };
             let msg = ClientMessage::SetSubject(payload);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
@@ -1111,9 +1148,15 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_reaction = analytics.clone();
     let send_reaction = Callback::new(move |emoji: String| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         let props = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&props, &JsValue::from_str("emoji"), &JsValue::from_str(&emoji));
+        let _ = js_sys::Reflect::set(
+            &props,
+            &JsValue::from_str("emoji"),
+            &JsValue::from_str(&emoji),
+        );
         analytics_for_reaction.track_event("send_reaction", props.into());
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Reaction(emoji);
@@ -1125,7 +1168,9 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_raise_hand = analytics.clone();
     let toggle_raise_hand = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         analytics_for_raise_hand.track_interaction("toggle_raise_hand");
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::ToggleRaiseHand;
@@ -1137,7 +1182,9 @@ pub fn use_room_state() -> RoomState {
 
     let webrtc_manager_for_screen = webrtc_manager.clone();
     let toggle_screen_share = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         if local_screen_stream.get().is_some() {
             // Stop sharing
             if let Some(stream) = local_screen_stream.get() {
@@ -1301,14 +1348,15 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
-    let move_participant_to_room = Callback::new(move |(target_id, room_id): (String, Option<String>)| {
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::MoveParticipantToRoom { target_id, room_id };
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
+    let move_participant_to_room =
+        Callback::new(move |(target_id, room_id): (String, Option<String>)| {
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::MoveParticipantToRoom { target_id, room_id };
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
             }
-        }
-    });
+        });
 
     let auto_assign_to_breakout_rooms = Callback::new(move |_: ()| {
         if let Some(socket) = ws.get() {
@@ -1429,8 +1477,11 @@ pub fn use_room_state() -> RoomState {
         let local_recorder = local_recorder.clone();
         let pending_recorders = pending_recorders.clone();
         let recording_stream_id = recording_stream_id.clone();
-        move |_: ()| {
+        move |explicit_state: bool| {
             let is_active = is_recording_locally.get_untracked();
+            if is_active == explicit_state {
+                return;
+            }
             if is_active {
                 // Call stop() but keep the LocalRecorder alive so its Closure
                 // callbacks (_on_data_available, _on_stop) remain valid when
@@ -1444,31 +1495,46 @@ pub fn use_room_state() -> RoomState {
                 *recording_stream_id.borrow_mut() = None;
                 set_is_recording_locally.set(false);
                 if let Some(socket) = ws.get() {
-                    let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                    let _ = socket.send_with_str(
+                        &serde_json::to_string(&ClientMessage::ToggleLocalRecording(false))
+                            .unwrap(),
+                    );
                 }
             } else if let Some(stream) = local_stream.get_untracked() {
                 // Drop any previously-stopped recorders. By now their async
                 // `onstop` callbacks have had ample time to fire (the user
                 // had to click stop, wait, then click start again).
                 pending_recorders.borrow_mut().clear();
-                match crate::media_recorder::LocalRecorder::new(stream.clone(), Callback::new(move |msg: String| {
-                    add_toast(format!("Recording error: {}", msg), ToastType::Error);
-                })) {
+                match crate::media_recorder::LocalRecorder::new(
+                    stream.clone(),
+                    Callback::new(move |msg: String| {
+                        add_toast(format!("Recording error: {}", msg), ToastType::Error);
+                    }),
+                ) {
                     Ok(r) => {
                         *local_recorder.borrow_mut() = Some(r);
                         *recording_stream_id.borrow_mut() = Some(stream.id());
                         set_is_recording_locally.set(true);
                         if let Some(socket) = ws.get() {
-                            let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(true)).unwrap());
+                            let _ = socket.send_with_str(
+                                &serde_json::to_string(&ClientMessage::ToggleLocalRecording(true))
+                                    .unwrap(),
+                            );
                         }
                     }
                     Err(e) => {
                         web_sys::console::error_1(&e);
-                        add_toast("Failed to start local recording".to_string(), ToastType::Error);
+                        add_toast(
+                            "Failed to start local recording".to_string(),
+                            ToastType::Error,
+                        );
                     }
                 }
             } else {
-                add_toast("Enable camera or microphone first to start recording".to_string(), ToastType::Error);
+                add_toast(
+                    "Enable camera or microphone first to start recording".to_string(),
+                    ToastType::Error,
+                );
             }
         }
     });
@@ -1523,9 +1589,12 @@ pub fn use_room_state() -> RoomState {
                 // lose the recorded data. Stale recorders are cleaned up
                 // the next time the user manually starts a new recording
                 // (in toggle_local_recording) after an interactive delay.
-                match crate::media_recorder::LocalRecorder::new(stream.clone(), Callback::new(move |msg: String| {
-                    add_toast(format!("Recording error: {}", msg), ToastType::Error);
-                })) {
+                match crate::media_recorder::LocalRecorder::new(
+                    stream.clone(),
+                    Callback::new(move |msg: String| {
+                        add_toast(format!("Recording error: {}", msg), ToastType::Error);
+                    }),
+                ) {
                     Ok(r) => {
                         *local_recorder.borrow_mut() = Some(r);
                         *recording_stream_id.borrow_mut() = Some(stream.id());
@@ -1536,9 +1605,15 @@ pub fn use_room_state() -> RoomState {
                         web_sys::console::error_1(&e);
                         *recording_stream_id.borrow_mut() = None;
                         set_is_recording_locally.set(false);
-                        add_toast("Recording stopped: failed to record new stream".to_string(), ToastType::Error);
+                        add_toast(
+                            "Recording stopped: failed to record new stream".to_string(),
+                            ToastType::Error,
+                        );
                         if let Some(socket) = ws.get() {
-                            let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                            let _ = socket.send_with_str(
+                                &serde_json::to_string(&ClientMessage::ToggleLocalRecording(false))
+                                    .unwrap(),
+                            );
                         }
                     }
                 }
@@ -1546,9 +1621,15 @@ pub fn use_room_state() -> RoomState {
                 // Stream was removed entirely (e.g. all media disabled)
                 *recording_stream_id.borrow_mut() = None;
                 set_is_recording_locally.set(false);
-                add_toast("Recording stopped: media stream ended".to_string(), ToastType::Info);
+                add_toast(
+                    "Recording stopped: media stream ended".to_string(),
+                    ToastType::Info,
+                );
                 if let Some(socket) = ws.get() {
-                    let _ = socket.send_with_str(&serde_json::to_string(&ClientMessage::ToggleLocalRecording(false)).unwrap());
+                    let _ = socket.send_with_str(
+                        &serde_json::to_string(&ClientMessage::ToggleLocalRecording(false))
+                            .unwrap(),
+                    );
                 }
             }
         });
@@ -1592,7 +1673,9 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
 
         // If the camera was disabled by the host, re-enable the existing
         // tracks instead of restarting the media stream. This mirrors
@@ -1650,9 +1733,11 @@ pub fn use_room_state() -> RoomState {
             };
 
             if local_stream.get_untracked().is_some() {
-                let ns_will_trigger_restart = ns && !old_ns && audio_monitor.with_untracked(|m: &Option<AudioMonitor>| {
-                    m.as_ref().is_some_and(|monitor| !monitor.has_compressor())
-                });
+                let ns_will_trigger_restart = ns
+                    && !old_ns
+                    && audio_monitor.with_untracked(|m: &Option<AudioMonitor>| {
+                        m.as_ref().is_some_and(|monitor| !monitor.has_compressor())
+                    });
                 if !ns_will_trigger_restart {
                     start_media_stream.call(has_video);
                 }
@@ -1680,7 +1765,9 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_mic = analytics.clone();
     let toggle_mic = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() { return; }
+        if is_visitor.get_untracked() {
+            return;
+        }
         let new_state = !is_muted.get();
         set_is_muted.set(new_state);
         analytics_for_mic.track_toggle_media("microphone", !new_state);

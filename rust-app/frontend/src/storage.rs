@@ -19,19 +19,19 @@ pub fn load_settings() -> UserSettings {
 
     #[cfg(target_arch = "wasm32")]
     {
-    let window = match web_sys::window() {
-        Some(w) => w,
-        None => return UserSettings::default(),
-    };
-    let storage = window.local_storage().ok().flatten();
+        let window = match web_sys::window() {
+            Some(w) => w,
+            None => return UserSettings::default(),
+        };
+        let storage = window.local_storage().ok().flatten();
 
-    if let Some(storage) = storage {
-        let _key = STORAGE_KEY;
-        if let Ok(Some(json)) = storage.get_item(_key) {
-            return serde_json::from_str::<UserSettings>(&json).unwrap_or_default();
+        if let Some(storage) = storage {
+            let _key = STORAGE_KEY;
+            if let Ok(Some(json)) = storage.get_item(_key) {
+                return serde_json::from_str::<UserSettings>(&json).unwrap_or_default();
+            }
         }
-    }
-    UserSettings::default()
+        UserSettings::default()
     }
 }
 
@@ -41,18 +41,18 @@ pub fn save_settings(settings: &UserSettings) {
 
     #[cfg(target_arch = "wasm32")]
     {
-    let window = match web_sys::window() {
-        Some(w) => w,
-        None => return,
-    };
-    let storage = window.local_storage().ok().flatten();
+        let window = match web_sys::window() {
+            Some(w) => w,
+            None => return,
+        };
+        let storage = window.local_storage().ok().flatten();
 
-    if let Some(storage) = storage {
-        if let Ok(json) = serde_json::to_string(settings) {
-            let _key = STORAGE_KEY;
-            let _ = storage.set_item(_key, &json);
+        if let Some(storage) = storage {
+            if let Ok(json) = serde_json::to_string(settings) {
+                let _key = STORAGE_KEY;
+                let _ = storage.set_item(_key, &json);
+            }
         }
-    }
     }
 }
 

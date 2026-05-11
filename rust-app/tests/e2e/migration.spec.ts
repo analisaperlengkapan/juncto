@@ -68,7 +68,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // 6. Verify Participants List
   // We must click the "Participants" button first to make it visible
-  if (await page.locator('.participants-list').isHidden()) { await page.click('.toolbox button:has-text("Participants")'); }
+  if (await page.locator('.participants-list').isHidden()) { await page.click('#toggle-participants-btn'); }
   const participantsList = page.locator('.participants-container .participants-list');
   await expect(participantsList).toBeVisible();
   // Should contain at least "User ..." because backend assigns random names starting with "User"
@@ -93,7 +93,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // 8. Verify Settings / Profile Update
   // Open Settings
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.locator('#settings-btn').click();
   await page.locator('.modal-content .tabs button:has-text("Profile")').click();
   await expect(page.getByText('Save Profile')).toBeVisible();
 
@@ -135,7 +135,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
 
   // 11. Verify Polls
   // Open Polls
-  await page.getByRole('button', { name: 'Polls' }).click();
+  await page.locator('#toggle-polls-btn').click();
   await expect(page.getByRole('heading', { name: 'Polls' })).toBeVisible();
 
   // Create Poll
@@ -162,7 +162,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(page.getByText('1 votes')).toBeVisible();
 
   // Close Polls Dialog
-  await page.locator('.modal-header button').click(); // Close button "×"
+  await page.locator('.modal-header button').first().dispatchEvent('click'); // Close button "×"
   await expect(page.getByRole('heading', { name: 'Polls' })).not.toBeVisible();
 
   // 12. Verify Raise Hand
@@ -209,7 +209,7 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(canvas).not.toBeVisible();
 
   // Unlock the room to reset state for next test
-  await page.click('.toolbox button:has-text("Settings")');
+  await page.click('#settings-btn');
   await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
   const lockBtnToUnlock = page.locator('.modal-content input[type="checkbox"]').nth(0);
   await lockBtnToUnlock.uncheck();

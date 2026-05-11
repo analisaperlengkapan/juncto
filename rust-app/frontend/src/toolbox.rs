@@ -8,10 +8,10 @@ pub fn Toolbox(
     #[prop(optional)] _is_lobby_enabled: Option<ReadSignal<bool>>,
     is_recording: ReadSignal<bool>,
     is_subtitles_enabled: ReadSignal<bool>,
-    on_toggle_e2ee: Callback<()>,
-    is_e2ee_enabled: ReadSignal<bool>,
+    _on_toggle_e2ee: Callback<()>,
+    _is_e2ee_enabled: ReadSignal<bool>,
     on_toggle_etherpad: Callback<()>,
-    is_etherpad_active: Signal<bool>,
+    _is_etherpad_active: Signal<bool>,
     is_etherpad_open: Signal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
     #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
@@ -50,10 +50,6 @@ pub fn Toolbox(
     #[prop(optional)] is_recording_locally: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_local_recording: Option<Callback<()>>,
 ) -> impl IntoView {
-    let _on_toggle_e2ee_sv = store_value(on_toggle_e2ee);
-    let _is_e2ee_enabled_sv = store_value(is_e2ee_enabled);
-    let _is_etherpad_active_sv = store_value(is_etherpad_active);
-
     view! {
         <div class=format!("toolbox room-toolbox {}", class) style=style>
             // Group: Leave
@@ -88,13 +84,15 @@ pub fn Toolbox(
             <div class="toolbox-group">
                 <Show when=move || !is_visitor.get()>
                     <button
+                        id="toggle-camera-btn"
                         on:click=move |_| on_toggle_camera.call(())
                         class="btn btn-outline"
                         title="Toggle Camera"
                     >
-                        "Cam"
+                        "Toggle Camera"
                     </button>
                     <button
+                        id="toggle-mic-btn"
                         on:click=move |_| on_toggle_mic.call(())
                         class=move || format!("btn {}", if is_muted.get() { "btn-danger" } else { "btn-success" })
                         title=move || if is_muted.get() { "Unmute" } else { "Mute" }
@@ -103,6 +101,7 @@ pub fn Toolbox(
                     </button>
                 </Show>
                 <button
+                    id="toggle-subtitles-btn"
                     on:click=move |_| on_toggle_subtitles.call(())
                     class=move || format!("btn {}", if is_subtitles_enabled.get() { "btn-primary" } else { "btn-outline" })
                     title="Toggle Subtitles"
@@ -139,6 +138,7 @@ pub fn Toolbox(
                     </button>
                 </Show>
                 <button
+                    id="toggle-whiteboard-btn"
                     on:click=move |_| on_whiteboard.call(())
                     class="btn btn-outline"
                     title="Whiteboard"
@@ -156,6 +156,7 @@ pub fn Toolbox(
                 </Show>
                 <Show when=move || !is_visitor.get()>
                     <button
+                        id="toggle-shared-video-btn"
                         on:click=move |_| {
                             if is_sharing_video.get() {
                                 on_stop_share_video.call(());
@@ -166,7 +167,7 @@ pub fn Toolbox(
                         class=move || format!("btn {}", if is_sharing_video.get() { "btn-danger" } else { "btn-outline" })
                         title="Share Video"
                     >
-                        "Video"
+                        {move || if is_sharing_video.get() { "Stop Video" } else { "Share Video" }}
                     </button>
                 </Show>
                 <div class="reactions" style="display: flex; gap: 4px; align-items: center; margin-left: 5px;">
@@ -210,11 +211,12 @@ pub fn Toolbox(
                     "Files"
                 </button>
                 <button
+                    id="toggle-etherpad-btn"
                     on:click=move |_| on_toggle_etherpad.call(())
                     class=move || format!("btn {}", if is_etherpad_open.get() { "btn-primary" } else { "btn-outline" })
-                    title="Toggle Etherpad"
+                    title="Shared Document (Etherpad)"
                 >
-                    "Pad"
+                    "Etherpad"
                 </button>
             </div>
 
@@ -261,11 +263,12 @@ pub fn Toolbox(
                 </Show>
                 <Show when=move || on_toggle_local_recording.is_some()>
                     <button
+                        id="toggle-local-record-btn"
                         on:click=move |_| on_toggle_local_recording.unwrap().call(())
                         class=move || format!("btn {}", if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "btn-danger" } else { "btn-outline" })
-                        title="Toggle Local Recording"
+                        title="Local Record"
                     >
-                        "LR"
+                        {move || if is_recording_locally.map(|s| s.get()).unwrap_or(false) { "Stop Local Rec" } else { "Local Record" }}
                     </button>
                 </Show>
                 <Show when=move || on_dial_in.is_some()>
@@ -285,6 +288,7 @@ pub fn Toolbox(
                     "?"
                 </button>
                 <button
+                    id="settings-btn"
                     on:click=move |_| on_settings.call(())
                     class="btn btn-outline"
                     title="Settings"
@@ -321,14 +325,5 @@ pub fn Toolbox(
                 </div>
             </div>
         </div>
-    }
-}
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_toolbox_compiles() {
-        // dummy test
-        let _ = true;
     }
 }

@@ -2,14 +2,9 @@ use crate::AppState;
 use shared::ServerMessage;
 use std::sync::Arc;
 
-pub fn mute_all(
-    sender_id: &str,
-    state: &Arc<AppState>,
-) -> Vec<ServerMessage> {
+pub fn mute_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
-    let is_host = {
-        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
-    };
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
 
     if is_host {
         // Only mute participants in the same breakout room as the host.
@@ -23,7 +18,8 @@ pub fn mute_all(
         let participants = {
             let p_map = state.participants.lock().unwrap();
             let locs = state.participant_locations.lock().unwrap();
-            p_map.keys()
+            p_map
+                .keys()
                 .filter(|id| locs.get(*id).cloned().flatten() == host_location)
                 .cloned()
                 .collect::<Vec<String>>()
@@ -56,9 +52,7 @@ pub fn mute_everyone_else(
     state: &Arc<AppState>,
 ) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
-    let is_host = {
-        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
-    };
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
 
     if is_host {
         let host_location = {
@@ -69,7 +63,8 @@ pub fn mute_everyone_else(
         let participants = {
             let p_map = state.participants.lock().unwrap();
             let locs = state.participant_locations.lock().unwrap();
-            p_map.keys()
+            p_map
+                .keys()
                 .filter(|id| locs.get(*id).cloned().flatten() == host_location)
                 .cloned()
                 .collect::<Vec<String>>()
@@ -96,14 +91,9 @@ pub fn mute_everyone_else(
     messages
 }
 
-pub fn stop_screen_share_all(
-    sender_id: &str,
-    state: &Arc<AppState>,
-) -> Vec<ServerMessage> {
+pub fn stop_screen_share_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
-    let is_host = {
-        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
-    };
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
 
     if is_host {
         let host_location = {
@@ -114,8 +104,11 @@ pub fn stop_screen_share_all(
         let participants = {
             let p_map = state.participants.lock().unwrap();
             let locs = state.participant_locations.lock().unwrap();
-            p_map.values()
-                .filter(|p| locs.get(&p.id).cloned().flatten() == host_location && p.is_sharing_screen)
+            p_map
+                .values()
+                .filter(|p| {
+                    locs.get(&p.id).cloned().flatten() == host_location && p.is_sharing_screen
+                })
                 .cloned()
                 .collect::<Vec<shared::Participant>>()
         };
@@ -137,14 +130,9 @@ pub fn stop_screen_share_all(
     messages
 }
 
-pub fn mute_camera_all(
-    sender_id: &str,
-    state: &Arc<AppState>,
-) -> Vec<ServerMessage> {
+pub fn mute_camera_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
-    let is_host = {
-        state.room_config.lock().unwrap().host_id == Some(sender_id.to_string())
-    };
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
 
     if is_host {
         let host_location = {
@@ -155,7 +143,8 @@ pub fn mute_camera_all(
         let participants = {
             let p_map = state.participants.lock().unwrap();
             let locs = state.participant_locations.lock().unwrap();
-            p_map.keys()
+            p_map
+                .keys()
                 .filter(|id| locs.get(*id).cloned().flatten() == host_location)
                 .cloned()
                 .collect::<Vec<String>>()
@@ -173,7 +162,7 @@ pub fn mute_camera_all(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared::{RoomConfig, PresenceStatus, Participant};
+    use shared::{Participant, PresenceStatus, RoomConfig};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use tokio::sync::broadcast;
@@ -217,36 +206,44 @@ mod tests {
 
         {
             let mut p_map = state.participants.lock().unwrap();
-            p_map.insert(host_id.clone(), Participant {
-                id: host_id.clone(),
-                name: "Host".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: false,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
-            p_map.insert(user_id.clone(), Participant {
-                id: user_id.clone(),
-                name: "User".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: false,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
+            p_map.insert(
+                host_id.clone(),
+                Participant {
+                    id: host_id.clone(),
+                    name: "Host".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
+            p_map.insert(
+                user_id.clone(),
+                Participant {
+                    id: user_id.clone(),
+                    name: "User".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
         }
 
         let msgs = mute_camera_all(&host_id, &state);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::CameraMutedByHost(id) if id == &user_id)));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMessage::CameraMutedByHost(id) if id == &user_id)));
     }
 
     #[test]
@@ -262,32 +259,38 @@ mod tests {
 
         {
             let mut p_map = state.participants.lock().unwrap();
-            p_map.insert(host_id.clone(), Participant {
-                id: host_id.clone(),
-                name: "Host".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: false,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
-            p_map.insert(user_id.clone(), Participant {
-                id: user_id.clone(),
-                name: "User".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: false,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
+            p_map.insert(
+                host_id.clone(),
+                Participant {
+                    id: host_id.clone(),
+                    name: "Host".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
+            p_map.insert(
+                user_id.clone(),
+                Participant {
+                    id: user_id.clone(),
+                    name: "User".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
         }
 
         // Both participants must be in the same room (main room = None)
@@ -299,7 +302,9 @@ mod tests {
 
         let msgs = mute_all(&host_id, &state);
         assert!(!msgs.is_empty());
-        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_id)));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_id)));
 
         let p_map = state.participants.lock().unwrap();
         assert!(p_map.get(&user_id).unwrap().is_muted);
@@ -340,19 +345,22 @@ mod tests {
                 (user_in_main.clone(), "MainUser"),
                 (user_in_breakout.clone(), "BreakoutUser"),
             ] {
-                p_map.insert(id.clone(), Participant {
-                    id,
-                    name: name.to_string(),
-                    is_hand_raised: false,
-                    is_sharing_screen: false,
-                    is_muted: false,
-                    speaking_time: 0,
-                    presence: PresenceStatus::Connected,
-                    is_visitor: false,
-                    e2ee_enabled: false,
-                    hand_raised_at: None,
-                    avatar_url: None,
-                });
+                p_map.insert(
+                    id.clone(),
+                    Participant {
+                        id,
+                        name: name.to_string(),
+                        is_hand_raised: false,
+                        is_sharing_screen: false,
+                        is_muted: false,
+                        speaking_time: 0,
+                        presence: PresenceStatus::Connected,
+                        is_visitor: false,
+                        e2ee_enabled: false,
+                        hand_raised_at: None,
+                        avatar_url: None,
+                    },
+                );
             }
         }
 
@@ -368,8 +376,12 @@ mod tests {
         let msgs = mute_all(&host_id, &state);
 
         // Only user_in_main should be muted (same room as host)
-        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_main)));
-        assert!(!msgs.iter().any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_breakout)));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_main)));
+        assert!(!msgs
+            .iter()
+            .any(|m| matches!(m, ServerMessage::MutedByHost(id) if id == &user_in_breakout)));
 
         let p_map = state.participants.lock().unwrap();
         assert!(p_map.get(&user_in_main).unwrap().is_muted);
@@ -396,36 +408,44 @@ mod tests {
 
         {
             let mut p_map = state.participants.lock().unwrap();
-            p_map.insert(host_id.clone(), Participant {
-                id: host_id.clone(),
-                name: "Host".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: false,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
-            p_map.insert(user_id.clone(), Participant {
-                id: user_id.clone(),
-                name: "User".to_string(),
-                is_hand_raised: false,
-                is_sharing_screen: true,
-                is_muted: false,
-                speaking_time: 0,
-                presence: PresenceStatus::Connected,
-                is_visitor: false,
-                e2ee_enabled: false,
-                hand_raised_at: None,
-                avatar_url: None,
-            });
+            p_map.insert(
+                host_id.clone(),
+                Participant {
+                    id: host_id.clone(),
+                    name: "Host".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: false,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
+            p_map.insert(
+                user_id.clone(),
+                Participant {
+                    id: user_id.clone(),
+                    name: "User".to_string(),
+                    is_hand_raised: false,
+                    is_sharing_screen: true,
+                    is_muted: false,
+                    speaking_time: 0,
+                    presence: PresenceStatus::Connected,
+                    is_visitor: false,
+                    e2ee_enabled: false,
+                    hand_raised_at: None,
+                    avatar_url: None,
+                },
+            );
         }
 
         let msgs = stop_screen_share_all(&host_id, &state);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMessage::ScreenShareStoppedByHost)));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMessage::ScreenShareStoppedByHost)));
 
         let p_map = state.participants.lock().unwrap();
         assert!(!p_map.get(&user_id).unwrap().is_sharing_screen);

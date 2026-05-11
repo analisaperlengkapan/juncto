@@ -77,14 +77,10 @@ pub fn handle_remote_control(
             // simultaneously hold sessions targeting the same peer and inject
             // conflicting input events. If `uid` is reissuing a grant to the
             // same controller (already in the map), allow it as a no-op.
-            let already_controlled_by_other = state
-                .remote_control_sessions
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|(controller, controlled)| {
-                    controlled == uid && controller != &requester_id
-                });
+            let already_controlled_by_other =
+                state.remote_control_sessions.lock().unwrap().iter().any(
+                    |(controller, controlled)| controlled == uid && controller != &requester_id,
+                );
             if already_controlled_by_other {
                 return vec![ServerMessage::RemoteControlAllowed {
                     requester_id,

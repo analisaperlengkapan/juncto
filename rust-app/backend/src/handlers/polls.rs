@@ -221,13 +221,11 @@ mod tests {
                 Poll {
                     id: poll_id.clone(),
                     question: "Closed Q".to_string(),
-                    options: vec![
-                        PollOption {
-                            id: 1,
-                            text: "A".to_string(),
-                            votes: 0,
-                        },
-                    ],
+                    options: vec![PollOption {
+                        id: 1,
+                        text: "A".to_string(),
+                        votes: 0,
+                    }],
                     voters: HashSet::new(),
                     is_closed: true,
                 },

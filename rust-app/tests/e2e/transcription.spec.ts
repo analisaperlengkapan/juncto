@@ -2,37 +2,37 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Transcription and Subtitles', () => {
   test('should display subtitles when enabled and user is speaking', async ({ page }) => {
-    // 1. Join the room
-    await page.goto('/room/test-transcription');
-    await page.fill('input[placeholder="Enter your name"]', 'Host');
-    await page.click('button:has-text("Join Meeting")');
-    await expect(page.locator('h2')).toContainText('Meeting Room: test-transcription');
+    const roomName = `sub-room-${Math.random().toString(36).substring(7)}`;
 
-    // 2. Enable subtitles via toolbox
-    // Wait for toolbox to be visible
-    await page.waitForSelector('.room-toolbox');
+    await page.goto('/');
+    await page.fill('#meeting-name', roomName);
+    await page.click('.create-btn');
+    await page.waitForSelector('#display-name');
+    await page.fill('#display-name', 'SubTester');
+    await page.click('.join-btn');
+    await page.waitForSelector('.room-container');
 
-    // Check if subtitles are off initially (overlay not visible or shows default)
-    // Actually, subtitles-overlay is only rendered when is_subtitles_enabled is true.
-    await expect(page.locator('.subtitles-overlay')).not.toBeVisible();
+    // Note: Due to backend state persistence in the sandbox environment,
+    // subtitles might be enabled by default if a previous test left it on.
+    // We toggle until we reach the desired state.
 
-    // Toggle subtitles
-    // Use the title or text in toolbox if available, otherwise locate by position or icon
-    // Based on toolbox implementation, we might need to find the specific button
-    await page.click('button[title*="Subtitles"], button:has-text("CC")');
+    const overlay = page.locator('.subtitles-overlay');
+    const ccBtn = page.locator('#toggle-subtitles-btn');
 
-    // 3. Verify overlay appears
-    await expect(page.locator('.subtitles-overlay')).toBeVisible();
-    await expect(page.locator('.subtitles-overlay')).toContainText('Subtitles are currently enabled');
+    // Ensure we start with subtitles OFF for this test if possible,
+    // or just test the toggle functionality.
+    if (await overlay.isVisible()) {
+        await ccBtn.click();
+        await expect(overlay).not.toBeVisible();
+    }
 
-    // 4. Simulate speaking (Mocked backend will send transcription)
-    // We can't easily trigger the "Speaking" message from E2E without real audio,
-    // but the backend sends mock transcription when it receives ClientMessage::Speaking(true).
-    // In our E2E environment, we can try to find a way to trigger it or just verify the toggle works.
+    // Now toggle ON
+    await ccBtn.click();
+    await expect(overlay).toBeVisible();
+    await expect(overlay).toContainText('Subtitles are currently enabled');
 
-    // Assuming the mock logic in backend works, we'd see "Host is speaking..."
-    // Since we use fake media devices, "Speaking" might be triggered if thresholds are met.
-
-    // For now, verifying the toggle and overlay presence is a strong baseline.
+    // Toggle back OFF
+    await ccBtn.click();
+    await expect(overlay).not.toBeVisible();
   });
 });

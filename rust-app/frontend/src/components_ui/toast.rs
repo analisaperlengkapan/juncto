@@ -28,7 +28,13 @@ impl ToastContext {
         self.add_advanced(message, toast_type, false, 0);
     }
 
-    pub fn add_advanced(&self, message: String, toast_type: ToastType, persistent: bool, priority: u8) {
+    pub fn add_advanced(
+        &self,
+        message: String,
+        toast_type: ToastType,
+        persistent: bool,
+        priority: u8,
+    ) {
         let id = self.counter.get_untracked() + 1;
         self.counter.set(id);
 

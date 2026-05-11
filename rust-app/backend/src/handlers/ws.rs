@@ -1,8 +1,8 @@
 use super::breakout;
 use super::chat;
 use super::moderation;
-use super::remote_control;
 use super::polls;
+use super::remote_control;
 use super::whiteboard;
 use crate::AppState;
 use axum::{
@@ -1985,7 +1985,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let mut config = room_config_mutex.lock().unwrap();
             if config.host_id == Some(id.clone()) {
                 // Host left, assign new host if any participants remain
-                if let Some(new_host) = participants.values().find(|p| !p.is_visitor).map(|p| p.id.clone()) {
+                if let Some(new_host) = participants
+                    .values()
+                    .find(|p| !p.is_visitor)
+                    .map(|p| p.id.clone())
+                {
                     config.host_id = Some(new_host.clone());
                     true
                 } else {
