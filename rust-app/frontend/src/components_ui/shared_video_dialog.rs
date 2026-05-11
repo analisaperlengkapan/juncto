@@ -15,7 +15,7 @@ pub fn SharedVideoDialog(
                 <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 400px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
                         <h3>{move || t("share_video")}</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+                        <button id="close-shared-video-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 15px;">
@@ -37,6 +37,7 @@ pub fn SharedVideoDialog(
                             {move || t("cancel")}
                         </button>
                         <button
+                            id="submit-shared-video-btn"
                             on:click=move |_| {
                                 on_submit.call(url.get());
                                 on_close.call(());

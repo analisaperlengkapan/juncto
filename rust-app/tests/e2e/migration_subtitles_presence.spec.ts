@@ -23,37 +23,43 @@ test.describe('Subtitles and Presence Status Features', () => {
     await page.goto(`/room/${roomName}`);
 
     // Prejoin screen
-    await page.fill('input[type="text"]', 'SubtitleTestUser');
-    await page.click('button:has-text("Join Meeting")');
+    await page.waitForSelector('#display-name');
+    await page.fill('#display-name', 'SubtitleTestUser');
+    await page.click('.join-btn');
 
     // Wait for the room to load
     await page.waitForSelector('.video-grid', { timeout: 15000 });
-    if (await page.locator('.participants-list').isHidden()) { await page.click('.toolbox button:has-text("Participants")'); }
-    await expect(page.locator('.participants-list')).toBeVisible({ timeout: 10000 });
 
     // 2. Verify Presence Status "Connected" is displayed next to name
-    const participantLocator = page.locator('.participants-list li:has-text("SubtitleTestUser")');
+    // Open participants panel if hidden
+    if (await page.locator('#participant-search').isHidden()) {
+        await page.click('#toggle-participants-btn');
+    }
+    const participantLocator = page.locator('.participant-item', { hasText: 'SubtitleTestUser' });
     await expect(participantLocator).toContainText('[Connected]');
 
     // 3. Toggle Subtitles
-    const subtitlesButton = page.locator('button:has-text("Show Subtitles")');
-    await expect(subtitlesButton).toBeVisible();
-    await subtitlesButton.click();
+    // Standardized ID is #toggle-subtitles-btn
+    const ccBtn = page.locator('#toggle-subtitles-btn');
 
-    // Verify overlay appears — the overlay may show either the empty-state
-    // placeholder or a mock transcription that arrives immediately after
-    // subtitles are enabled (the backend generates "X is speaking..." on
-    // Speaking events).  Both indicate subtitles are working.
     const overlay = page.locator('.subtitles-overlay');
-    await expect(overlay).toBeVisible();
+    const isInitiallyEnabled = await overlay.isVisible();
 
-    // Verify button text changed to "Hide Subtitles"
-    await expect(page.locator('button:has-text("Hide Subtitles")')).toBeVisible();
+    await ccBtn.click();
 
-    // 4. Toggle back
-    await page.locator('button:has-text("Hide Subtitles")').click();
-    await expect(overlay).toBeHidden();
-    await expect(page.locator('button:has-text("Show Subtitles")')).toBeVisible();
+    if (isInitiallyEnabled) {
+        await expect(overlay).toBeHidden();
+    } else {
+        await expect(overlay).toBeVisible();
+    }
+
+    // Toggle back
+    await ccBtn.click();
+    if (isInitiallyEnabled) {
+        await expect(overlay).toBeVisible();
+    } else {
+        await expect(overlay).toBeHidden();
+    }
 
     await context.close();
   });

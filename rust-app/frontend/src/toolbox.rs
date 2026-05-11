@@ -156,6 +156,7 @@ pub fn Toolbox(
                 </Show>
                 <Show when=move || !is_visitor.get()>
                     <button
+                        id="toggle-shared-video-btn"
                         on:click=move |_| {
                             if is_sharing_video.get() {
                                 on_stop_share_video.call(());
@@ -166,7 +167,7 @@ pub fn Toolbox(
                         class=move || format!("btn {}", if is_sharing_video.get() { "btn-danger" } else { "btn-outline" })
                         title="Share Video"
                     >
-                        "Share Video"
+                        {move || if is_sharing_video.get() { "Stop Video" } else { "Share Video" }}
                     </button>
                 </Show>
                 <div class="reactions" style="display: flex; gap: 4px; align-items: center; margin-left: 5px;">
