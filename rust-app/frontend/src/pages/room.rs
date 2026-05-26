@@ -370,8 +370,8 @@ pub fn Room() -> impl IntoView {
                                 is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
-                                on_request_unmute_permission=state.request_unmute_permission.into()
-                                on_request_camera_permission=state.request_camera_permission.into()
+                                on_request_unmute_permission=state.request_unmute_permission
+                                on_request_camera_permission=state.request_camera_permission
                                 on_toggle_camera=state.toggle_camera
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
@@ -451,8 +451,8 @@ pub fn Room() -> impl IntoView {
                                         on_pin=state.pin_participant
                                         _on_set_volume=state.set_participant_volume
                                         _on_mute_everyone_else=state.mute_everyone_else
-                                        pending_unmute_requests=state.pending_unmute_requests.into()
-                                        pending_camera_requests=state.pending_camera_requests.into()
+                                        pending_unmute_requests=state.pending_unmute_requests
+                                        pending_camera_requests=state.pending_camera_requests
                                         on_grant_unmute=state.grant_unmute_permission
                                         on_grant_camera=state.grant_camera_permission
                                 />

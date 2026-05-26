@@ -847,8 +847,6 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_handler_context_clone() {
         // This verifies the struct remains Clone-able after our changes

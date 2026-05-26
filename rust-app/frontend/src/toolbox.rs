@@ -350,8 +350,6 @@ pub fn Toolbox(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_toolbox_compiles() {
         // In a real Leptos project we'd use leptos_dom to test rendering
