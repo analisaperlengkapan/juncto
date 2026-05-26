@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::AppState;
 use axum::{
     extract::{Json, State},
@@ -59,6 +60,8 @@ mod tests {
             feedback: Arc::new(Mutex::new(Vec::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            unmute_permissions: Arc::new(Mutex::new(HashSet::new())),
+            camera_permissions: Arc::new(Mutex::new(HashSet::new())),
         });
 
         let app = Router::new()
@@ -108,6 +111,8 @@ mod tests {
             feedback: Arc::new(Mutex::new(Vec::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            unmute_permissions: Arc::new(Mutex::new(HashSet::new())),
+            camera_permissions: Arc::new(Mutex::new(HashSet::new())),
         });
 
         let app = Router::new()

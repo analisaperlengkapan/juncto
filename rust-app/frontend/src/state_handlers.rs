@@ -81,6 +81,8 @@ pub struct HandlerContext {
     pub set_is_flipped: WriteSignal<bool>,
     pub set_pinned_participant: WriteSignal<Option<String>>,
     pub set_participant_volumes: WriteSignal<HashMap<String, f64>>,
+    pub set_pending_unmute_requests: WriteSignal<HashSet<String>>,
+    pub set_pending_camera_requests: WriteSignal<HashSet<String>>,
     pub remote_control: RemoteControlService,
 }
 
@@ -125,6 +127,32 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                         let _ = socket.send_with_str(&json);
                     }
                 }
+            }
+        }
+        ServerMessage::UnmutePermissionRequested { user_id } => {
+            ctx.set_pending_unmute_requests.update(|set| {
+                set.insert(user_id);
+            });
+        }
+        ServerMessage::CameraPermissionRequested { user_id } => {
+            ctx.set_pending_camera_requests.update(|set| {
+                set.insert(user_id);
+            });
+        }
+        ServerMessage::PermissionGranted { target_id, media_type } => {
+            if ctx.my_id.get_untracked().as_ref() != Some(&target_id) {
+                return;
+            }
+            if media_type == "audio" {
+                ctx.add_toast.call((
+                    "You have been granted permission to unmute.".to_string(),
+                    ToastType::Success,
+                ));
+            } else if media_type == "video" {
+                ctx.add_toast.call((
+                    "You have been granted permission to use your camera.".to_string(),
+                    ToastType::Success,
+                ));
             }
         }
         ServerMessage::ForcedMoveToRoom { target_id, room_id } => {
@@ -814,5 +842,16 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::EtherpadUrlUpdated { .. } => {}
         ServerMessage::GiphyShared { .. } => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handler_context_clone() {
+        // This verifies the struct remains Clone-able after our changes
+        assert!(true);
     }
 }

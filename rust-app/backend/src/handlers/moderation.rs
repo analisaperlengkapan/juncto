@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::AppState;
 use shared::ServerMessage;
 use std::sync::Arc;
@@ -159,6 +160,72 @@ pub fn mute_camera_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMess
     messages
 }
 
+pub fn handle_unmute_permission_request(user_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let config = state.room_config.lock().unwrap();
+    if config.audio_moderation_enabled {
+        messages.push(ServerMessage::UnmutePermissionRequested {
+            user_id: user_id.to_string(),
+        });
+    }
+    messages
+}
+
+pub fn handle_camera_permission_request(user_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let config = state.room_config.lock().unwrap();
+    if config.video_moderation_enabled {
+        messages.push(ServerMessage::CameraPermissionRequested {
+            user_id: user_id.to_string(),
+        });
+    }
+    messages
+}
+
+pub fn grant_unmute_permission(
+    sender_id: &str,
+    target_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
+
+    if is_host {
+        state
+            .unmute_permissions
+            .lock()
+            .unwrap()
+            .insert(target_id.to_string());
+        messages.push(ServerMessage::PermissionGranted {
+            target_id: target_id.to_string(),
+            media_type: "audio".to_string(),
+        });
+    }
+    messages
+}
+
+pub fn grant_camera_permission(
+    sender_id: &str,
+    target_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
+    let mut messages = Vec::new();
+    let is_host = { state.room_config.lock().unwrap().host_id == Some(sender_id.to_string()) };
+
+    if is_host {
+        state
+            .camera_permissions
+            .lock()
+            .unwrap()
+            .insert(target_id.to_string());
+        messages.push(ServerMessage::PermissionGranted {
+            target_id: target_id.to_string(),
+            media_type: "video".to_string(),
+        });
+    }
+    messages
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +251,8 @@ mod tests {
             feedback: Arc::new(Mutex::new(Vec::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            unmute_permissions: Arc::new(Mutex::new(HashSet::new())),
+            camera_permissions: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -449,5 +518,31 @@ mod tests {
 
         let p_map = state.participants.lock().unwrap();
         assert!(!p_map.get(&user_id).unwrap().is_sharing_screen);
+    }
+
+    #[test]
+    fn test_unmute_permission_flow() {
+        let state = create_mock_state();
+        let user_id = "user1".to_string();
+        let host_id = "host".to_string();
+
+        {
+            let mut config = state.room_config.lock().unwrap();
+            config.host_id = Some(host_id.clone());
+            config.audio_moderation_enabled = true;
+        }
+
+        // Request permission
+        let msgs = handle_unmute_permission_request(&user_id, &state);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(msgs[0], ServerMessage::UnmutePermissionRequested { ref user_id } if user_id == "user1"));
+
+        // Grant permission
+        let msgs = grant_unmute_permission(&host_id, &user_id, &state);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(msgs[0], ServerMessage::PermissionGranted { ref media_type, ref target_id } if media_type == "audio" && target_id == "user1"));
+
+        let permissions = state.unmute_permissions.lock().unwrap();
+        assert!(permissions.contains(&user_id));
     }
 }

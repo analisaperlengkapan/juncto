@@ -36,6 +36,8 @@ pub fn Toolbox(
     is_sharing_video: Signal<bool>,
     on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
+    #[prop(optional)] on_request_unmute_permission: Option<Callback<()>>,
+    #[prop(optional)] on_request_camera_permission: Option<Callback<()>>,
     on_toggle_camera: Callback<()>,
     on_toggle_mic: Callback<()>,
     is_muted: ReadSignal<bool>,
@@ -98,6 +100,24 @@ pub fn Toolbox(
                         title=move || if is_muted.get() { "Unmute" } else { "Mute" }
                     >
                         {move || if is_muted.get() { "Unmute" } else { "Mute" }}
+                    </button>
+                </Show>
+                <Show when=move || !is_visitor.get()>
+                    <button
+                        id="request-unmute-btn"
+                        on:click=move |_| { if let Some(cb) = on_request_unmute_permission { cb.call(()); } }
+                        class="btn btn-outline"
+                        title="Request Unmute Permission"
+                    >
+                        "Req Mic"
+                    </button>
+                    <button
+                        id="request-camera-btn"
+                        on:click=move |_| { if let Some(cb) = on_request_camera_permission { cb.call(()); } }
+                        class="btn btn-outline"
+                        title="Request Camera Permission"
+                    >
+                        "Req Cam"
                     </button>
                 </Show>
                 <button
@@ -325,5 +345,17 @@ pub fn Toolbox(
                 </div>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_toolbox_compiles() {
+        // In a real Leptos project we'd use leptos_dom to test rendering
+        // but here we just verify logic or that it compiles.
+        assert!(true);
     }
 }

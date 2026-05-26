@@ -47,8 +47,8 @@ pub fn Room() -> impl IntoView {
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_embed, set_show_embed) = create_signal(false);
-    let (show_chat, set_show_chat) = create_signal(true);
-    let (show_participants, set_show_participants) = create_signal(true);
+    let (show_chat, set_show_chat) = create_signal(false);
+    let (show_participants, set_show_participants) = create_signal(false);
     let (show_files, set_show_files) = create_signal(false);
     let (show_dial_in, set_show_dial_in) = create_signal(false);
 
@@ -370,6 +370,8 @@ pub fn Room() -> impl IntoView {
                                 is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
+                                on_request_unmute_permission=state.request_unmute_permission.into()
+                                on_request_camera_permission=state.request_camera_permission.into()
                                 on_toggle_camera=state.toggle_camera
                                 on_toggle_mic=state.toggle_mic
                                 is_muted=state.is_muted
@@ -384,8 +386,8 @@ pub fn Room() -> impl IntoView {
                                 on_end_meeting=end_meeting_and_leave
                             />
                         </div>
-                        <div class="side-panel chat-container"
-                            class:panel-hidden=move || !show_chat.get()
+                        <div
+                            class="side-panel chat-container" id="chat-panel" class:panel-hidden=move || !show_chat.get()
                             style=move || {
                             let mut offset = 0;
                             if show_participants.get() { offset += 320; }
@@ -410,8 +412,8 @@ pub fn Room() -> impl IntoView {
                                 />
                             </div>
                         </div>
-                        <div class="side-panel participants-container"
-                            class:panel-hidden=move || !show_participants.get()
+                        <div
+                            class="side-panel participants-container" id="participants-panel" class:panel-hidden=move || !show_participants.get()
                             style=move || {
                             let mut offset = 0;
                             if show_files.get() { offset += 320; }
@@ -449,6 +451,10 @@ pub fn Room() -> impl IntoView {
                                         on_pin=state.pin_participant
                                         _on_set_volume=state.set_participant_volume
                                         _on_mute_everyone_else=state.mute_everyone_else
+                                        pending_unmute_requests=state.pending_unmute_requests.into()
+                                        pending_camera_requests=state.pending_camera_requests.into()
+                                        on_grant_unmute=state.grant_unmute_permission
+                                        on_grant_camera=state.grant_camera_permission
                                 />
                             </div>
                         </div>
@@ -500,6 +506,14 @@ pub fn Room() -> impl IntoView {
                             is_host=state.is_host
                             is_locked=state.is_locked
                             is_e2ee_enabled=state.is_e2ee_enabled
+                            is_audio_moderation_enabled=Signal::derive({
+                                let state = state.clone();
+                                move || state.room_config.get().audio_moderation_enabled
+                            })
+                            is_video_moderation_enabled=Signal::derive({
+                                let state = state.clone();
+                                move || state.room_config.get().video_moderation_enabled
+                            })
                             is_lobby_enabled=state.is_lobby_enabled
                             is_participant_e2ee_enabled=Signal::derive({
                                 let state = state.clone();
@@ -518,6 +532,8 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_flip=state.toggle_flip
                             on_toggle_lock=state.toggle_lock
                             on_toggle_e2ee=state.toggle_e2ee
+                            on_toggle_audio_moderation=state.toggle_audio_moderation
+                            on_toggle_video_moderation=state.toggle_video_moderation
                             on_toggle_participant_e2ee=state.toggle_participant_e2ee
                             on_toggle_lobby=state.toggle_lobby
                             on_set_branding=state.set_branding

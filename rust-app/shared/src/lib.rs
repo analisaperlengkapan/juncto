@@ -48,6 +48,10 @@ pub struct RoomConfig {
     pub max_participants: u32,
     pub host_id: Option<String>,
     #[serde(default)]
+    pub audio_moderation_enabled: bool,
+    #[serde(default)]
+    pub video_moderation_enabled: bool,
+    #[serde(default)]
     pub e2ee_enabled: bool,
     #[serde(default)]
     pub is_subtitles_enabled: bool,
@@ -68,6 +72,8 @@ impl Default for RoomConfig {
             is_lobby_enabled: false,
             max_participants: 100,
             host_id: None,
+            audio_moderation_enabled: false,
+            video_moderation_enabled: false,
             e2ee_enabled: false,
             is_subtitles_enabled: false,
             etherpad_url: None,
@@ -206,6 +212,8 @@ pub enum ClientMessage {
     },
     ToggleRoomLock,
     ToggleRecording,
+    ToggleAudioModeration,
+    ToggleVideoModeration,
     UpdateProfile(String), // New Name
     Reaction(String),      // Emoji
     ToggleRaiseHand,
@@ -268,6 +276,10 @@ pub enum ClientMessage {
     /// Kept for protocol completeness; wire up when the E2EE settings panel
     /// is migrated.
     UpdateE2EE(bool),
+    RequestUnmutePermission,
+    RequestCameraPermission,
+    GrantUnmutePermission(String),
+    GrantCameraPermission(String),
     SetAudioOnly(bool),
     FlipLocalVideo(bool),
     PinParticipant(Option<String>),
@@ -436,6 +448,16 @@ pub enum ServerMessage {
         user_id: String,
         target_id: String,
         volume: f64,
+    },
+    UnmutePermissionRequested {
+        user_id: String,
+    },
+    CameraPermissionRequested {
+        user_id: String,
+    },
+    PermissionGranted {
+        target_id: String,
+        media_type: String,
     },
     ForcedMoveToRoom {
         target_id: String,

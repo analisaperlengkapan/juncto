@@ -41,10 +41,14 @@ pub struct AppState {
     /// matching pending entry so a malicious client cannot fabricate a
     /// grant that activates the overlay on an unconsenting peer.
     pub pending_remote_control_requests: Arc<Mutex<HashSet<(String, String)>>>,
+    pub unmute_permissions: Arc<Mutex<HashSet<String>>>,
+    pub camera_permissions: Arc<Mutex<HashSet<String>>>,
 }
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     // Initialize broadcast channel (capacity 100)
     let (tx, _rx) = broadcast::channel(100);
     // Initialize participants list
@@ -67,6 +71,8 @@ async fn main() {
     let feedback = Arc::new(Mutex::new(Vec::new()));
     let remote_control_sessions = Arc::new(Mutex::new(HashMap::new()));
     let pending_remote_control_requests = Arc::new(Mutex::new(HashSet::new()));
+    let unmute_permissions = Arc::new(Mutex::new(HashSet::new()));
+    let camera_permissions = Arc::new(Mutex::new(HashSet::new()));
 
     let app_state = Arc::new(AppState {
         tx,
@@ -83,6 +89,8 @@ async fn main() {
         feedback,
         remote_control_sessions,
         pending_remote_control_requests,
+        unmute_permissions,
+        camera_permissions,
     });
 
     // Define the router

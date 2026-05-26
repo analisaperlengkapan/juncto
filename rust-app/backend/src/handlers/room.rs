@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::AppState;
 use axum::{
     extract::{Json, State},
@@ -130,6 +131,8 @@ mod tests {
             pending_remote_control_requests: Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            unmute_permissions: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            camera_permissions: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         });
 
         let config = RoomConfig {

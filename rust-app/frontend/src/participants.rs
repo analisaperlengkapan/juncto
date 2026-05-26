@@ -43,6 +43,10 @@ pub fn ParticipantsList(
     #[prop(optional)] on_pin: Option<Callback<Option<String>>>,
     #[prop(optional)] _on_set_volume: Option<Callback<(String, f64)>>,
     #[prop(optional)] _on_mute_everyone_else: Option<Callback<String>>,
+    #[prop(optional)] pending_unmute_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
+    #[prop(optional)] pending_camera_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
+    #[prop(optional)] on_grant_unmute: Option<Callback<String>>,
+    #[prop(optional)] on_grant_camera: Option<Callback<String>>,
 ) -> impl IntoView {
     let (lobby_msg, set_lobby_msg) = create_signal("".to_string());
     let (search_query, set_search_query) = create_signal("".to_string());
@@ -303,6 +307,30 @@ pub fn ParticipantsList(
                                             >
                                                 "Kick"
                                             </button>
+                                        </Show>
+                                        <Show when=move || is_host.get() && my_id.get() != Some(p_sv.get_value().id)>
+                                            <Show when=move || pending_unmute_requests.map(|s| s.get().contains(&p_sv.get_value().id)).unwrap_or(false)>
+                                                <button
+                                                    on:click={
+                                                        let id = p_sv.get_value().id.clone();
+                                                        move |_| { if let Some(cb) = on_grant_unmute { cb.call(id.clone()); } }
+                                                    }
+                                                    class="btn btn-success grant-mic-btn" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                >
+                                                    "Grant Mic"
+                                                </button>
+                                            </Show>
+                                            <Show when=move || pending_camera_requests.map(|s| s.get().contains(&p_sv.get_value().id)).unwrap_or(false)>
+                                                <button
+                                                    on:click={
+                                                        let id = p_sv.get_value().id.clone();
+                                                        move |_| { if let Some(cb) = on_grant_camera { cb.call(id.clone()); } }
+                                                    }
+                                                    class="btn btn-success grant-cam-btn" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                >
+                                                    "Grant Cam"
+                                                </button>
+                                            </Show>
                                         </Show>
                                     </div>
                                 </div>
