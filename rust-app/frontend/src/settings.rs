@@ -595,6 +595,55 @@ pub fn SettingsDialog(
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
                                         type="checkbox"
+                                        id="lock-room-toggle"
+                                        prop:checked=move || is_locked.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_lock {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || t("lock_room")}
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="lobby-toggle"
+                                        prop:checked=move || is_lobby_enabled.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_lobby {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || t("enable_lobby")}
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="e2ee-toggle"
+                                        prop:checked=move || is_e2ee_enabled.map(|l| l.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_e2ee {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    {move || "Enable End-to-End Encryption (visual indicator only)"}
+                                    <input type="hidden" class="e2ee-toggle-marker" />
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
                                         id="audio-moderation-toggle"
                                         prop:checked=move || is_audio_moderation_enabled.map(|s| s.get()).unwrap_or(false)
                                         on:change=move |_| {
@@ -621,52 +670,6 @@ pub fn SettingsDialog(
                                         style="margin-right: 10px;"
                                     />
                                     "Moderated Video (Permission required for camera)"
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: flex; align-items: center; cursor: pointer;">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || is_locked.map(|l| l.get()).unwrap_or(false)
-                                        on:change=move |_| {
-                                            if let Some(cb) = on_toggle_lock {
-                                                cb.call(());
-                                            }
-                                        }
-                                        style="margin-right: 10px;"
-                                    />
-                                    {move || t("lock_room")}
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: flex; align-items: center; cursor: pointer;">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || is_lobby_enabled.map(|l| l.get()).unwrap_or(false)
-                                        on:change=move |_| {
-                                            if let Some(cb) = on_toggle_lobby {
-                                                cb.call(());
-                                            }
-                                        }
-                                        style="margin-right: 10px;"
-                                    />
-                                    {move || t("enable_lobby")}
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: flex; align-items: center; cursor: pointer;">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked=move || is_e2ee_enabled.map(|l| l.get()).unwrap_or(false)
-                                        on:change=move |_| {
-                                            if let Some(cb) = on_toggle_e2ee {
-                                                cb.call(());
-                                            }
-                                        }
-                                        style="margin-right: 10px;"
-                                    />
-                                    {move || "Enable End-to-End Encryption (visual indicator only)"}
-                                    <input type="hidden" class="e2ee-toggle-marker" />
                                 </label>
                             </div>
                         </Show>

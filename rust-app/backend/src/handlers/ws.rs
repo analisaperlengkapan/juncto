@@ -867,7 +867,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     let mut rx = tx.subscribe();
                                     let forward_tx = internal_tx.clone();
                                     let my_id_clone = id.clone();
-                                    let _room_config_mutex = room_config_mutex.clone();
+                                    let room_config_for_task = room_config_mutex.clone();
                                     let locations_clone = participant_locations_mutex.clone();
 
                                     broadcast_task = Some(tokio::spawn(async move {
@@ -975,6 +975,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc
                                                         },
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::UnmutePermissionRequested { .. } => {
+                                                            let config = room_config_for_task.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::CameraPermissionRequested { .. } => {
+                                                            let config = room_config_for_task.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::PermissionGranted { target_id, .. } => {
                                                             *target_id == my_id_clone
                                                         },
                                                         ServerMessage::RemoteControlRequest { target_id, .. } => {

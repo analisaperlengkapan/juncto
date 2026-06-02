@@ -34,8 +34,10 @@ test.describe('AV Moderation Flow', () => {
         await participantPage.click('button:has-text("Req Mic")');
 
         // 5. Host sees "Grant Mic" button in participants list
-        await hostPage.click('#toggle-participants-btn');
-        await hostPage.waitForTimeout(500);
+        if (await hostPage.locator('.participants-list').isHidden()) {
+            await hostPage.click('#toggle-participants-btn');
+        }
+        await hostPage.waitForSelector(".participants-list", { state: "visible" });
         const grantBtn = hostPage.locator('button:has-text("Grant Mic")');
         await hostPage.waitForSelector(".grant-mic-btn", { state: "visible" });
         await expect(grantBtn).toBeVisible({ timeout: 15000 });
@@ -78,8 +80,10 @@ test.describe('AV Moderation Flow', () => {
         await expect(page.locator('.room-container')).toBeVisible();
 
         // Check chat input is disabled
-        await page.click('#toggle-chat-btn');
-        await page.waitForTimeout(500);
+        if (await page.locator('.chat-container').isHidden()) {
+            await page.click('#toggle-chat-btn');
+        }
+        await page.waitForSelector("#chat-panel", { state: "visible" });
         const chatInput = page.locator('#chat-input');
         await page.waitForSelector("#chat-input", { state: "visible" });
 

@@ -144,7 +144,7 @@ pub fn ParticipantsList(
 
             <Show when=move || is_host.get()>
                 <div style="display: flex; gap: 5px; margin-bottom: 15px;">
-                    <button on:click=move |_| { if let Some(cb) = on_mute_all { cb.call(()); } } class="btn btn-warning" style="flex: 1; font-size: 0.75rem; padding: 4px;">"Mute All"</button>
+                    <button on:click=move |_| { if let Some(cb) = on_mute_all { cb.call(()); } } id="mute-all-btn" class="btn btn-warning" style="flex: 1; font-size: 0.75rem; padding: 4px;">"Mute All"</button>
                     <button on:click=move |_| { if let Some(cb) = on_mute_camera_all { cb.call(()); } } class="btn btn-warning" style="flex: 1; font-size: 0.75rem; padding: 4px;">"Cam Off All"</button>
                     <button id="stop-screen-share-all-btn" on:click=move |_| { if let Some(cb) = on_stop_screen_share_all { cb.call(()); } } class="btn btn-danger" style="flex: 1; font-size: 0.75rem; padding: 4px;">"Stop Screen"</button>
                 </div>
