@@ -92,6 +92,8 @@ pub struct RoomState {
     pub selected_mic_id: ReadSignal<Option<String>>,
     pub video_resolution: ReadSignal<String>,
     pub is_noise_suppression_enabled: ReadSignal<bool>,
+    pub pending_unmute_requests: ReadSignal<HashSet<String>>,
+    pub pending_camera_requests: ReadSignal<HashSet<String>>,
     pub background_mode: ReadSignal<String>,
     pub grid_layout: ReadSignal<String>,
     pub is_visitor: Signal<bool>,
@@ -114,6 +116,12 @@ pub struct RoomState {
     pub pin_participant: Callback<Option<String>>,
     pub set_participant_volume: Callback<(String, f64)>,
     pub mute_everyone_else: Callback<String>,
+    pub request_unmute_permission: Callback<()>,
+    pub request_camera_permission: Callback<()>,
+    pub grant_unmute_permission: Callback<String>,
+    pub grant_camera_permission: Callback<String>,
+    pub toggle_audio_moderation: Callback<()>,
+    pub toggle_video_moderation: Callback<()>,
     pub set_input_devices: Callback<(Option<String>, Option<String>, String, bool)>,
     pub set_background_mode: Callback<String>,
     pub set_grid_layout: Callback<String>,
@@ -240,6 +248,8 @@ pub fn use_room_state() -> RoomState {
     let (video_resolution, set_video_resolution) =
         create_signal(settings.resolution.unwrap_or("hd".to_string()));
     let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
+    let (pending_unmute_requests, set_pending_unmute_requests) = create_signal(HashSet::new());
+    let (pending_camera_requests, set_pending_camera_requests) = create_signal(HashSet::new());
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
@@ -880,6 +890,8 @@ pub fn use_room_state() -> RoomState {
                                 set_is_flipped,
                                 set_pinned_participant,
                                 set_participant_volumes,
+                                set_pending_unmute_requests,
+                                set_pending_camera_requests,
                                 remote_control: remote_control_clone.clone(),
                             };
                             handle_server_message(server_msg, &ctx);
@@ -908,6 +920,66 @@ pub fn use_room_state() -> RoomState {
                 onerror_callback.forget();
 
                 set_ws.set(Some(socket));
+            }
+        }
+    });
+
+    let request_unmute_permission = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RequestUnmutePermission;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let request_camera_permission = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::RequestCameraPermission;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let grant_unmute_permission = Callback::new(move |target_id: String| {
+        set_pending_unmute_requests.update(|set| {
+            set.remove(&target_id);
+        });
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::GrantUnmutePermission(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let grant_camera_permission = Callback::new(move |target_id: String| {
+        set_pending_camera_requests.update(|set| {
+            set.remove(&target_id);
+        });
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::GrantCameraPermission(target_id);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_audio_moderation = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleAudioModeration;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let toggle_video_moderation = Callback::new(move |_: ()| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::ToggleVideoModeration;
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
             }
         }
     });
@@ -1879,6 +1951,8 @@ pub fn use_room_state() -> RoomState {
         branding,
         is_recording_locally,
         lobby_announcement,
+        pending_unmute_requests,
+        pending_camera_requests,
         dominant_speaker,
         _last_face_expression,
         is_face_landmarks_enabled,
@@ -1959,6 +2033,12 @@ pub fn use_room_state() -> RoomState {
         pin_participant,
         set_participant_volume,
         mute_everyone_else,
+        request_unmute_permission,
+        request_camera_permission,
+        grant_unmute_permission,
+        grant_camera_permission,
+        toggle_audio_moderation,
+        toggle_video_moderation,
     }
 }
 

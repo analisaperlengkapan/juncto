@@ -25,6 +25,8 @@ pub fn SettingsDialog(
     #[prop(optional)] is_host: Option<Signal<bool>>,
     #[prop(optional)] is_locked: Option<ReadSignal<bool>>,
     #[prop(optional)] is_e2ee_enabled: Option<ReadSignal<bool>>,
+    #[prop(optional)] is_audio_moderation_enabled: Option<Signal<bool>>,
+    #[prop(optional)] is_video_moderation_enabled: Option<Signal<bool>>,
     #[prop(optional)] is_lobby_enabled: Option<ReadSignal<bool>>,
     #[prop(optional)] is_participant_e2ee_enabled: Option<Signal<bool>>,
     #[prop(optional)] is_face_landmarks_enabled: Option<RwSignal<bool>>,
@@ -34,6 +36,8 @@ pub fn SettingsDialog(
     #[prop(optional)] on_toggle_flip: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_audio_moderation: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_video_moderation: Option<Callback<()>>,
     #[prop(optional)] on_toggle_participant_e2ee: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
     #[prop(optional)] on_set_branding: Option<Callback<shared::BrandingConfig>>,
@@ -204,7 +208,7 @@ pub fn SettingsDialog(
     view! {
         <Show when=move || show.get()>
             <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-                <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
+                <div class="modal-content" style="background: white; color: #333; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
                     <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
                         <h3>{move || t("settings")}</h3>
                         <button id="close-settings-btn" class="close-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
@@ -494,33 +498,37 @@ pub fn SettingsDialog(
                         </Show>
                         <Show when=move || active_tab.get() == "integrations">
                             <div class="integrations-list" style="display: flex; flex-direction: column; gap: 10px;">
-                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
-                                    <span>{move || t("dropbox")}</span>
-                                    <button
-                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
-                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                                    >
-                                        {move || t("connect")}
-                                    </button>
-                                </div>
-                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
-                                    <span>{move || t("salesforce")}</span>
-                                    <button
-                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
-                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                                    >
-                                        {move || t("connect")}
-                                    </button>
-                                </div>
-                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
-                                    <span>{move || t("google_calendar")}</span>
-                                    <button
-                                        on:click=move |_| toast_ctx.add(t("coming_soon"), ToastType::Info)
-                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                                    >
-                                        {move || t("connect")}
-                                    </button>
-                                </div>
+                                {let services = ["Dropbox", "Salesforce", "Google Calendar"];
+                                services.into_iter().map(|s| {
+                                    let (connected, set_connected) = create_signal(false);
+                                    let s_clone = s.to_string();
+                                    view! {
+                                        <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                            <span>{s}</span>
+                                            <button
+                                                on:click={
+                                                    let s_clone = s_clone.clone();
+                                                    move |_| {
+                                                        if !connected.get() {
+                                                            let s_clone_2 = s_clone.clone();
+                                                            toast_ctx.add(format!("Connecting to {} (mock)...", s_clone), ToastType::Info);
+                                                            set_timeout(move || {
+                                                                set_connected.set(true);
+                                                                toast_ctx.add(format!("Connected to {}", s_clone_2), ToastType::Success);
+                                                            }, std::time::Duration::from_millis(1500));
+                                                        } else {
+                                                            set_connected.set(false);
+                                                            toast_ctx.add(format!("Disconnected from {}", s_clone), ToastType::Info);
+                                                        }
+                                                    }
+                                                }
+                                                style=move || format!("padding: 5px 10px; background: {}; color: white; border: none; border-radius: 4px; cursor: pointer;", if connected.get() { "#dc3545" } else { "#007bff" })
+                                            >
+                                                {move || if connected.get() { "Disconnect".to_string() } else { t("connect") }}
+                                            </button>
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
                             </div>
                         </Show>
                         <Show when=move || active_tab.get() == "branding">
@@ -587,6 +595,7 @@ pub fn SettingsDialog(
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
                                         type="checkbox"
+                                        id="lock-room-toggle"
                                         prop:checked=move || is_locked.map(|l| l.get()).unwrap_or(false)
                                         on:change=move |_| {
                                             if let Some(cb) = on_toggle_lock {
@@ -602,6 +611,7 @@ pub fn SettingsDialog(
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
                                         type="checkbox"
+                                        id="lobby-toggle"
                                         prop:checked=move || is_lobby_enabled.map(|l| l.get()).unwrap_or(false)
                                         on:change=move |_| {
                                             if let Some(cb) = on_toggle_lobby {
@@ -617,6 +627,7 @@ pub fn SettingsDialog(
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input
                                         type="checkbox"
+                                        id="e2ee-toggle"
                                         prop:checked=move || is_e2ee_enabled.map(|l| l.get()).unwrap_or(false)
                                         on:change=move |_| {
                                             if let Some(cb) = on_toggle_e2ee {
@@ -627,6 +638,38 @@ pub fn SettingsDialog(
                                     />
                                     {move || "Enable End-to-End Encryption (visual indicator only)"}
                                     <input type="hidden" class="e2ee-toggle-marker" />
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="audio-moderation-toggle"
+                                        prop:checked=move || is_audio_moderation_enabled.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_audio_moderation {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Moderated Audio (Permission required to unmute)"
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input
+                                        type="checkbox"
+                                        id="video-moderation-toggle"
+                                        prop:checked=move || is_video_moderation_enabled.map(|s| s.get()).unwrap_or(false)
+                                        on:change=move |_| {
+                                            if let Some(cb) = on_toggle_video_moderation {
+                                                cb.call(());
+                                            }
+                                        }
+                                        style="margin-right: 10px;"
+                                    />
+                                    "Moderated Video (Permission required for camera)"
                                 </label>
                             </div>
                         </Show>

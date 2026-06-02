@@ -93,7 +93,7 @@ pub fn close_poll(
 mod tests {
     use super::*;
     use shared::{PollOption, RoomConfig};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::sync::Mutex;
     use tokio::sync::broadcast;
 
@@ -114,6 +114,8 @@ mod tests {
             feedback: Arc::new(Mutex::new(Vec::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
         })
     }
 
@@ -130,7 +132,7 @@ mod tests {
             id: "".to_string(),
             question: "Test?".to_string(),
             options: vec![],
-            voters: HashSet::new(),
+            voters: std::collections::HashSet::new(),
             is_closed: false,
         };
 
@@ -154,7 +156,7 @@ mod tests {
             id: "".to_string(),
             question: "Test?".to_string(),
             options: vec![],
-            voters: HashSet::new(),
+            voters: std::collections::HashSet::new(),
             is_closed: false,
         };
 
@@ -188,7 +190,7 @@ mod tests {
                             votes: 0,
                         },
                     ],
-                    voters: HashSet::new(),
+                    voters: std::collections::HashSet::new(),
                     is_closed: false,
                 },
             );
@@ -226,7 +228,7 @@ mod tests {
                         text: "A".to_string(),
                         votes: 0,
                     }],
-                    voters: HashSet::new(),
+                    voters: std::collections::HashSet::new(),
                     is_closed: true,
                 },
             );

@@ -163,7 +163,7 @@ pub fn Chat(
         }
     };
 
-    let send = move |_| {
+    let send = move |_: web_sys::Event| {
         if is_visitor.get_untracked() {
             return;
         }
@@ -216,7 +216,7 @@ pub fn Chat(
                     />
                 </select>
             </div>
-            <div class="messages" style="flex: 1; overflow-y: auto; height: 300px; border: 1px solid #eee; margin-bottom: 10px; padding: 5px;">
+            <div class="messages" id="chat-messages" style="flex: 1; overflow-y: auto; height: 300px; border: 1px solid #eee; margin-bottom: 10px; padding: 5px;">
                 <ul>
                     <For
                         each=move || messages.get()
@@ -311,31 +311,35 @@ pub fn Chat(
                 }}
             </div>
             <div class="input-area" style="display: flex; flex-direction: column; gap: 5px;">
-                <Show when=move || !is_visitor.get() fallback=|| view! {
-                    <div style="padding: 10px; background: #eee; border-radius: 4px; color: #666; text-align: center;">
-                        "Visitor Mode: Read-only"
-                    </div>
-                }>
-                    <div style="display: flex; gap: 5px;">
-                        <input
-                            type="text"
-                            prop:value=input_value
-                            on:input=handle_input
-                            placeholder="Type a message..."
-                            style="flex: 1;"
-                        />
-                        <button
-                            on:click=send
-                            disabled=move || !is_connected.get()
-                            style="width: 60px;">
-                            {move || if is_connected.get() { "Send" } else { "..." }}
-                        </button>
-                        <button
-                            on:click=move |_| set_show_giphy.update(|v| *v = !*v)
-                            style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                            "GIF"
-                        </button>
-                    </div>
+                <div style="display: flex; gap: 5px;">
+                    <input
+                        type="text"
+                        id="chat-input"
+                        prop:value=input_value
+                        on:input=handle_input
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                send(ev.unchecked_into());
+                            }
+                        }
+                        placeholder=move || if is_visitor.get() { "Visitor Mode: Read-only" } else { "Type a message..." }
+                        disabled=move || is_visitor.get()
+                        style="flex: 1;"
+                    />
+                    <button
+                        on:click=move |ev| send(ev.unchecked_into())
+                        disabled=move || !is_connected.get() || is_visitor.get()
+                        style="width: 60px;">
+                        {move || if is_connected.get() { "Send" } else { "..." }}
+                    </button>
+                    <button
+                        on:click=move |_| set_show_giphy.update(|v| *v = !*v)
+                        disabled=move || is_visitor.get()
+                        style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        "GIF"
+                    </button>
+                </div>
+                <Show when=move || !is_visitor.get()>
                     <div>
                          <input
                             type="file"

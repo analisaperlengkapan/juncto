@@ -95,9 +95,15 @@ pub fn ToastContainer() -> impl IntoView {
                         ToastType::Success => "background: #28a745; color: white;",
                     };
                     let id = t.id;
+                    let class_name = match t.toast_type {
+                        ToastType::Info => "toast toast-info",
+                        ToastType::Error => "toast toast-error",
+                        ToastType::Warning => "toast toast-warning",
+                        ToastType::Success => "toast toast-success",
+                    };
                     view! {
                         <div
-                            class="toast"
+                            class=class_name
                             style=format!("padding: 10px 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); min-width: 200px; animation: fadein 0.3s; cursor: pointer; {}", style)
                             on:click=move |_| ctx.remove(id)
                         >

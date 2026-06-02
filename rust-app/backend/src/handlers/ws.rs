@@ -179,6 +179,42 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::ToggleAudioModeration => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.audio_moderation_enabled = !config.audio_moderation_enabled;
+                                                if !config.audio_moderation_enabled {
+                                                    state.unmute_permissions.lock().unwrap().clear();
+                                                }
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
+                                ClientMessage::ToggleVideoModeration => {
+                                    if let Some(uid) = &my_id {
+                                        let is_host = {
+                                            room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
+                                        };
+                                        if is_host {
+                                            let new_config = {
+                                                let mut config = room_config_mutex.lock().unwrap();
+                                                config.video_moderation_enabled = !config.video_moderation_enabled;
+                                                if !config.video_moderation_enabled {
+                                                    state.camera_permissions.lock().unwrap().clear();
+                                                }
+                                                config.clone()
+                                            };
+                                            let _ = tx.send(ServerMessage::RoomUpdated(new_config));
+                                        }
+                                    }
+                                },
                                 ClientMessage::RemoveBreakoutRoom(room_id) => {
                                     if let Some(uid) = &my_id {
                                         match breakout::remove_breakout_room(uid, room_id, &state) {
@@ -831,6 +867,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     let mut rx = tx.subscribe();
                                     let forward_tx = internal_tx.clone();
                                     let my_id_clone = id.clone();
+                                    let room_config_for_task = room_config_mutex.clone();
                                     let locations_clone = participant_locations_mutex.clone();
 
                                     broadcast_task = Some(tokio::spawn(async move {
@@ -938,6 +975,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             my_loc == source_loc
                                                         },
                                                         ServerMessage::UnmuteRequested { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
+                                                        ServerMessage::UnmutePermissionRequested { .. } => {
+                                                            let config = room_config_for_task.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::CameraPermissionRequested { .. } => {
+                                                            let config = room_config_for_task.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::PermissionGranted { target_id, .. } => {
                                                             *target_id == my_id_clone
                                                         },
                                                         ServerMessage::RemoteControlRequest { target_id, .. } => {
@@ -1366,8 +1414,45 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::RequestUnmutePermission => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::handle_unmute_permission_request(uid, &state);
+                                        for m in msgs { let _ = tx.send(m); }
+                                    }
+                                },
+                                ClientMessage::RequestCameraPermission => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::handle_camera_permission_request(uid, &state);
+                                        for m in msgs { let _ = tx.send(m); }
+                                    }
+                                },
+                                ClientMessage::GrantUnmutePermission(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::grant_unmute_permission(uid, &target_id, &state);
+                                        for m in msgs { let _ = tx.send(m); }
+                                    }
+                                },
+                                ClientMessage::GrantCameraPermission(target_id) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = moderation::grant_camera_permission(uid, &target_id, &state);
+                                        for m in msgs { let _ = tx.send(m); }
+                                    }
+                                },
                                 ClientMessage::Speaking(is_speaking) => {
                                     if let Some(uid) = &my_id {
+                                        // Enforce AV Moderation
+                                        if is_speaking {
+                                            let (moderation_enabled, has_permission) = {
+                                                let config = room_config_mutex.lock().unwrap();
+                                                let permissions = state.unmute_permissions.lock().unwrap();
+                                                (config.audio_moderation_enabled, permissions.contains(uid))
+                                            };
+                                            if moderation_enabled && !has_permission {
+                                                let _ = internal_tx.send(ServerMessage::Error("Audio is moderated. Request permission to speak.".to_string())).await;
+                                                continue;
+                                            }
+                                        }
+
                                         let mut update_stats = false;
                                         if is_speaking {
                                             {
@@ -1729,8 +1814,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             let mut rx = tx.subscribe();
                             let forward_tx = internal_tx.clone();
                             let my_id_clone = id.clone();
+                            let room_config_clone = room_config_mutex.clone();
                             let locations_clone = participant_locations_mutex.clone();
-
                             broadcast_task = Some(tokio::spawn(async move {
                                 loop {
                                     match rx.recv().await {
@@ -1820,6 +1905,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                 ServerMessage::UnmuteRequested { target_id, .. } => {
                                                     *target_id == my_id_clone
                                                 },
+                                                        ServerMessage::UnmutePermissionRequested { .. } => {
+                                                            let config = room_config_clone.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::CameraPermissionRequested { .. } => {
+                                                            let config = room_config_clone.lock().unwrap();
+                                                            config.host_id == Some(my_id_clone.clone())
+                                                        },
+                                                        ServerMessage::PermissionGranted { target_id, .. } => {
+                                                            *target_id == my_id_clone
+                                                        },
                                                 ServerMessage::RemoteControlRequest { target_id, .. } => {
                                                     *target_id == my_id_clone
                                                 },
@@ -2034,6 +2130,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         {
             let mut pending = state.pending_remote_control_requests.lock().unwrap();
             pending.retain(|(req, tgt)| req != &id && tgt != &id);
+        }
+        {
+            let mut unmute = state.unmute_permissions.lock().unwrap();
+            unmute.remove(&id);
+        }
+        {
+            let mut camera = state.camera_permissions.lock().unwrap();
+            camera.remove(&id);
         }
     } else if let Some(kid) = knocking_id {
         // If disconnected while knocking
