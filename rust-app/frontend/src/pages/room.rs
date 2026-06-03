@@ -351,6 +351,7 @@ pub fn Room() -> impl IntoView {
                                 on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
                                 on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
+                                is_talking_while_muted=state.is_talking_while_muted
                                 is_recording_locally=state.is_recording_locally
                                 on_toggle_local_recording=Callback::new({
                                     let toggle = state.toggle_local_recording;
