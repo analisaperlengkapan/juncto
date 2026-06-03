@@ -22,6 +22,19 @@ pub struct PowerStatus {
     pub is_charging: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct SalesforceConfig {
+    pub is_linked: bool,
+    pub object_id: Option<String>,
+    pub object_type: Option<String>, // e.g., "Lead", "Opportunity"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DropboxConfig {
+    pub is_connected: bool,
+    pub folder_path: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BrandingConfig {
     pub primary_color: Option<String>,
@@ -61,6 +74,10 @@ pub struct RoomConfig {
     pub subject: Option<String>,
     #[serde(default)]
     pub branding: BrandingConfig,
+    #[serde(default)]
+    pub salesforce: SalesforceConfig,
+    #[serde(default)]
+    pub dropbox: DropboxConfig,
 }
 
 impl Default for RoomConfig {
@@ -79,6 +96,8 @@ impl Default for RoomConfig {
             etherpad_url: None,
             subject: None,
             branding: BrandingConfig::default(),
+            salesforce: SalesforceConfig::default(),
+            dropbox: DropboxConfig::default(),
         }
     }
 }
@@ -310,6 +329,8 @@ pub enum ClientMessage {
         password: Option<String>,
     },
     FetchCalendar,
+    LinkSalesforce(SalesforceConfig),
+    SaveToDropbox(String), // Filename or File ID
     AnalyticsEvent {
         name: String,
         properties: String,
@@ -483,6 +504,8 @@ pub enum ServerMessage {
     },
     AuthenticationResult(bool),
     CalendarEvents(Vec<String>),
+    SalesforceUpdated(SalesforceConfig),
+    DropboxSaveResult(bool),
     Error(String),
 }
 

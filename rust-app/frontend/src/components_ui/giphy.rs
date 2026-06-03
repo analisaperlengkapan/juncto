@@ -58,21 +58,42 @@ pub fn GiphySearch(on_select: Callback<String>, // returns the URL
     });
 
     let has_interacted_for_input = has_interacted.clone();
-    view! {
-        <div class="giphy-search" style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: #222; border-radius: 8px;">
-            <input
-                type="text"
-                placeholder="Search GIPHY..."
-                on:input=move |ev| {
-                    *has_interacted_for_input.borrow_mut() = true;
-                    set_query.set(event_target_value(&ev));
-                    set_is_loading.set(true);
-                }
-                prop:value=query
-                style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white;"
-            />
+    let has_interacted_for_submit = has_interacted.clone();
+    let has_interacted_for_keydown = has_interacted.clone();
 
-            <div class="giphy-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; max-height: 200px; overflow-y: auto;">
+    view! {
+        <div class="giphy-search giphy-search-container" style="display: flex; flex-direction: column; gap: 10px; padding: 10px; background: #222; border-radius: 8px;">
+            <div style="display: flex; gap: 5px;">
+                <input
+                    type="text"
+                    placeholder="Search GIPHY..."
+                    on:input=move |ev| {
+                        *has_interacted_for_input.borrow_mut() = true;
+                        set_query.set(event_target_value(&ev));
+                        set_is_loading.set(true);
+                    }
+                    on:keydown=move |ev| {
+                        if ev.key() == "Enter" {
+                            *has_interacted_for_keydown.borrow_mut() = true;
+                            set_debounced_query.set(query.get_untracked());
+                        }
+                    }
+                    prop:value=query
+                    style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #333; color: white;"
+                />
+                <button
+                    id="giphy-search-submit-btn"
+                    on:click=move |_| {
+                        *has_interacted_for_submit.borrow_mut() = true;
+                        set_debounced_query.set(query.get_untracked());
+                    }
+                    style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                >
+                    "Search"
+                </button>
+            </div>
+
+            <div class="giphy-grid giphy-results" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; max-height: 200px; overflow-y: auto;">
                 <Show when=move || is_loading.get()>
                     <div style="grid-column: span 2; text-align: center; color: #888;">"Loading..."</div>
                 </Show>

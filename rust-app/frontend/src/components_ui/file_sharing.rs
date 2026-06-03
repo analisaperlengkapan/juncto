@@ -37,21 +37,37 @@ pub fn FileSharing(messages: ReadSignal<Vec<ChatMessage>>) -> impl IntoView {
                                 }
                             };
 
+                            let filename_display = a.filename.clone();
+                            let filename_for_dropbox = a.filename.clone();
                             view! {
                                 <li style="padding: 10px; border: 1px solid #eee; border-radius: 4px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px;">
-                                    <div style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{a.filename}</div>
+                                    <div style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{filename_display}</div>
                                     <div style="font-size: 0.8em; color: #666;">
                                         "Shared by " {user_id} " at " {ts}
                                     </div>
                                     <div style="font-size: 0.8em; color: #666;">
                                         {(a.size as f64 / 1024.0).round()} " KB"
                                     </div>
-                                    <button
-                                        on:click=download
-                                        style="padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; align-self: flex-start;"
-                                    >
-                                        "Download"
-                                    </button>
+                                    <div style="display: flex; gap: 5px;">
+                                        <button
+                                            on:click=download
+                                            style="padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; align-self: flex-start;"
+                                        >
+                                            "Download"
+                                        </button>
+                                        <button
+                                            on:click={
+                                                let dropbox_svc = crate::dropbox::use_dropbox();
+                                                move |_| {
+                                                    dropbox_svc.save_file(filename_for_dropbox.clone());
+                                                }
+                                            }
+                                            class="save-dropbox-btn"
+                                            style="padding: 4px 8px; background: #0061ff; color: white; border: none; border-radius: 4px; cursor: pointer; align-self: flex-start;"
+                                        >
+                                            "Save to Dropbox"
+                                        </button>
+                                    </div>
                                 </li>
                             }
                         }

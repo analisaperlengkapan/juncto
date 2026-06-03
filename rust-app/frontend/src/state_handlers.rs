@@ -842,6 +842,24 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
         }
         ServerMessage::EtherpadUrlUpdated { .. } => {}
         ServerMessage::GiphyShared { .. } => {}
+        ServerMessage::SalesforceUpdated(config) => {
+            ctx.set_room_config.update(|c| {
+                c.salesforce = config;
+            });
+        }
+        ServerMessage::DropboxSaveResult(success) => {
+            if success {
+                ctx.add_toast.call((
+                    "File saved to Dropbox successfully!".to_string(),
+                    ToastType::Success,
+                ));
+            } else {
+                ctx.add_toast.call((
+                    "Failed to save file to Dropbox.".to_string(),
+                    ToastType::Error,
+                ));
+            }
+        }
     }
 }
 

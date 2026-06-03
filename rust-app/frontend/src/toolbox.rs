@@ -45,6 +45,7 @@ pub fn Toolbox(
     #[prop(optional)] on_calendar: Option<Callback<()>>,
     on_files: Callback<()>,
     #[prop(optional)] on_dial_in: Option<Callback<()>>,
+    #[prop(optional)] on_salesforce: Option<Callback<()>>,
     #[prop(optional)] on_leave: Option<Callback<()>>,
     #[prop(optional)] on_end_meeting: Option<Callback<()>>,
     #[prop(optional)] class: &'static str,
@@ -298,6 +299,16 @@ pub fn Toolbox(
                         title="Dial-in Info"
                     >
                         "Dial"
+                    </button>
+                </Show>
+                <Show when=move || on_salesforce.is_some() && is_host.get()>
+                    <button
+                        id="salesforce-btn"
+                        on:click=move |_| { if let Some(cb) = on_salesforce { cb.call(()); } }
+                        class="btn btn-outline"
+                        title="Salesforce Integration"
+                    >
+                        "SF"
                     </button>
                 </Show>
                 <button

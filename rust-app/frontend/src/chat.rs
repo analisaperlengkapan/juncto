@@ -295,7 +295,7 @@ pub fn Chat(
                 </ul>
             </div>
             <Show when=move || show_giphy.get()>
-                <div style="margin-bottom: 10px;">
+                <div class="giphy-search-container" style="margin-bottom: 10px;">
                     <GiphySearch on_select=Callback::new(move |url| {
                         on_send.call((format!("GIF:{}", url), recipient.get(), None, current_room_id.get()));
                         set_show_giphy.set(false);
@@ -333,6 +333,7 @@ pub fn Chat(
                         {move || if is_connected.get() { "Send" } else { "..." }}
                     </button>
                     <button
+                        id="giphy-toggle-btn"
                         on:click=move |_| set_show_giphy.update(|v| *v = !*v)
                         disabled=move || is_visitor.get()
                         style="width: 40px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">

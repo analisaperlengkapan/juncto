@@ -1,9 +1,11 @@
 pub mod breakout;
 pub mod chat;
+pub mod dropbox;
 pub mod feedback;
 pub mod moderation;
 pub mod polls;
 pub mod remote_control;
 pub mod room;
+pub mod salesforce;
 pub mod whiteboard;
 pub mod ws;
