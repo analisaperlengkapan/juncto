@@ -145,6 +145,60 @@ fn test_poll_serialization() {
 }
 
 #[test]
+fn test_salesforce_config_serialization() {
+    let config = SalesforceConfig {
+        is_linked: true,
+        object_id: Some("00Q...".to_string()),
+        object_type: Some("Lead".to_string()),
+    };
+    let json = serde_json::to_string(&config).unwrap();
+    let deserialized: SalesforceConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(config, deserialized);
+}
+
+#[test]
+fn test_dropbox_config_serialization() {
+    let config = DropboxConfig {
+        is_connected: true,
+        folder_path: Some("/juncto".to_string()),
+    };
+    let json = serde_json::to_string(&config).unwrap();
+    let deserialized: DropboxConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(config, deserialized);
+}
+
+#[test]
+fn test_salesforce_messages() {
+    let config = SalesforceConfig {
+        is_linked: true,
+        object_id: Some("123".to_string()),
+        object_type: Some("Contact".to_string()),
+    };
+    let msg = ClientMessage::LinkSalesforce(config.clone());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg_server = ServerMessage::SalesforceUpdated(config);
+    let json_server = serde_json::to_string(&msg_server).unwrap();
+    let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
+    assert_eq!(msg_server, deserialized_server);
+}
+
+#[test]
+fn test_dropbox_messages() {
+    let msg = ClientMessage::SaveToDropbox("file.txt".to_string());
+    let json = serde_json::to_string(&msg).unwrap();
+    let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(msg, deserialized);
+
+    let msg_server = ServerMessage::DropboxSaveResult(true);
+    let json_server = serde_json::to_string(&msg_server).unwrap();
+    let deserialized_server: ServerMessage = serde_json::from_str(&json_server).unwrap();
+    assert_eq!(msg_server, deserialized_server);
+}
+
+#[test]
 fn test_etherpad_messages_serialization() {
     let msg = ClientMessage::SetEtherpadUrl(Some("https://pad.org/test".to_string()));
     let json = serde_json::to_string(&msg).unwrap();

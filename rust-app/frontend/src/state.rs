@@ -4,9 +4,11 @@ use crate::face_landmarks::{
     provide_face_landmarks_context, use_face_landmarks, FaceLandmarksService,
 };
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
+use crate::dropbox::provide_dropbox_context;
 use crate::remote_control::{
     provide_remote_control_context, use_remote_control, RemoteControlService,
 };
+use crate::salesforce::provide_salesforce_context;
 use crate::state_handlers::{handle_server_message, HandlerContext};
 use crate::storage::{load_settings, update_setting};
 use crate::webrtc::WebRTCManager;
@@ -443,6 +445,32 @@ pub fn use_room_state() -> RoomState {
     let face_landmarks = use_face_landmarks();
     provide_remote_control_context(Callback::new(send_signal_cb));
     let remote_control = use_remote_control();
+    provide_salesforce_context(Callback::new(send_signal_cb));
+    provide_dropbox_context(Callback::new(send_signal_cb));
+
+    // Periodic Analytics: Track performance stats (RTT, Audio Level) every 10 seconds
+    create_effect({
+        let analytics = analytics.clone();
+        move |_| {
+            let analytics_inner = analytics.clone();
+            let handle = gloo_timers::callback::Interval::new(10000, move || {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let rtt_val = rtt.get_untracked();
+                    let level_val = audio_level.get_untracked();
+                    let props = js_sys::Object::new();
+                    let _ = js_sys::Reflect::set(&props, &wasm_bindgen::JsValue::from_str("rtt"), &wasm_bindgen::JsValue::from_f64(rtt_val as f64));
+                    let _ = js_sys::Reflect::set(&props, &wasm_bindgen::JsValue::from_str("audio_level"), &wasm_bindgen::JsValue::from_f64(level_val));
+                    analytics_inner.track_event("perf_stats", props.into());
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let _ = analytics_inner;
+                }
+            });
+            on_cleanup(move || drop(handle));
+        }
+    });
 
     create_effect({
         let face_landmarks = face_landmarks.clone();

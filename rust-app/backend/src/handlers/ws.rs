@@ -1,8 +1,10 @@
 use super::breakout;
 use super::chat;
+use super::dropbox;
 use super::moderation;
 use super::polls;
 use super::remote_control;
+use super::salesforce;
 use super::whiteboard;
 use crate::AppState;
 use axum::{
@@ -176,6 +178,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
+                                        }
+                                    }
+                                },
+                                ClientMessage::LinkSalesforce(config) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = salesforce::handle_link_salesforce(uid, config, &state);
+                                        for m in msgs {
+                                            let _ = tx.send(m);
+                                        }
+                                    }
+                                },
+                                ClientMessage::SaveToDropbox(filename) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = dropbox::handle_save_to_dropbox(uid, filename, &state);
+                                        for m in msgs {
+                                            let _ = internal_tx.send(m).await;
                                         }
                                     }
                                 },

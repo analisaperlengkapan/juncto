@@ -15,6 +15,7 @@ use crate::connection_stats::ConnectionStats;
 use crate::participants::ParticipantsList;
 use crate::polls::PollsDialog;
 use crate::reactions::ReactionDisplay;
+use crate::salesforce::LinkSalesforceDialog;
 use crate::settings::SettingsDialog;
 use crate::shortcuts::{KeyboardShortcuts, ShortcutsDialog};
 use crate::speaker_stats::SpeakerStatsDialog;
@@ -51,6 +52,7 @@ pub fn Room() -> impl IntoView {
     let (show_participants, set_show_participants) = create_signal(true);
     let (show_files, set_show_files) = create_signal(false);
     let (show_dial_in, set_show_dial_in) = create_signal(false);
+    let (show_salesforce, set_show_salesforce) = create_signal(false);
 
     let invite_url = Signal::derive(move || {
         if let Some(window) = web_sys::window() {
@@ -382,6 +384,7 @@ pub fn Room() -> impl IntoView {
                                 on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
                                 on_files=Callback::new(move |_| set_show_files.update(|v| *v = !*v))
                                 on_dial_in=Callback::new(move |_| set_show_dial_in.set(true))
+                                on_salesforce=Callback::new(move |_| set_show_salesforce.set(true))
                                 on_leave=leave_room
                                 on_end_meeting=end_meeting_and_leave
                             />
@@ -580,6 +583,14 @@ pub fn Room() -> impl IntoView {
                         <DialInDialog
                             show=show_dial_in
                             on_close=Callback::new(move |_| set_show_dial_in.set(false))
+                        />
+                        <LinkSalesforceDialog
+                            show=show_salesforce
+                            on_close=Callback::new(move |_| set_show_salesforce.set(false))
+                            config=Signal::derive({
+                                let state = state.clone();
+                                move || state.room_config.get().salesforce.clone()
+                            })
                         />
                     </div>
                 }.into_view()
