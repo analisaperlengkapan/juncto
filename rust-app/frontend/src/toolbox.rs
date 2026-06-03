@@ -52,6 +52,7 @@ pub fn Toolbox(
     #[prop(optional)] style: &'static str,
     #[prop(optional)] is_recording_locally: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_local_recording: Option<Callback<()>>,
+    #[prop(optional)] is_talking_while_muted: Option<ReadSignal<bool>>,
 ) -> impl IntoView {
     view! {
         <div class=format!("toolbox room-toolbox {}", class) style=style>
@@ -97,7 +98,10 @@ pub fn Toolbox(
                     <button
                         id="toggle-mic-btn"
                         on:click=move |_| on_toggle_mic.call(())
-                        class=move || format!("btn {}", if is_muted.get() { "btn-danger" } else { "btn-success" })
+                        class=move || format!("btn {} {}",
+                            if is_muted.get() { "btn-danger" } else { "btn-success" },
+                            if is_talking_while_muted.map(|s| s.get()).unwrap_or(false) { "pulse-animation" } else { "" }
+                        )
                         title=move || if is_muted.get() { "Unmute" } else { "Mute" }
                     >
                         {move || if is_muted.get() { "Unmute" } else { "Mute" }}

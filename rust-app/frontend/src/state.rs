@@ -103,6 +103,7 @@ pub struct RoomState {
     pub power_statuses: ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
     pub branding: ReadSignal<shared::BrandingConfig>,
     pub is_recording_locally: ReadSignal<bool>,
+    pub is_talking_while_muted: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
     pub dominant_speaker: ReadSignal<Option<String>>,
     pub _last_face_expression: ReadSignal<Option<(String, String, u64)>>,
@@ -272,6 +273,7 @@ pub fn use_room_state() -> RoomState {
     let (power_statuses, set_power_statuses) =
         create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
     let (is_recording_locally, set_is_recording_locally) = create_signal(false);
+    let (is_talking_while_muted, set_is_talking_while_muted) = create_signal(false);
     let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> =
         Rc::new(RefCell::new(None));
     // Holds previously-stopped recorders whose async `onstop` callbacks may
@@ -570,9 +572,16 @@ pub fn use_room_state() -> RoomState {
         use wasm_bindgen::JsCast;
         if let Some(window) = web_sys::window() {
             let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                set_is_talking_while_muted.set(true);
                 toast_context.add(
                     "You are muted. Please unmute to speak.".to_string(),
                     crate::components_ui::toast::ToastType::Error,
+                );
+                set_timeout(
+                    move || {
+                        set_is_talking_while_muted.set(false);
+                    },
+                    std::time::Duration::from_secs(3),
                 );
             }) as Box<dyn FnMut(_)>);
 
@@ -1978,6 +1987,7 @@ pub fn use_room_state() -> RoomState {
         power_statuses,
         branding,
         is_recording_locally,
+        is_talking_while_muted,
         lobby_announcement,
         pending_unmute_requests,
         pending_camera_requests,
