@@ -155,6 +155,8 @@ pub struct Participant {
     #[serde(default)]
     pub is_muted: bool,
     #[serde(default)]
+    pub is_camera_muted: bool,
+    #[serde(default)]
     pub speaking_time: u64, // Total milliseconds spoken
     #[serde(default)]
     pub presence: PresenceStatus,
@@ -247,6 +249,7 @@ pub enum ClientMessage {
     MuteParticipant(String), // Target ID
     TransferHost(String),    // Target ID
     SetMuteStatus(bool),
+    SetCameraMuteStatus(bool),
     EndMeeting,
     MuteCameraParticipant(String), // Target ID
     MuteCameraAll,
@@ -307,6 +310,7 @@ pub enum ClientMessage {
         volume: f64,
     },
     MuteEveryoneElse(String), // Target ID
+    E2EEKeyExchange(String),  // Key hash or public key
     BroadcastToLobby(String),
     PromoteVisitor(String),
     // WebRTC Signaling
@@ -483,6 +487,10 @@ pub enum ServerMessage {
     ForcedMoveToRoom {
         target_id: String,
         room_id: Option<String>,
+    },
+    E2EEKeyExchange {
+        from_id: String,
+        key_hash: String,
     },
     // WebRTC Signaling
     Offer {

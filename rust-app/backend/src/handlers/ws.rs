@@ -1,4 +1,5 @@
 use super::breakout;
+use super::calendar;
 use super::chat;
 use super::dropbox;
 use super::moderation;
@@ -179,6 +180,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
+                                    }
+                                },
+                                ClientMessage::E2EEKeyExchange(key_hash) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::E2EEKeyExchange {
+                                            from_id: uid.clone(),
+                                            key_hash,
+                                        });
                                     }
                                 },
                                 ClientMessage::LinkSalesforce(config) => {
@@ -364,13 +373,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
-                                            // Verify target actually exists before broadcasting
-                                            let target_exists = {
-                                                participants_mutex.lock().unwrap().contains_key(&target_id)
-                                            };
-                                            if !target_exists {
-                                                continue;
-                                            }
                                             let same_room = {
                                                 let locs = participant_locations_mutex.lock().unwrap();
                                                 let host_loc = locs.get(uid).cloned().flatten();
@@ -380,7 +382,19 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             if !same_room {
                                                 continue;
                                             }
-                                            let _ = tx.send(ServerMessage::CameraMutedByHost(target_id));
+                                            let updated_p = {
+                                                let mut participants = participants_mutex.lock().unwrap();
+                                                if let Some(p) = participants.get_mut(&target_id) {
+                                                    p.is_camera_muted = true;
+                                                    Some(p.clone())
+                                                } else {
+                                                    None
+                                                }
+                                            };
+                                            if let Some(p) = updated_p {
+                                                let _ = tx.send(ServerMessage::ParticipantUpdated(p));
+                                                let _ = tx.send(ServerMessage::CameraMutedByHost(target_id));
+                                            }
                                         }
                                     }
                                 },
@@ -750,6 +764,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_hand_raised: false,
                                         is_sharing_screen: false,
                                         is_muted: false,
+                                        is_camera_muted: false,
                                         speaking_time: 0,
                                         presence: shared::PresenceStatus::Connected,
                                         is_visitor,
@@ -1045,6 +1060,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                             let source_loc = locs.get(user_id).cloned().flatten();
                                                             my_loc == source_loc
                                                         },
+                                                        ServerMessage::E2EEKeyExchange { from_id, .. } => {
+                                                            let locs = locations_clone.lock().unwrap();
+                                                            let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                            let source_loc = locs.get(from_id).cloned().flatten();
+                                                            my_loc == source_loc
+                                                        },
                                                         ServerMessage::PeerSpeaking { user_id, speaking } => {
                                                             // Always deliver speaking=false so peers
                                                             // clear stale indicators even if the
@@ -1148,6 +1169,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             Err(e) => {
                                                 let _ = internal_tx.send(ServerMessage::Error(e)).await;
                                             }
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetCameraMuteStatus(muted) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.is_camera_muted = muted;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                         }
                                     }
                                 },
@@ -1557,12 +1594,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::FetchCalendar => {
                                     if let Some(_uid) = &my_id {
-                                        let mock_events = vec![
-                                            "Team Standup - 10:00 AM".to_string(),
-                                            "Project Sync - 1:00 PM".to_string(),
-                                            "1:1 with Manager - 3:30 PM".to_string()
-                                        ];
-                                        let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
+                                        let msg = calendar::handle_fetch_calendar();
+                                        let _ = internal_tx.send(msg).await;
                                     }
                                 },
                                 ClientMessage::AnalyticsEvent { name, properties } => {
@@ -1589,8 +1622,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
                                         if is_host {
-                                            // Only allow muting participants in the same breakout
-                                            // room as the host, consistent with MuteAll scoping.
                                             let same_room = {
                                                 let locs = participant_locations_mutex.lock().unwrap();
                                                 let host_loc = locs.get(uid).cloned().flatten();
@@ -1600,7 +1631,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             if !same_room {
                                                 continue;
                                             }
-                                            let updated_participant = {
+                                            let updated_p = {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 if let Some(p) = participants.get_mut(&target_id) {
                                                     p.is_muted = true;
@@ -1609,7 +1640,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     None
                                                 }
                                             };
-                                            if let Some(p) = updated_participant {
+                                            if let Some(p) = updated_p {
                                                 let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                                 let _ = tx.send(ServerMessage::MutedByHost(target_id));
                                             }
@@ -1912,6 +1943,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                                     let locs = locations_clone.lock().unwrap();
                                                     let my_loc = locs.get(&my_id_clone).cloned().flatten();
                                                     let source_loc = locs.get(user_id).cloned().flatten();
+                                                    my_loc == source_loc
+                                                },
+                                                ServerMessage::E2EEKeyExchange { from_id, .. } => {
+                                                    let locs = locations_clone.lock().unwrap();
+                                                    let my_loc = locs.get(&my_id_clone).cloned().flatten();
+                                                    let source_loc = locs.get(from_id).cloned().flatten();
                                                     my_loc == source_loc
                                                 },
                                                 ServerMessage::RecordingStatusChanged { user_id, .. } => {

@@ -12,7 +12,7 @@ echo "Generating Bindings..."
 # Ensure the output directory exists
 mkdir -p frontend/pkg
 
-# Use the locally installed wasm-bindgen if globally available, or assume cargo installed it to ~/.cargo/bin
+# Use wasm-bindgen from PATH
 wasm-bindgen --target web --out-dir frontend/pkg --out-name frontend target/wasm32-unknown-unknown/release/frontend.wasm
 
 # 3. Copy HTML
