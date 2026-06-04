@@ -10,6 +10,7 @@ use web_sys::MediaStream;
 pub fn PrejoinScreen(
     on_join: Callback<JoinOptions>,
     is_connected: ReadSignal<bool>,
+    #[prop(into, optional)] subject: Signal<Option<String>>,
 ) -> impl IntoView {
     let initial_settings = crate::storage::load_settings();
     let (display_name, set_display_name) = create_signal(
@@ -197,6 +198,15 @@ pub fn PrejoinScreen(
         <div class="prejoin-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f0f0; font-family: sans-serif;">
             <div class="card" style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; max-width: 500px; width: 100%;">
                 <h2 style="margin-bottom: 20px; color: #333;">"Join Meeting"</h2>
+                <Show when=move || subject.get().as_ref().is_some_and(|s| !s.is_empty())>
+                    <div
+                        id="prejoin-subject"
+                        class="badge-info"
+                        style="margin-bottom: 20px; padding: 8px; border-radius: 4px; font-weight: bold; background: #e7f3ff; color: #007bff;"
+                    >
+                        {move || subject.get().unwrap_or_default()}
+                    </div>
+                </Show>
 
                 // Video Preview
                 <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 20px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">

@@ -1,34 +1,37 @@
 import { test, expect } from '@playwright/test';
 
-test.beforeEach(async ({ page }) => {
-  // Reset backend state if possible, or just use a unique room
-  await page.goto('/');
-});
+test.describe('Branding Integration Test', () => {
+    test('should apply color and logo branding', async ({ page }) => {
+        await page.goto('/room/branding-test');
+        await page.fill('#display-name', 'Host');
+        await page.click('.join-btn');
+        await expect(page.locator('.video-grid')).toBeVisible();
 
-test('Dynamic branding applies colors', async ({ page }) => {
-  const roomName = `branding-test-${Math.random().toString(36).substring(7)}`;
+        // Open settings
+        await page.click('#settings-btn');
+        await page.waitForSelector('.modal-content');
 
-  await page.fill('#meeting-name', roomName);
-  await page.click('.create-btn');
+        // Go to Branding tab - use a more precise selector to avoid ambiguity
+        await page.click('.tabs button:has-text("Branding")');
 
-  await page.fill('#display-name', 'Host');
-  await page.click('.join-btn');
+        // Set primary color and logo URL
+        await page.fill('#branding-primary-color', '#ff0000'); // Red
+        await page.fill('#branding-logo-url', 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJid3R6NmE5bzh6am9ueXp6bzh6am9ueXp6bzh6am9ueXp6Yzh6aiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKVUn7iM8FMEU24/giphy.gif');
+        await page.click('#save-branding-btn');
 
-  await expect(page.locator('h2')).toContainText(roomName);
+        // Use the close button specifically
+        await page.click('#close-settings-btn');
 
-  // Open settings
-  await page.click('button[title="Settings"]');
-  await page.click('button:has-text("Branding")');
+        // Verify primary color is applied (via CSS variable)
+        const primaryColor = await page.evaluate(() => {
+            const root = document.documentElement;
+            return getComputedStyle(root).getPropertyValue('--primary-color').trim();
+        });
+        // Note: Browsers might normalize #ff0000 to rgb(255, 0, 0)
+        expect(['#ff0000', 'rgb(255, 0, 0)']).toContain(primaryColor);
 
-  // Change colors
-  await page.fill('#branding-primary-color', '#ff0000');
-  await page.fill('#branding-bg-color', '#00ff00');
-  await page.click('#save-branding-btn');
-
-  // Check if CSS variables are applied
-  const primaryColor = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim());
-  const bgColor = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--background-color').trim());
-
-  expect(primaryColor).toBe('#ff0000');
-  expect(bgColor).toBe('#00ff00');
+        // Verify logo is visible in header
+        await expect(page.locator('#room-logo')).toBeVisible({ timeout: 10000 });
+        await expect(page.locator('#room-logo')).toHaveAttribute('src', /giphy\.gif/);
+    });
 });

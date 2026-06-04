@@ -152,7 +152,19 @@ pub fn mute_camera_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMess
 
         for target_id in participants {
             if target_id != sender_id {
-                messages.push(ServerMessage::CameraMutedByHost(target_id));
+                let updated_participant = {
+                    let mut p_map = state.participants.lock().unwrap();
+                    if let Some(p) = p_map.get_mut(&target_id) {
+                        p.is_camera_muted = true;
+                        Some(p.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(p) = updated_participant {
+                    messages.push(ServerMessage::ParticipantUpdated(p));
+                    messages.push(ServerMessage::CameraMutedByHost(target_id));
+                }
             }
         }
     }
@@ -281,7 +293,7 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -297,7 +309,7 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -334,7 +346,7 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -350,7 +362,7 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -420,7 +432,7 @@ mod tests {
                         name: name.to_string(),
                         is_hand_raised: false,
                         is_sharing_screen: false,
-                        is_muted: false,
+                        is_muted: false, is_camera_muted: false,
                         speaking_time: 0,
                         presence: PresenceStatus::Connected,
                         is_visitor: false,
@@ -483,7 +495,7 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -499,7 +511,7 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: true,
-                    is_muted: false,
+                    is_muted: false, is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,

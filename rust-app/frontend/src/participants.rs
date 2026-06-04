@@ -196,9 +196,11 @@ pub fn ParticipantsList(
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
+                                    {move || if p_sv.get_value().e2ee_enabled { view! { <span class="e2ee-lock" title="End-to-End Encrypted">"🔒"</span> }.into_view() } else { view! { <span/> }.into_view() }}
                                     {move || if p_sv.get_value().is_hand_raised { view! { <span title="Hand Raised">"✋"</span> }.into_view() } else { view! { <span/> }.into_view() }}
                                     {move || if p_sv.get_value().is_sharing_screen { view! { <span title="Sharing Screen">"🖥️"</span> }.into_view() } else { view! { <span/> }.into_view() }}
                                     {move || if p_sv.get_value().is_muted { view! { <span title="Muted" style="color: var(--danger-color);">"🔇"</span> }.into_view() } else { view! { <span/> }.into_view() }}
+                                    {move || if p_sv.get_value().is_camera_muted { view! { <span title="Camera Off" style="color: var(--danger-color);">"🚫"</span> }.into_view() } else { view! { <span/> }.into_view() }}
 
                                     <div style="display: flex; gap: 4px; align-items: center;">
                                         <Show when=move || _on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
@@ -356,7 +358,7 @@ mod tests {
             name: "Charlie".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false,
+            is_muted: false, is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -369,7 +371,7 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: true,
             is_sharing_screen: false,
-            is_muted: false,
+            is_muted: false, is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -382,7 +384,7 @@ mod tests {
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false,
+            is_muted: false, is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -413,7 +415,7 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false,
+            is_muted: false, is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -426,7 +428,7 @@ mod tests {
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false,
+            is_muted: false, is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,

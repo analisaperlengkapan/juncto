@@ -1,47 +1,35 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Meeting Subject', () => {
-    test.beforeEach(async ({ page }) => {
-        await page.request.post('/api/rooms', {
-            data: {
-                room_name: 'TestRoom',
-                is_locked: false,
-                is_recording: false,
-                is_lobby_enabled: false,
-                max_participants: 10,
-                subject: null
-            }
-        });
-    });
+test.describe('Meeting Subject Integration Test', () => {
+    test('should display meeting subject on prejoin and in room', async ({ page }) => {
+        const roomName = 'subject-test-' + Math.random().toString(36).substring(7);
 
-    test('host can set and update meeting subject', async ({ page }) => {
-        page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
-
-        await page.goto('/');
-        await page.fill('#meeting-name', 'TestRoom');
-        await page.click('.create-btn');
-
-        await page.waitForSelector('#display-name', { timeout: 30000 });
+        // 1. Set subject as a host first
+        await page.goto(`/room/${roomName}`);
         await page.fill('#display-name', 'Host');
+        await page.click('.join-btn');
+        await expect(page.locator('.video-grid')).toBeVisible();
 
-        const joinBtn = page.locator('.join-btn');
-        await expect(joinBtn).toBeEnabled({ timeout: 30000 });
-        await joinBtn.click();
-
-        await page.waitForSelector('.room-container', { timeout: 30000 });
-
-        // Ensure we are host (Moderator tab should eventually appear)
-        await page.click('button[title="Settings"]');
-        const moderatorTab = page.locator('button:has-text("Moderator")');
-        await expect(moderatorTab).toBeVisible({ timeout: 20000 });
-        await moderatorTab.click();
-
-        await page.fill('#settings-subject', 'Project Alpha');
+        await page.click('#settings-btn');
+        await page.click('text=Moderator');
+        await page.fill('#settings-subject', 'Advanced Rust Meeting');
         await page.click('#update-subject-btn');
         await page.click('#close-settings-btn');
 
-        const subject = page.locator('#meeting-subject');
-        await expect(subject).toBeVisible({ timeout: 10000 });
-        await expect(subject).toHaveText('Project Alpha');
+        // Verify subject in room header
+        await expect(page.locator('#meeting-subject')).toHaveText('Advanced Rust Meeting');
+
+        // 2. New participant joins and sees subject on Prejoin
+        const page2 = await page.context().newPage();
+        await page2.goto(`/room/${roomName}`);
+
+        // Verify subject on prejoin screen
+        await expect(page2.locator('#prejoin-subject')).toHaveText('Advanced Rust Meeting');
+
+        await page2.fill('#display-name', 'Guest');
+        await page2.click('.join-btn');
+
+        // Verify subject in room for guest
+        await expect(page2.locator('#meeting-subject')).toHaveText('Advanced Rust Meeting');
     });
 });

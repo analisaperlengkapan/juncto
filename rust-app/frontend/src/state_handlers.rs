@@ -83,6 +83,8 @@ pub struct HandlerContext {
     pub set_participant_volumes: WriteSignal<HashMap<String, f64>>,
     pub set_pending_unmute_requests: WriteSignal<HashSet<String>>,
     pub set_pending_camera_requests: WriteSignal<HashSet<String>>,
+    pub set_has_unmute_permission: WriteSignal<bool>,
+    pub set_has_camera_permission: WriteSignal<bool>,
     pub remote_control: RemoteControlService,
 }
 
@@ -144,16 +146,33 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 return;
             }
             if media_type == "audio" {
+                ctx.set_has_unmute_permission.set(true);
                 ctx.add_toast.call((
                     "You have been granted permission to unmute.".to_string(),
                     ToastType::Success,
                 ));
             } else if media_type == "video" {
+                ctx.set_has_camera_permission.set(true);
                 ctx.add_toast.call((
                     "You have been granted permission to use your camera.".to_string(),
                     ToastType::Success,
                 ));
             }
+        }
+        ServerMessage::E2EEKeyExchange { from_id, key_hash } => {
+            if ctx.my_id.get_untracked().as_ref() == Some(&from_id) {
+                return;
+            }
+            ctx.set_participants.update(|list| {
+                if let Some(p) = list.iter_mut().find(|x| x.id == from_id) {
+                    p.e2ee_enabled = true;
+                }
+            });
+            ctx.add_toast.call((
+                format!("Received E2EE key hash from participant {}", from_id),
+                ToastType::Info,
+            ));
+            let _ = key_hash;
         }
         ServerMessage::ForcedMoveToRoom { target_id, room_id } => {
             if ctx.my_id.get_untracked().as_ref() != Some(&target_id) {
@@ -223,6 +242,16 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
         }
         ServerMessage::RoomUpdated(config) => {
+            // Reset local permissions when moderation is disabled. This
+            // prevents a user from retaining a stale 'permission granted'
+            // state across moderation toggles.
+            if !config.audio_moderation_enabled {
+                ctx.set_has_unmute_permission.set(false);
+            }
+            if !config.video_moderation_enabled {
+                ctx.set_has_camera_permission.set(false);
+            }
+
             let old_etherpad_url = ctx.room_config.with_untracked(|c| c.etherpad_url.clone());
             if config.etherpad_url != old_etherpad_url {
                 ctx.set_show_etherpad.set(config.etherpad_url.is_some());

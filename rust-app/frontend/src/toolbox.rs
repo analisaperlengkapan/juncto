@@ -36,6 +36,10 @@ pub fn Toolbox(
     is_sharing_video: Signal<bool>,
     on_whiteboard: Callback<()>,
     on_reaction: Callback<String>,
+    #[prop(optional)] is_audio_moderated: Option<Signal<bool>>,
+    #[prop(optional)] is_video_moderated: Option<Signal<bool>>,
+    #[prop(optional)] has_unmute_permission: Option<ReadSignal<bool>>,
+    #[prop(optional)] has_camera_permission: Option<ReadSignal<bool>>,
     #[prop(optional)] on_request_unmute_permission: Option<Callback<()>>,
     #[prop(optional)] on_request_camera_permission: Option<Callback<()>>,
     on_toggle_camera: Callback<()>,
@@ -107,23 +111,27 @@ pub fn Toolbox(
                         {move || if is_muted.get() { "Unmute" } else { "Mute" }}
                     </button>
                 </Show>
-                <Show when=move || !is_visitor.get()>
-                    <button
-                        id="request-unmute-btn"
-                        on:click=move |_| { if let Some(cb) = on_request_unmute_permission { cb.call(()); } }
-                        class="btn btn-outline"
-                        title="Request Unmute Permission"
-                    >
-                        "Req Mic"
-                    </button>
-                    <button
-                        id="request-camera-btn"
-                        on:click=move |_| { if let Some(cb) = on_request_camera_permission { cb.call(()); } }
-                        class="btn btn-outline"
-                        title="Request Camera Permission"
-                    >
-                        "Req Cam"
-                    </button>
+                <Show when=move || !is_visitor.get() && !is_host.get()>
+                    <Show when=move || is_audio_moderated.map(|s| s.get()).unwrap_or(false) && !has_unmute_permission.map(|s| s.get()).unwrap_or(false)>
+                        <button
+                            id="request-unmute-btn"
+                            on:click=move |_| { if let Some(cb) = on_request_unmute_permission { cb.call(()); } }
+                            class="btn btn-outline"
+                            title="Request Unmute Permission"
+                        >
+                            "Req Mic"
+                        </button>
+                    </Show>
+                    <Show when=move || is_video_moderated.map(|s| s.get()).unwrap_or(false) && !has_camera_permission.map(|s| s.get()).unwrap_or(false)>
+                        <button
+                            id="request-camera-btn"
+                            on:click=move |_| { if let Some(cb) = on_request_camera_permission { cb.call(()); } }
+                            class="btn btn-outline"
+                            title="Request Camera Permission"
+                        >
+                            "Req Cam"
+                        </button>
+                    </Show>
                 </Show>
                 <button
                     id="toggle-subtitles-btn"

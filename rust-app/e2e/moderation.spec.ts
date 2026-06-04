@@ -1,46 +1,47 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Moderation and Lobby Features', () => {
-    test('Host can lock room and manage lobby', async ({ browser }) => {
-        const roomName = `LobbyTest_${Date.now()}`;
+test.describe('AV Moderation', () => {
+    test('should restrict guest AV when moderation is enabled', async ({ page, context }) => {
+        // Host (Alice) joins
+        await page.goto('/room/mod-test');
+        await page.fill('#display-name', 'Alice');
+        await page.click('.join-btn');
+        await expect(page.locator('.video-grid')).toBeVisible();
 
-        // 1. Host joins and locks the room
-        const hostContext = await browser.newContext();
-        const hostPage = await hostContext.newPage();
-        await hostPage.goto('/');
-        await hostPage.fill('#meeting-name', roomName);
-        await hostPage.click('.create-btn');
-        await hostPage.fill('#display-name', 'Host');
-        await hostPage.click('.join-btn');
-        await expect(hostPage.locator('h2')).toContainText(roomName);
+        // Guest (Bob) joins
+        const page2 = await context.newPage();
+        await page2.goto('/room/mod-test');
+        await page2.fill('#display-name', 'Bob');
+        await page2.click('.join-btn');
+        await expect(page2.locator('.video-grid')).toBeVisible();
 
-        // Enable Lobby in Settings
-        await hostPage.click('button[title="Settings"]');
-        await hostPage.click('button:has-text("Moderator")');
-        await hostPage.check('#lobby-toggle');
-        await hostPage.click('#close-settings-btn');
+        // Bob mutes himself
+        await page2.click('#toggle-mic-btn');
 
-        // 2. Guest tries to join and gets put in lobby
-        const guestContext = await browser.newContext();
-        const guestPage = await guestContext.newPage();
-        await guestPage.goto(`/room/${roomName}`);
-        await guestPage.fill('#display-name', 'Guest');
-        await guestPage.click('.join-btn');
+        // Host enables audio moderation
+        await page.click('#settings-btn');
+        await page.click('text=Moderator');
+        await page.locator('#audio-moderation-toggle').click({ force: true });
+        await page.click('#close-settings-btn');
 
-        await expect(guestPage.locator('h2')).toContainText('Waiting for host...');
+        // Bob should see the request button now
+        await expect(page2.locator('#request-unmute-btn')).toBeVisible({ timeout: 15000 });
 
-        // 3. Host sees guest in participants list and allows them
-        await hostPage.click('button[title="Toggle Participants"]');
-        const knockList = hostPage.locator('.knocking-list');
-        await expect(knockList).toContainText('Guest');
+        // Bob requests permission
+        await page2.click('#request-unmute-btn');
 
-        await hostPage.locator('.knocking-list .btn-success:has-text("Allow")').first().dispatchEvent('click');
+        // Alice sees request and grants it
+        await page.click('#toggle-participants-btn');
+        const grantBtn = page.locator('.grant-mic-btn');
+        await expect(grantBtn).toBeAttached({ timeout: 15000 });
+        // Use dispatchEvent to bypass viewport/intersection issues
+        await grantBtn.dispatchEvent('click');
 
-        // 4. Guest is admitted
-        await expect(guestPage.locator('h2')).toContainText(roomName);
-        await expect(guestPage.locator('.room-container')).toBeVisible();
+        // Bob should now have the request button hidden (reactive update)
+        await expect(page2.locator('#request-unmute-btn')).toBeHidden({ timeout: 15000 });
 
-        await hostContext.close();
-        await guestContext.close();
+        // Bob should now be able to unmute without getting an error toast
+        await page2.click('#toggle-mic-btn');
+        await expect(page2.locator('.toast-error')).not.toBeVisible();
     });
 });

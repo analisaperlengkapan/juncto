@@ -1,4 +1,5 @@
 use super::breakout;
+use super::calendar;
 use super::chat;
 use super::dropbox;
 use super::moderation;
@@ -179,6 +180,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             // 5. Broadcast ParticipantLeft (so lists update)
                                             let _ = tx.send(ServerMessage::ParticipantLeft { id: target_id, room_id: target_loc });
                                         }
+                                    }
+                                },
+                                ClientMessage::E2EEKeyExchange(key_hash) => {
+                                    if let Some(uid) = &my_id {
+                                        let _ = tx.send(ServerMessage::E2EEKeyExchange {
+                                            from_id: uid.clone(),
+                                            key_hash,
+                                        });
                                     }
                                 },
                                 ClientMessage::LinkSalesforce(config) => {
@@ -750,6 +759,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         is_hand_raised: false,
                                         is_sharing_screen: false,
                                         is_muted: false,
+                                        is_camera_muted: false,
                                         speaking_time: 0,
                                         presence: shared::PresenceStatus::Connected,
                                         is_visitor,
@@ -1148,6 +1158,22 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             Err(e) => {
                                                 let _ = internal_tx.send(ServerMessage::Error(e)).await;
                                             }
+                                        }
+                                    }
+                                },
+                                ClientMessage::SetCameraMuteStatus(muted) => {
+                                    if let Some(uid) = &my_id {
+                                        let updated_participant = {
+                                            let mut participants = participants_mutex.lock().unwrap();
+                                            if let Some(p) = participants.get_mut(uid) {
+                                                p.is_camera_muted = muted;
+                                                Some(p.clone())
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        if let Some(p) = updated_participant {
+                                            let _ = tx.send(ServerMessage::ParticipantUpdated(p));
                                         }
                                     }
                                 },
@@ -1557,12 +1583,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                 },
                                 ClientMessage::FetchCalendar => {
                                     if let Some(_uid) = &my_id {
-                                        let mock_events = vec![
-                                            "Team Standup - 10:00 AM".to_string(),
-                                            "Project Sync - 1:00 PM".to_string(),
-                                            "1:1 with Manager - 3:30 PM".to_string()
-                                        ];
-                                        let _ = internal_tx.send(ServerMessage::CalendarEvents(mock_events)).await;
+                                        let msg = calendar::handle_fetch_calendar();
+                                        let _ = internal_tx.send(msg).await;
                                     }
                                 },
                                 ClientMessage::AnalyticsEvent { name, properties } => {

@@ -57,6 +57,7 @@ pub fn SettingsDialog(
     let (subject, set_subject) = create_signal("".to_string());
     let (primary_color, set_primary_color) = create_signal("#007bff".to_string());
     let (bg_color, set_bg_color) = create_signal("#ffffff".to_string());
+    let (logo_url, set_logo_url) = create_signal("".to_string());
 
     // Sync local state with global props when dialog opens
     create_effect(move |_| {
@@ -74,6 +75,7 @@ pub fn SettingsDialog(
                 let b = sig.get_untracked();
                 set_primary_color.set(b.primary_color.unwrap_or_else(|| "#007bff".to_string()));
                 set_bg_color.set(b.background_color.unwrap_or_else(|| "#ffffff".to_string()));
+                set_logo_url.set(b.logo_url.unwrap_or_default());
             }
         }
     });
@@ -261,6 +263,7 @@ pub fn SettingsDialog(
                                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 10px;">
                                     <input
                                         type="checkbox"
+                                        id="e2ee-participant-toggle"
                                         prop:checked=move || is_participant_e2ee_enabled.map(|s| s.get()).unwrap_or(false)
                                         on:change=move |ev| {
                                             if let Some(cb) = on_toggle_participant_e2ee {
@@ -550,14 +553,25 @@ pub fn SettingsDialog(
                                     on:input=move |ev| set_bg_color.set(event_target_value(&ev))
                                 />
                             </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px;">"Logo URL"</label>
+                                <input
+                                    type="text"
+                                    id="branding-logo-url"
+                                    prop:value=logo_url
+                                    on:input=move |ev| set_logo_url.set(event_target_value(&ev))
+                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                />
+                            </div>
                             <button
                                 id="save-branding-btn"
                                 on:click=move |_| {
                                     if let Some(cb) = on_set_branding {
+                                        let logo = logo_url.get();
                                         cb.call(shared::BrandingConfig {
                                             primary_color: Some(primary_color.get()),
                                             background_color: Some(bg_color.get()),
-                                            logo_url: None,
+                                            logo_url: if logo.is_empty() { None } else { Some(logo) },
                                         });
                                     }
                                 }

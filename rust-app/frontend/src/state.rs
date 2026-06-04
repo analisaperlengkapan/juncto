@@ -94,6 +94,8 @@ pub struct RoomState {
     pub selected_mic_id: ReadSignal<Option<String>>,
     pub video_resolution: ReadSignal<String>,
     pub is_noise_suppression_enabled: ReadSignal<bool>,
+    pub has_unmute_permission: ReadSignal<bool>,
+    pub has_camera_permission: ReadSignal<bool>,
     pub pending_unmute_requests: ReadSignal<HashSet<String>>,
     pub pending_camera_requests: ReadSignal<HashSet<String>>,
     pub background_mode: ReadSignal<String>,
@@ -194,6 +196,8 @@ pub struct RoomState {
     #[allow(dead_code)]
     pub analytics: AnalyticsService,
     pub _face_landmarks: FaceLandmarksService,
+    pub is_audio_moderated: Signal<bool>,
+    pub is_video_moderated: Signal<bool>,
     pub remote_control: RemoteControlService,
 }
 
@@ -209,6 +213,7 @@ pub fn use_room_state() -> RoomState {
     let (participants, set_participants) = create_signal(Vec::<Participant>::new());
     let (knocking_participants, set_knocking_participants) =
         create_signal(Vec::<Participant>::new());
+
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
@@ -251,11 +256,15 @@ pub fn use_room_state() -> RoomState {
     let (video_resolution, set_video_resolution) =
         create_signal(settings.resolution.unwrap_or("hd".to_string()));
     let (is_noise_suppression_enabled, set_is_noise_suppression_enabled) = create_signal(false);
+    let (has_unmute_permission, set_has_unmute_permission) = create_signal(false);
+    let (has_camera_permission, set_has_camera_permission) = create_signal(false);
     let (pending_unmute_requests, set_pending_unmute_requests) = create_signal(HashSet::new());
     let (pending_camera_requests, set_pending_camera_requests) = create_signal(HashSet::new());
     let (background_mode, set_background_mode_sig) = create_signal("none".to_string());
     let (grid_layout, set_grid_layout_sig) = create_signal("grid".to_string());
     let (room_config, set_room_config) = create_signal(shared::RoomConfig::default());
+    let is_audio_moderated = Signal::derive(move || room_config.get().audio_moderation_enabled);
+    let is_video_moderated = Signal::derive(move || room_config.get().video_moderation_enabled);
     let (branding, set_branding_sig) = create_signal(shared::BrandingConfig::default());
     let (lobby_announcement, set_lobby_announcement) = create_signal(None::<String>);
     let (dominant_speaker, set_dominant_speaker) = create_signal(None::<String>);
@@ -929,6 +938,8 @@ pub fn use_room_state() -> RoomState {
                                 set_participant_volumes,
                                 set_pending_unmute_requests,
                                 set_pending_camera_requests,
+                                set_has_unmute_permission,
+                                set_has_camera_permission,
                                 remote_control: remote_control_clone.clone(),
                             };
                             handle_server_message(server_msg, &ctx);
@@ -1072,6 +1083,8 @@ pub fn use_room_state() -> RoomState {
 
     let toggle_participant_e2ee = Callback::new({
         let analytics = analytics.clone();
+        let ws = ws;
+        let set_e2ee_key = set_e2ee_key;
         move |enabled: bool| {
             analytics.track_interaction(if enabled {
                 "enable_e2ee"
@@ -1080,7 +1093,14 @@ pub fn use_room_state() -> RoomState {
             });
             if enabled {
                 // Generate a mock key for this participant
-                set_e2ee_key.set(Some(js_sys::Math::random().to_string()));
+                let key = js_sys::Math::random().to_string();
+                set_e2ee_key.set(Some(key.clone()));
+                if let Some(socket) = ws.get() {
+                    let msg = ClientMessage::E2EEKeyExchange(key);
+                    if let Ok(json) = serde_json::to_string(&msg) {
+                        let _ = socket.send_with_str(&json);
+                    }
+                }
             } else {
                 set_e2ee_key.set(None);
             }
@@ -1786,6 +1806,24 @@ pub fn use_room_state() -> RoomState {
             return;
         }
 
+        let is_currently_off = if let Some(stream) = local_stream.get_untracked() {
+            stream.get_video_tracks().length() == 0
+        } else {
+            true
+        };
+
+        if is_currently_off {
+            let is_mod_enabled = room_config.with_untracked(|c| c.video_moderation_enabled);
+            let has_perm = has_camera_permission.get_untracked();
+            if is_mod_enabled && !has_perm && !is_host.get_untracked() {
+                add_toast(
+                    "Camera is moderated. Request permission to enable.".to_string(),
+                    ToastType::Error,
+                );
+                return;
+            }
+        }
+
         // If the camera was disabled by the host, re-enable the existing
         // tracks instead of restarting the media stream. This mirrors
         // toggle_mic which checks is_muted to determine the current state.
@@ -1819,6 +1857,14 @@ pub fn use_room_state() -> RoomState {
         };
         let new_state = !has_video;
         analytics_for_camera.track_toggle_media("camera", new_state);
+
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::SetCameraMuteStatus(!new_state);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+
         start_media_stream.call(new_state);
     });
 
@@ -1877,7 +1923,21 @@ pub fn use_room_state() -> RoomState {
         if is_visitor.get_untracked() {
             return;
         }
-        let new_state = !is_muted.get();
+
+        let is_currently_muted = is_muted.get_untracked();
+        if is_currently_muted {
+            let is_mod_enabled = room_config.with_untracked(|c| c.audio_moderation_enabled);
+            let has_perm = has_unmute_permission.get_untracked();
+            if is_mod_enabled && !has_perm && !is_host.get_untracked() {
+                add_toast(
+                    "Audio is moderated. Request permission to unmute.".to_string(),
+                    ToastType::Error,
+                );
+                return;
+            }
+        }
+
+        let new_state = !is_currently_muted;
         set_is_muted.set(new_state);
         analytics_for_mic.track_toggle_media("microphone", !new_state);
 
@@ -1934,6 +1994,10 @@ pub fn use_room_state() -> RoomState {
 
     RoomState {
         connection_state: current_state,
+        is_audio_moderated,
+        is_video_moderated,
+        has_unmute_permission,
+        has_camera_permission,
         messages,
         participants,
         knocking_participants,

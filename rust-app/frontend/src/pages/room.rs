@@ -48,8 +48,8 @@ pub fn Room() -> impl IntoView {
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_embed, set_show_embed) = create_signal(false);
-    let (show_chat, set_show_chat) = create_signal(true);
-    let (show_participants, set_show_participants) = create_signal(true);
+    let (show_chat, set_show_chat) = create_signal(false);
+    let (show_participants, set_show_participants) = create_signal(false);
     let (show_files, set_show_files) = create_signal(false);
     let (show_dial_in, set_show_dial_in) = create_signal(false);
     let (show_salesforce, set_show_salesforce) = create_signal(false);
@@ -127,6 +127,10 @@ pub fn Room() -> impl IntoView {
                     <PrejoinScreen
                         on_join=state.join_meeting
                         is_connected=state.is_connected
+                        subject=Signal::derive({
+                            let state = state.clone();
+                            move || state.room_config.get().subject.clone()
+                        })
                     />
                 }.into_view(),
                 RoomConnectionState::Lobby => view! {
@@ -202,6 +206,14 @@ pub fn Room() -> impl IntoView {
                                 } style="display: flex; flex-direction: column;">
                                     <div id="capture-area" style="flex: 1; display: flex; flex-direction: column;">
                                         <div class="room-header" style="display: flex; align-items: center; justify-content: center; gap: 15px; padding: 10px;">
+                                            <Show when=move || state.branding.get().logo_url.as_ref().is_some_and(|l| !l.is_empty())>
+                                                <img
+                                                    id="room-logo"
+                                                    src=move || state.branding.get().logo_url.unwrap_or_default()
+                                                    alt="Branding Logo"
+                                                    style="height: 40px; width: auto; object-fit: contain;"
+                                                />
+                                            </Show>
                                             <h2 style="margin: 0; font-size: 1.2rem;">{move || format!("Meeting Room: {}", room_id())}</h2>
                                             <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
                                                 <span id="meeting-subject" class="badge-info" style="padding: 4px 8px; border-radius: 4px; font-weight: 600;">
@@ -373,6 +385,10 @@ pub fn Room() -> impl IntoView {
                                 is_sharing_video=Signal::derive(move || state.shared_video_url.get().is_some())
                                 on_whiteboard=Callback::new(move |_| state.set_show_whiteboard.update(|v| *v = !*v))
                                 on_reaction=state.send_reaction
+                                is_audio_moderated=state.is_audio_moderated
+                                is_video_moderated=state.is_video_moderated
+                                has_unmute_permission=state.has_unmute_permission
+                                has_camera_permission=state.has_camera_permission
                                 on_request_unmute_permission=state.request_unmute_permission
                                 on_request_camera_permission=state.request_camera_permission
                                 on_toggle_camera=state.toggle_camera
