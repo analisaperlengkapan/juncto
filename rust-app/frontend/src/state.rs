@@ -1083,8 +1083,6 @@ pub fn use_room_state() -> RoomState {
 
     let toggle_participant_e2ee = Callback::new({
         let analytics = analytics.clone();
-        let ws = ws;
-        let set_e2ee_key = set_e2ee_key;
         move |enabled: bool| {
             analytics.track_interaction(if enabled {
                 "enable_e2ee"

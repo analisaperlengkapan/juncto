@@ -13,9 +13,9 @@ test.describe('E2EE Functional Test', () => {
         await page.locator('#e2ee-participant-toggle').click({ force: true });
         await page.click('#close-settings-btn');
 
-        // Check if the lock icon is present and visible
-        // We'll use a more permissive locator to see if ANY lock appears
-        await expect(page.locator('.e2ee-lock')).toBeVisible({ timeout: 20000 });
+        // Alice sees her own lock
+        const aliceLock = page.locator('.e2ee-lock');
+        await expect(aliceLock).toBeAttached({ timeout: 20000 });
 
         const page2 = await context.newPage();
         await page2.goto('/room/e2ee-test');
@@ -26,7 +26,10 @@ test.describe('E2EE Functional Test', () => {
         await page2.locator('#e2ee-participant-toggle').click({ force: true });
         await page2.click('#close-settings-btn');
 
-        // Bob sees two locks
+        // Bob sees two locks (himself and Alice)
         await expect(page2.locator('.e2ee-lock')).toHaveCount(2, { timeout: 20000 });
+
+        // Alice now sees Bob's lock too
+        await expect(page.locator('.e2ee-lock')).toHaveCount(2, { timeout: 20000 });
     });
 });
