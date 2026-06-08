@@ -245,7 +245,7 @@ pub fn Chat(
                             let time_str = format!("{:02}:{:02}", hours, minutes);
 
                             view! {
-                                <li style=style>
+                                <li class="chat-message" style=style>
                                     <small style="color: #999; margin-right: 5px;">"[" {time_str} "] "</small>
                                     <small>{private_indicator}</small>
                                     <strong>{sender_name}": "</strong>

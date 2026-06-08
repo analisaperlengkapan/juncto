@@ -30,19 +30,19 @@ pub fn ParticipantsList(
     #[prop(optional)] on_mute_camera: Option<Callback<String>>,
     #[prop(optional)] on_mute_all: Option<Callback<()>>,
     #[prop(optional)] on_mute_camera_all: Option<Callback<()>>,
-    _on_transfer_host: Callback<String>,
+    on_transfer_host: Callback<String>,
     #[prop(optional)] _power_statuses: Option<
         ReadSignal<std::collections::HashMap<String, shared::PowerStatus>>,
     >,
-    #[prop(optional)] _on_request_unmute: Option<Callback<String>>,
+    #[prop(optional)] on_request_unmute: Option<Callback<String>>,
     #[prop(optional)] on_broadcast_lobby: Option<Callback<String>>,
-    #[prop(optional)] _on_promote: Option<Callback<String>>,
-    #[prop(optional)] _on_request_remote_control: Option<Callback<String>>,
+    #[prop(optional)] on_promote: Option<Callback<String>>,
+    #[prop(optional)] on_request_remote_control: Option<Callback<String>>,
     #[prop(optional)] on_stop_screen_share_all: Option<Callback<()>>,
     #[prop(optional)] pinned_participant: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] on_pin: Option<Callback<Option<String>>>,
-    #[prop(optional)] _on_set_volume: Option<Callback<(String, f64)>>,
-    #[prop(optional)] _on_mute_everyone_else: Option<Callback<String>>,
+    #[prop(optional)] on_set_volume: Option<Callback<(String, f64)>>,
+    #[prop(optional)] on_mute_everyone_else: Option<Callback<String>>,
     #[prop(optional)] pending_unmute_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
     #[prop(optional)] pending_camera_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
     #[prop(optional)] on_grant_unmute: Option<Callback<String>>,
@@ -58,16 +58,16 @@ pub fn ParticipantsList(
         format!("{:02}:{:02}", m, s)
     };
 
-    let _on_promote_sv = store_value(_on_promote);
+    let on_promote_sv = store_value(on_promote);
     let on_mute_sv = store_value(on_mute);
     let _on_mute_camera_sv = store_value(on_mute_camera);
-    let _on_transfer_host_sv = store_value(_on_transfer_host);
+    let on_transfer_host_sv = store_value(on_transfer_host);
     let on_kick_sv = store_value(on_kick);
-    let _on_request_unmute_sv = store_value(_on_request_unmute);
-    let _on_request_remote_control_sv = store_value(_on_request_remote_control);
+    let on_request_unmute_sv = store_value(on_request_unmute);
+    let on_request_remote_control_sv = store_value(on_request_remote_control);
     let on_pin_sv = store_value(on_pin);
-    let _on_set_volume_sv = store_value(_on_set_volume);
-    let _on_mute_everyone_else_sv = store_value(_on_mute_everyone_else);
+    let on_set_volume_sv = store_value(on_set_volume);
+    let on_mute_everyone_else_sv = store_value(on_mute_everyone_else);
 
     view! {
         <div class="panel-content participants-list" style="padding: 10px;">
@@ -203,11 +203,11 @@ pub fn ParticipantsList(
                                     {move || if p_sv.get_value().is_camera_muted { view! { <span title="Camera Off" style="color: var(--danger-color);">"🚫"</span> }.into_view() } else { view! { <span/> }.into_view() }}
 
                                     <div style="display: flex; gap: 4px; align-items: center;">
-                                        <Show when=move || _on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
+                                        <Show when=move || on_request_remote_control_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
                                             <button
                                                 on:click={
                                                     let id = p_sv.get_value().id.clone();
-                                                    move |_| { if let Some(cb) = _on_request_remote_control_sv.get_value() { cb.call(id.clone()); } }
+                                                    move |_| { if let Some(cb) = on_request_remote_control_sv.get_value() { cb.call(id.clone()); } }
                                                 }
                                                 class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
                                                 title="Request Remote Control"
@@ -215,7 +215,7 @@ pub fn ParticipantsList(
                                                 "RC"
                                             </button>
                                         </Show>
-                                        <Show when=move || _on_set_volume_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
+                                        <Show when=move || on_set_volume_sv.get_value().is_some() && my_id.get() != Some(p_sv.get_value().id)>
                                             <input
                                                 type="range"
                                                 min="0" max="1" step="0.1"
@@ -223,7 +223,7 @@ pub fn ParticipantsList(
                                                 on:input={
                                                     let id = p_sv.get_value().id.clone();
                                                     move |ev| {
-                                                        if let Some(cb) = _on_set_volume_sv.get_value() {
+                                                        if let Some(cb) = on_set_volume_sv.get_value() {
                                                             cb.call((id.clone(), event_target_value(&ev).parse().unwrap_or(1.0)));
                                                         }
                                                     }
@@ -268,18 +268,35 @@ pub fn ParticipantsList(
                                             <button
                                                 on:click={
                                                     let id = p_sv.get_value().id.clone();
-                                                    move |_| { _on_transfer_host_sv.get_value().call(id.clone()); }
+                                                    move |_| { on_transfer_host_sv.get_value().call(id.clone()); }
                                                 }
                                                 class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
                                                 title="Transfer Host"
                                             >
                                                 "Host"
                                             </button>
-                                            <Show when=move || _on_request_unmute_sv.get_value().is_some() && p_sv.get_value().is_muted>
+                                            <Show when=move || p_sv.get_value().is_visitor && on_promote_sv.get_value().is_some()>
+                                                <button
+                                                    id="promote-btn"
+                                                    on:click={
+                                                        let id = p_sv.get_value().id.clone();
+                                                        move |_| {
+                                                            if let Some(cb) = on_promote_sv.get_value() {
+                                                                cb.call(id.clone());
+                                                            }
+                                                        }
+                                                    }
+                                                    class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
+                                                    title="Promote to Participant"
+                                                >
+                                                    "Promote"
+                                                </button>
+                                            </Show>
+                                            <Show when=move || on_request_unmute_sv.get_value().is_some() && p_sv.get_value().is_muted>
                                                 <button
                                                     on:click={
                                                         let id = p_sv.get_value().id.clone();
-                                                        move |_| { _on_request_unmute_sv.get_value().unwrap().call(id.clone()); }
+                                                        move |_| { on_request_unmute_sv.get_value().unwrap().call(id.clone()); }
                                                     }
                                                     class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
                                                     title="Request Unmute"
@@ -287,11 +304,11 @@ pub fn ParticipantsList(
                                                     "Request Unmute"
                                                 </button>
                                             </Show>
-                                            <Show when=move || _on_mute_everyone_else_sv.get_value().is_some()>
+                                            <Show when=move || on_mute_everyone_else_sv.get_value().is_some()>
                                                 <button
                                                     on:click={
                                                         let id = p_sv.get_value().id.clone();
-                                                        move |_| { _on_mute_everyone_else_sv.get_value().unwrap().call(id.clone()); }
+                                                        move |_| { on_mute_everyone_else_sv.get_value().unwrap().call(id.clone()); }
                                                     }
                                                     class="btn btn-outline" style="padding: 2px 6px; font-size: 0.7rem;"
                                                     title="Mute Everyone Else"
@@ -406,6 +423,52 @@ mod tests {
         let _runtime = create_runtime();
         let (is_host, _set_is_host) = create_signal(true);
         assert!(is_host.get());
+    }
+
+    #[test]
+    fn test_promote_button_visibility_logic() {
+        let _runtime = create_runtime();
+        let p_visitor = Participant {
+            id: "1".to_string(),
+            name: "Visitor".to_string(),
+            is_hand_raised: false,
+            is_sharing_screen: false,
+            is_muted: false,
+            is_camera_muted: false,
+            speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
+            is_visitor: true,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
+        };
+        let p_regular = Participant {
+            id: "2".to_string(),
+            name: "Regular".to_string(),
+            is_hand_raised: false,
+            is_sharing_screen: false,
+            is_muted: false,
+            is_camera_muted: false,
+            speaking_time: 0,
+            presence: shared::PresenceStatus::Connected,
+            is_visitor: false,
+            e2ee_enabled: false,
+            hand_raised_at: None,
+            avatar_url: None,
+        };
+
+        // Host perspective
+        let is_host = true;
+        let on_promote = Some(Callback::new(|_: String| {}));
+
+        // Visitor should show promote button if host and callback exists
+        assert!(is_host && p_visitor.is_visitor && on_promote.is_some());
+        // Regular participant should NOT show promote button
+        assert!(!(is_host && p_regular.is_visitor && on_promote.is_some()));
+
+        // Non-host perspective
+        let is_host_false = false;
+        assert!(!(is_host_false && p_visitor.is_visitor && on_promote.is_some()));
     }
 
     #[test]

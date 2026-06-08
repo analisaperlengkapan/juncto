@@ -258,6 +258,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             }
 
             ctx.set_is_locked.set(config.is_locked);
+
+            // Synchronize all participants' E2EE status with the room-wide setting.
+            // This ensures that when the moderator toggles E2EE, every participant
+            // tile correctly displays the lock icon.
+            ctx.set_participants.update(|list| {
+                for p in list.iter_mut() {
+                    p.e2ee_enabled = config.e2ee_enabled;
+                }
+            });
             ctx.set_is_e2ee_enabled.set(config.e2ee_enabled);
 
             let was_recording = ctx.is_recording.get_untracked();
