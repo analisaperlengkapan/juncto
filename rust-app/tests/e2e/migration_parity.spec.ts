@@ -28,7 +28,10 @@ test.describe('Migration Parity and Complete Lifecycle', () => {
         await expect(visitorPage.locator('#chat-input')).toHaveAttribute('placeholder', /Visitor Mode/);
 
         // 3. Host promotes Visitor
-        await hostPage.click('#toggle-participants-btn');
+        // Panels are open by default now to satisfy legacy tests, but if they are closed, toggle them
+        if (await hostPage.locator('#participants-panel').getAttribute('class').then(c => c?.includes('panel-hidden'))) {
+            await hostPage.click('#toggle-participants-btn');
+        }
 
         // Ensure participants panel is actually shown (not hidden by class)
         await expect(hostPage.locator('#participants-panel')).not.toHaveClass(/panel-hidden/, { timeout: 10000 });
@@ -74,9 +77,13 @@ test.describe('Migration Parity and Complete Lifecycle', () => {
 
         // 6. Integrated Features check
         // Chat
-        await visitorPage.click('#toggle-chat-btn');
-        // Ensure host also has chat open to see the message
-        await hostPage.click('#toggle-chat-btn');
+        // Panels are open by default now to satisfy legacy tests, but if they are closed, toggle them
+        if (await visitorPage.locator('#chat-panel').getAttribute('class').then(c => c?.includes('panel-hidden'))) {
+            await visitorPage.click('#toggle-chat-btn');
+        }
+        if (await hostPage.locator('#chat-panel').getAttribute('class').then(c => c?.includes('panel-hidden'))) {
+            await hostPage.click('#toggle-chat-btn');
+        }
         await expect(hostPage.locator('#chat-panel')).not.toHaveClass(/panel-hidden/);
 
         await visitorPage.fill('#chat-input', 'Hello from promoted visitor');
