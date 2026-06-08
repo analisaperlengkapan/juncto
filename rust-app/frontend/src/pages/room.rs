@@ -457,20 +457,20 @@ pub fn Room() -> impl IntoView {
                                     on_mute_camera=state.mute_camera_participant
                                     on_mute_all=state.mute_all
                                     on_mute_camera_all=state.mute_camera_all
-                                    _on_transfer_host=state.transfer_host
+                                    on_transfer_host=state.transfer_host
                                     _power_statuses=state.power_statuses
-                                    _on_request_unmute=state.request_unmute
+                                    on_request_unmute=state.request_unmute
                                     on_broadcast_lobby=state.broadcast_to_lobby
-                                    _on_promote=state.promote_visitor
-                                    _on_request_remote_control=Callback::new({
+                                    on_promote=state.promote_visitor
+                                    on_request_remote_control=Callback::new({
                                         let state = state.clone();
                                         move |id| state.remote_control.request_control(id)
                                     })
                                     on_stop_screen_share_all=state.stop_screen_share_all
                                         pinned_participant=state.pinned_participant
                                         on_pin=state.pin_participant
-                                        _on_set_volume=state.set_participant_volume
-                                        _on_mute_everyone_else=state.mute_everyone_else
+                                        on_set_volume=state.set_participant_volume
+                                        on_mute_everyone_else=state.mute_everyone_else
                                         pending_unmute_requests=state.pending_unmute_requests
                                         pending_camera_requests=state.pending_camera_requests
                                         on_grant_unmute=state.grant_unmute_permission

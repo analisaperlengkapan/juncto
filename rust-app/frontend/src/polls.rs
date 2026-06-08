@@ -240,6 +240,7 @@ pub fn PollsDialog(
                                 <label style="display: block; margin-bottom: 5px;">"Question"</label>
                                 <input
                                     type="text"
+                                    id="poll-question"
                                     prop:value=question
                                     on:input=move |ev| set_question.set(event_target_value(&ev))
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
@@ -250,21 +251,26 @@ pub fn PollsDialog(
                                 <label style="display: block; margin-bottom: 5px;">"Option 1"</label>
                                 <input
                                     type="text"
+                                    id="poll-option-1"
                                     prop:value=option1
                                     on:input=move |ev| set_option1.set(event_target_value(&ev))
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                    placeholder="Option 1"
                                 />
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 5px;">"Option 2"</label>
                                 <input
                                     type="text"
+                                    id="poll-option-2"
                                     prop:value=option2
                                     on:input=move |ev| set_option2.set(event_target_value(&ev))
                                     style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                                    placeholder="Option 2"
                                 />
                             </div>
                             <button
+                                id="create-poll-submit-btn"
                                 on:click=create
                                 style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;"
                             >

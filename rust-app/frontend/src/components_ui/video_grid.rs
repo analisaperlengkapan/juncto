@@ -300,7 +300,7 @@ pub fn VideoGrid(
                             })
                         }).unwrap_or(false)
                     }>
-                        <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                        <span class="e2ee-lock" style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
                     </Show>
                     // The AudioMonitor reports 0.0 while muted, so guarding on
                     // a non-zero level avoids rendering invisible indicator dots
@@ -654,7 +654,7 @@ pub fn VideoGrid(
 
                                     <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
                                         <Show when=move || is_p_e2ee_enabled.get() && !is_screen>
-                                            <span style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
+                                            <span class="e2ee-lock" style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
                                         </Show>
                                         <Show when=move || is_hand_raised.get() && !is_screen>
                                             <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
