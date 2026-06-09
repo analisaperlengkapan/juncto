@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function loginAsAdmin(page) {
+    await page.click('button[title="Login"]');
+    await page.fill('input[placeholder="Username"]', 'admin');
+    await page.fill('input[placeholder="Password"]', 'admin123');
+    await page.click('button:has-text("Login")');
+}
+
+
 test('Video Call Setup: Two peers join and see each other', async ({ browser }) => {
   // Use persistent context arguments from config are usually applied to 'browser' if launched via config.
   // But browser.newContext might need explicit permissions if not inherited.

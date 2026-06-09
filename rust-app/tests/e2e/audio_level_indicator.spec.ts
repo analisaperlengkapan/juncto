@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function loginAsAdmin(page) {
+    await page.click('button[title="Login"]');
+    await page.fill('input[placeholder="Username"]', 'admin');
+    await page.fill('input[placeholder="Password"]', 'admin123');
+    await page.click('button:has-text("Login")');
+}
+
+
 test('Audio Level Indicator visibility and dots render properly', async ({ browser }) => {
   const context1 = await browser.newContext({ permissions: ['camera', 'microphone'] });
   const context2 = await browser.newContext({ permissions: ['camera', 'microphone'] });

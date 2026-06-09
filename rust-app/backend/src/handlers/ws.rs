@@ -124,7 +124,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let host_id = {
                                             room_config_mutex.lock().unwrap().host_id.clone()
                                         };
-                                        if Some(uid.clone()) == host_id {
+                                        if Some(uid.clone()) == host_id && is_authenticated {
                                             if target_id == *uid {
                                                 // Prevent self-kick
                                                 continue;
@@ -626,7 +626,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let host_id = {
                                             room_config_mutex.lock().unwrap().host_id.clone()
                                         };
-                                        if Some(uid.clone()) == host_id {
+                                        if Some(uid.clone()) == host_id && is_authenticated {
                                             // Valid end meeting
                                             // Broadcast RoomEnded
                                             let _ = tx.send(ServerMessage::RoomEnded);
@@ -1591,6 +1591,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
                                             is_authenticated = false;
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
                                         }
                                     }
                                 },

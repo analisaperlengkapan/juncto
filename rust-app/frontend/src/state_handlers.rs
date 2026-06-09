@@ -824,6 +824,11 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_lobby_announcement.set(Some(text));
         }
         ServerMessage::VisitorPromoted(target_id) => {
+            ctx.set_participants.update(|list| {
+                if let Some(p) = list.iter_mut().find(|x| x.id == target_id) {
+                    p.is_visitor = false;
+                }
+            });
             if let Some(my) = ctx.my_id.get_untracked() {
                 if my == target_id {
                     ctx.add_toast.call((

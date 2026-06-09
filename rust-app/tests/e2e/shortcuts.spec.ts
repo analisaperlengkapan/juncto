@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function loginAsAdmin(page) {
+    await page.click('button[title="Login"]');
+    await page.fill('input[placeholder="Username"]', 'admin');
+    await page.fill('input[placeholder="Password"]', 'admin123');
+    await page.click('button:has-text("Login")');
+}
+
+
 test.describe('Keyboard Shortcuts', () => {
     test('Toggle Mute with M key and Open Shortcuts Dialog', async ({ browser }) => {
         const roomName = `ShortcutRoom_${Date.now()}`;
