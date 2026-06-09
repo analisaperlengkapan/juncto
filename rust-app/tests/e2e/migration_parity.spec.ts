@@ -52,6 +52,12 @@ test.describe('Migration Parity and Complete Lifecycle', () => {
         await expect(visitorPage.locator('#chat-input')).not.toHaveAttribute('placeholder', /Visitor Mode/);
 
         // 4. Host toggles E2EE
+        // Authenticate before moderator actions
+        await hostPage.click('button[title="Login"]');
+        await hostPage.fill('input[placeholder="Username"]', 'admin');
+        await hostPage.fill('input[placeholder="Password"]', 'admin123');
+        await hostPage.click('button:has-text("Login")');
+        await expect(hostPage.locator('.toast-container')).toContainText('Authenticated successfully');
         await hostPage.click('#settings-btn');
         await hostPage.click('button:has-text("Moderator")');
         const e2eeToggle = hostPage.locator('#e2ee-toggle');

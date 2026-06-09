@@ -209,6 +209,12 @@ test('Juncto Migration E2E (WASM)', async ({ page, request }) => {
   await expect(canvas).not.toBeVisible();
 
   // Unlock the room to reset state for next test
+  // Authenticate before moderator actions
+  await page.click('button[title="Login"]');
+  await page.fill('input[placeholder="Username"]', 'admin');
+  await page.fill('input[placeholder="Password"]', 'admin123');
+  await page.click('button:has-text("Login")');
+  await expect(page.locator('.toast-container')).toContainText('Authenticated successfully');
   await page.click('#settings-btn');
   await page.locator('.modal-content .tabs button:has-text("Moderator")').click();
   const lockBtnToUnlock = page.locator('.modal-content input[type="checkbox"]').nth(0);

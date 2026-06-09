@@ -366,8 +366,6 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                     ToastType::Info,
                 ));
             }
-            ctx.set_participants
-                .update(|list| list.retain(|p| p.id != id));
             ctx.set_typing_users.update(|users| {
                 users.remove(&id);
             });

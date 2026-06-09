@@ -81,6 +81,12 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await expect(visitorPage.locator('h4:has-text("(In Breakout Room)")')).toBeVisible({ timeout: 10000 });
 
         // 8. E2EE Toggle
+        // Authenticate before moderator actions
+        await hostPage.click('button[title="Login"]');
+        await hostPage.fill('input[placeholder="Username"]', 'admin');
+        await hostPage.fill('input[placeholder="Password"]', 'admin123');
+        await hostPage.click('button:has-text("Login")');
+        await expect(hostPage.locator('.toast-container')).toContainText('Authenticated successfully');
         await hostPage.click('#settings-btn');
         await hostPage.click('button:has-text("Moderator")');
         const e2eeToggle = hostPage.locator('#e2ee-toggle');

@@ -212,7 +212,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.audio_moderation_enabled = !config.audio_moderation_enabled;
@@ -230,7 +230,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.video_moderation_enabled = !config.video_moderation_enabled;
@@ -272,7 +272,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.branding = branding;
@@ -373,7 +373,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let same_room = {
                                                 let locs = participant_locations_mutex.lock().unwrap();
                                                 let host_loc = locs.get(uid).cloned().flatten();
@@ -404,7 +404,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let _ = tx.send(ServerMessage::LobbyAnnouncement(text));
                                         }
                                     }
@@ -422,7 +422,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let updated_p = {
                                                 let mut participants = participants_mutex.lock().unwrap();
                                                 if let Some(p) = participants.get_mut(&target_id) {
@@ -444,7 +444,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let _ = tx.send(ServerMessage::FollowMe(layout));
                                         }
                                     }
@@ -479,7 +479,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             // Only allow unmute requests within the same breakout
                                             // room, consistent with MuteParticipant scoping.
                                             let same_room = {
@@ -594,7 +594,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.is_subtitles_enabled = !config.is_subtitles_enabled;
@@ -706,7 +706,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let sender_opt = {
                                                 let mut knocking = knocking_mutex.lock().unwrap();
                                                 knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
@@ -722,7 +722,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let sender_opt = {
                                                 let mut knocking = knocking_mutex.lock().unwrap();
                                                 knocking.get_mut(&target_id).and_then(|(_, s)| s.take())
@@ -1447,7 +1447,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             {
                                                 let mut v = shared_video_mutex.lock().unwrap();
                                                 *v = Some(url.clone());
@@ -1461,7 +1461,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             {
                                                 let mut v = shared_video_mutex.lock().unwrap();
                                                 *v = None;
@@ -1591,7 +1591,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
                                             is_authenticated = false;
-                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
                                         }
                                     }
                                 },
@@ -1624,7 +1623,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let same_room = {
                                                 let locs = participant_locations_mutex.lock().unwrap();
                                                 let host_loc = locs.get(uid).cloned().flatten();
@@ -1655,7 +1654,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let target_exists = {
                                                 let participants = participants_mutex.lock().unwrap();
                                                 participants.contains_key(&target_id)

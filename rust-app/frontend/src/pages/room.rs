@@ -239,7 +239,7 @@ pub fn Room() -> impl IntoView {
                                             </div>
                                         </Show>
                                         <Show when=move || state.is_e2ee_enabled.get()>
-                                            <div style="background: #6c757d; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" title="End-to-End Encryption indicator only — actual E2EE is not yet implemented">
+                                            <div style="background: #6c757d; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" id="e2ee-indicator" title="End-to-End Encryption indicator only — actual E2EE is not yet implemented">
                                                 "🔒 E2EE (indicator)"
                                             </div>
                                         </Show>
