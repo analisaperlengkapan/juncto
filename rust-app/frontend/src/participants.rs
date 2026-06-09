@@ -81,7 +81,7 @@ pub fn ParticipantsList(
                         <h4 style="margin: 0;">"Waiting Room"</h4>
                         <button
                             on:click=move |_| { for p in knocking_participants.get() { on_allow.call(p.id); } }
-                            id="lobby-allow-all-btn" class="btn btn-primary" style="font-size: 0.8rem; padding: 4px 8px;"
+                            class="btn btn-primary" style="font-size: 0.8rem; padding: 4px 8px;"
                         >
                             "Allow All"
                         </button>
