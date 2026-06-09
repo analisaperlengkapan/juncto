@@ -334,6 +334,11 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_participants.update(|list| {
                 if !list.iter().any(|x| x.id == p.id) {
                     list.push(p.clone());
+                    let name = p.name.clone();
+                    ctx.add_toast.call((
+                        format!("{} joined the meeting", name),
+                        ToastType::Info,
+                    ));
                 }
             });
 
@@ -348,6 +353,19 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
                 .update(|list| list.retain(|x| x.id != id));
         }
         ServerMessage::ParticipantLeft { id, .. } => {
+            let mut left_name = None;
+            ctx.set_participants.update(|list| {
+                if let Some(pos) = list.iter().position(|p| p.id == id) {
+                    left_name = Some(list[pos].name.clone());
+                    list.remove(pos);
+                }
+            });
+            if let Some(name) = left_name {
+                ctx.add_toast.call((
+                    format!("{} left the meeting", name),
+                    ToastType::Info,
+                ));
+            }
             ctx.set_participants
                 .update(|list| list.retain(|p| p.id != id));
             ctx.set_typing_users.update(|users| {
@@ -570,8 +588,13 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             );
         }
         ServerMessage::KnockingParticipant(p) => {
+            let name = p.name.clone();
             ctx.set_knocking_participants.update(|list| {
                 if !list.iter().any(|x| x.id == p.id) {
+                    ctx.add_toast.call((
+                        format!("{} is knocking at the door", name),
+                        ToastType::Info,
+                    ));
                     list.push(p);
                 }
             });
