@@ -121,3 +121,11 @@ impl Drop for LocalRecorder {
         self.recorder.set_onstop(None);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_media_recorder_compiles() {
+        let _ = true;
+    }
+}

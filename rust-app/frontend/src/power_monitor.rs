@@ -65,3 +65,11 @@ pub fn PowerMonitor(on_update: Callback<PowerStatus>) -> impl IntoView {
 
     view! { <span style="display:none;" /> }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_power_monitor_compiles() {
+        let _ = true;
+    }
+}

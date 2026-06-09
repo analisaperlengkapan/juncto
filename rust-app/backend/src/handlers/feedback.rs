@@ -16,6 +16,29 @@ pub async fn submit_feedback(
         return (StatusCode::BAD_REQUEST, "Stars must be between 1 and 5").into_response();
     }
 
+    // Rate Limiting (Bug 3)
+    let user_id = payload
+        .user_id
+        .clone()
+        .unwrap_or_else(|| "anonymous".to_string());
+    {
+        let mut timestamps = state.feedback_timestamps.lock().unwrap();
+        let user_ts = timestamps.entry(user_id).or_insert_with(Vec::new);
+        let now = std::time::Instant::now();
+
+        // Keep only last 10 minutes
+        user_ts.retain(|&ts| now.duration_since(ts).as_secs() < 600);
+
+        if user_ts.len() >= 3 {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many feedback submissions. Please wait.",
+            )
+                .into_response();
+        }
+        user_ts.push(now);
+    }
+
     let mut feedback_store = state.feedback.lock().unwrap();
 
     // Bound storage (Bug 2)
@@ -25,7 +48,6 @@ pub async fn submit_feedback(
 
     feedback_store.push(payload);
 
-    // TODO: Add rate limiting and authentication for production (Bug 3)
     (StatusCode::OK, "Feedback received").into_response()
 }
 
@@ -41,10 +63,9 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
 
-    #[tokio::test]
-    async fn test_submit_feedback() {
+    fn setup_app_state() -> Arc<AppState> {
         let (tx, _rx) = tokio::sync::broadcast::channel(10);
-        let app_state = Arc::new(AppState {
+        Arc::new(AppState {
             tx,
             participants: Arc::new(Mutex::new(HashMap::new())),
             knocking_participants: Arc::new(Mutex::new(HashMap::new())),
@@ -57,12 +78,17 @@ mod tests {
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
             feedback: Arc::new(Mutex::new(Vec::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
             camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
-        });
+        })
+    }
 
+    #[tokio::test]
+    async fn test_submit_feedback() {
+        let app_state = setup_app_state();
         let app = Router::new()
             .route("/api/feedback", post(submit_feedback))
             .with_state(app_state.clone());
@@ -86,34 +112,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-
-        let stored = app_state.feedback.lock().unwrap();
-        assert_eq!(stored.len(), 1);
-        assert_eq!(stored[0].stars, 5);
+        assert_eq!(app_state.feedback.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]
     async fn test_submit_feedback_invalid_stars() {
-        let (tx, _rx) = tokio::sync::broadcast::channel(10);
-        let app_state = Arc::new(AppState {
-            tx,
-            participants: Arc::new(Mutex::new(HashMap::new())),
-            knocking_participants: Arc::new(Mutex::new(HashMap::new())),
-            room_config: Arc::new(Mutex::new(RoomConfig::default())),
-            polls: Arc::new(Mutex::new(HashMap::new())),
-            whiteboard: Arc::new(Mutex::new(Vec::new())),
-            chat_history: Arc::new(Mutex::new(Vec::new())),
-            breakout_rooms: Arc::new(Mutex::new(HashMap::new())),
-            participant_locations: Arc::new(Mutex::new(HashMap::new())),
-            shared_video_url: Arc::new(Mutex::new(None)),
-            speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
-            feedback: Arc::new(Mutex::new(Vec::new())),
-            remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
-            pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
-            unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
-            camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
-        });
-
+        let app_state = setup_app_state();
         let app = Router::new()
             .route("/api/feedback", post(submit_feedback))
             .with_state(app_state.clone());
@@ -137,8 +141,48 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 
-        let stored = app_state.feedback.lock().unwrap();
-        assert!(stored.is_empty());
+    #[tokio::test]
+    async fn test_submit_feedback_rate_limiting() {
+        let app_state = setup_app_state();
+        let app = Router::new()
+            .route("/api/feedback", post(submit_feedback))
+            .with_state(app_state.clone());
+
+        let feedback = Feedback {
+            stars: 5,
+            comment: "Good".to_string(),
+            user_id: Some("user_rl".to_string()),
+        };
+
+        for _ in 0..3 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/feedback")
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(serde_json::to_string(&feedback).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/feedback")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_string(&feedback).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 }

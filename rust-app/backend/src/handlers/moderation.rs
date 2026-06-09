@@ -171,7 +171,10 @@ pub fn mute_camera_all(sender_id: &str, state: &Arc<AppState>) -> Vec<ServerMess
     messages
 }
 
-pub fn handle_unmute_permission_request(user_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
+pub fn handle_unmute_permission_request(
+    user_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
     let config = state.room_config.lock().unwrap();
     if config.audio_moderation_enabled {
@@ -182,7 +185,10 @@ pub fn handle_unmute_permission_request(user_id: &str, state: &Arc<AppState>) ->
     messages
 }
 
-pub fn handle_camera_permission_request(user_id: &str, state: &Arc<AppState>) -> Vec<ServerMessage> {
+pub fn handle_camera_permission_request(
+    user_id: &str,
+    state: &Arc<AppState>,
+) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
     let config = state.room_config.lock().unwrap();
     if config.video_moderation_enabled {
@@ -260,6 +266,7 @@ mod tests {
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
             feedback: Arc::new(Mutex::new(Vec::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
@@ -293,7 +300,8 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -309,7 +317,8 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -346,7 +355,8 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -362,7 +372,8 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -432,7 +443,8 @@ mod tests {
                         name: name.to_string(),
                         is_hand_raised: false,
                         is_sharing_screen: false,
-                        is_muted: false, is_camera_muted: false,
+                        is_muted: false,
+                        is_camera_muted: false,
                         speaking_time: 0,
                         presence: PresenceStatus::Connected,
                         is_visitor: false,
@@ -495,7 +507,8 @@ mod tests {
                     name: "Host".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: false,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -511,7 +524,8 @@ mod tests {
                     name: "User".to_string(),
                     is_hand_raised: false,
                     is_sharing_screen: true,
-                    is_muted: false, is_camera_muted: false,
+                    is_muted: false,
+                    is_camera_muted: false,
                     speaking_time: 0,
                     presence: PresenceStatus::Connected,
                     is_visitor: false,
@@ -546,12 +560,16 @@ mod tests {
         // Request permission
         let msgs = handle_unmute_permission_request(&user_id, &state);
         assert_eq!(msgs.len(), 1);
-        assert!(matches!(msgs[0], ServerMessage::UnmutePermissionRequested { ref user_id } if user_id == "user1"));
+        assert!(
+            matches!(msgs[0], ServerMessage::UnmutePermissionRequested { ref user_id } if user_id == "user1")
+        );
 
         // Grant permission
         let msgs = grant_unmute_permission(&host_id, &user_id, &state);
         assert_eq!(msgs.len(), 1);
-        assert!(matches!(msgs[0], ServerMessage::PermissionGranted { ref media_type, ref target_id } if media_type == "audio" && target_id == "user1"));
+        assert!(
+            matches!(msgs[0], ServerMessage::PermissionGranted { ref media_type, ref target_id } if media_type == "audio" && target_id == "user1")
+        );
 
         let permissions = state.unmute_permissions.lock().unwrap();
         assert!(permissions.contains(&user_id));

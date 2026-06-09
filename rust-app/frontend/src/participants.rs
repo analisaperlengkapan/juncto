@@ -43,8 +43,12 @@ pub fn ParticipantsList(
     #[prop(optional)] on_pin: Option<Callback<Option<String>>>,
     #[prop(optional)] on_set_volume: Option<Callback<(String, f64)>>,
     #[prop(optional)] on_mute_everyone_else: Option<Callback<String>>,
-    #[prop(optional)] pending_unmute_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
-    #[prop(optional)] pending_camera_requests: Option<ReadSignal<std::collections::HashSet<String>>>,
+    #[prop(optional)] pending_unmute_requests: Option<
+        ReadSignal<std::collections::HashSet<String>>,
+    >,
+    #[prop(optional)] pending_camera_requests: Option<
+        ReadSignal<std::collections::HashSet<String>>,
+    >,
     #[prop(optional)] on_grant_unmute: Option<Callback<String>>,
     #[prop(optional)] on_grant_camera: Option<Callback<String>>,
 ) -> impl IntoView {
@@ -375,7 +379,8 @@ mod tests {
             name: "Charlie".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false, is_camera_muted: false,
+            is_muted: false,
+            is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -388,7 +393,8 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: true,
             is_sharing_screen: false,
-            is_muted: false, is_camera_muted: false,
+            is_muted: false,
+            is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -401,7 +407,8 @@ mod tests {
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false, is_camera_muted: false,
+            is_muted: false,
+            is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -478,7 +485,8 @@ mod tests {
             name: "Alice".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false, is_camera_muted: false,
+            is_muted: false,
+            is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -491,7 +499,8 @@ mod tests {
             name: "Bob".to_string(),
             is_hand_raised: false,
             is_sharing_screen: false,
-            is_muted: false, is_camera_muted: false,
+            is_muted: false,
+            is_camera_muted: false,
             speaking_time: 0,
             presence: shared::PresenceStatus::Connected,
             is_visitor: false,
@@ -500,7 +509,7 @@ mod tests {
             avatar_url: None,
         };
 
-        let participants = vec![p1, p2];
+        let participants = [p1, p2];
         let query = "al".to_string();
 
         let filtered: Vec<_> = participants

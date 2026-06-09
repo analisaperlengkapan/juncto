@@ -51,6 +51,7 @@ mod tests {
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
             feedback: Arc::new(Mutex::new(Vec::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),

@@ -306,7 +306,7 @@ mod tests {
             is_closed: true,
         };
 
-        let polls = vec![p1.clone(), p2.clone()];
+        let polls = [p1.clone(), p2.clone()];
 
         let active: Vec<_> = polls.iter().filter(|p| !p.is_closed).collect();
         let history: Vec<_> = polls.iter().filter(|p| p.is_closed).collect();

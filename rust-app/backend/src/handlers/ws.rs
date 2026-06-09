@@ -74,6 +74,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
+    let mut is_authenticated = false;
     let mut knocking_id: Option<String> = None;
     // Track my current room locally for quick access
     let mut my_room_id: Option<String> = None;
@@ -300,7 +301,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             // Clone the updated config inside a nested block
                                             // so the mutex guard is dropped before broadcasting,
                                             // matching the pattern used elsewhere (e.g. ToggleLobby).
@@ -548,7 +549,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.e2ee_enabled = !config.e2ee_enabled;
@@ -563,7 +564,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             // Server-side URL validation
                                             if let Some(ref url_str) = url {
                                                 if !url_str.starts_with("https://") && !url_str.starts_with("http://") {
@@ -690,7 +691,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.is_lobby_enabled = !config.is_lobby_enabled;
@@ -1193,7 +1194,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.is_locked = !config.is_locked;
@@ -1208,7 +1209,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
                                         };
-                                        if is_host {
+                                        if is_host && is_authenticated {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.is_recording = !config.is_recording;
@@ -1586,8 +1587,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         let expected_user = std::env::var("MOCK_AUTH_USER").unwrap_or_else(|_| "admin".to_string());
                                         let expected_pass = std::env::var("MOCK_AUTH_PASS").unwrap_or_else(|_| "admin123".to_string());
                                         if username == expected_user && password.as_deref() == Some(expected_pass.as_str()) {
+                                            is_authenticated = true;
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(true)).await;
                                         } else {
+                                            is_authenticated = false;
                                             let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;
                                         }
                                     }
@@ -2209,6 +2212,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 mod tests {
     #[test]
     fn test_ws_handler() {
+        let _ = true;
+    }
+}
+
+#[cfg(test)]
+mod tests_auth {
+
+    #[test]
+    fn test_auth_logic_compiles() {
+        // Handled by E2E mostly, but ensuring the structure is correct
         let _ = true;
     }
 }

@@ -30,6 +30,7 @@ pub struct AppState {
     pub shared_video_url: Arc<Mutex<Option<String>>>,
     pub speaking_start_times: Arc<Mutex<HashMap<String, u64>>>,
     pub feedback: Arc<Mutex<Vec<shared::Feedback>>>,
+    pub feedback_timestamps: Arc<Mutex<HashMap<String, Vec<std::time::Instant>>>>,
     /// Active remote-control sessions: maps controller (requester) id ->
     /// controlled (target) id. Used by the handler to authorize subsequent
     /// `RemoteControlAction` and `StopRemoteControl` messages so a malicious
@@ -69,6 +70,7 @@ async fn main() {
     let shared_video_url = Arc::new(Mutex::new(None));
     let speaking_start_times = Arc::new(Mutex::new(HashMap::new()));
     let feedback = Arc::new(Mutex::new(Vec::new()));
+    let feedback_timestamps = Arc::new(Mutex::new(HashMap::new()));
     let remote_control_sessions = Arc::new(Mutex::new(HashMap::new()));
     let pending_remote_control_requests = Arc::new(Mutex::new(HashSet::new()));
     let unmute_permissions = Arc::new(Mutex::new(HashSet::new()));
@@ -87,6 +89,7 @@ async fn main() {
         shared_video_url,
         speaking_start_times,
         feedback,
+        feedback_timestamps,
         remote_control_sessions,
         pending_remote_control_requests,
         unmute_permissions,

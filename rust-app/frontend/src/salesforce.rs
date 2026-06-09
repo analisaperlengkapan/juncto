@@ -12,21 +12,27 @@ impl SalesforceService {
     }
 
     pub fn link_object(&self, object_id: String, object_type: String) {
-        logging::log!("SalesforceService: Linking {} as {}", object_id, object_type);
-        self.send_signal.call(ClientMessage::LinkSalesforce(SalesforceConfig {
-            is_linked: true,
-            object_id: Some(object_id),
-            object_type: Some(object_type),
-        }));
+        logging::log!(
+            "SalesforceService: Linking {} as {}",
+            object_id,
+            object_type
+        );
+        self.send_signal
+            .call(ClientMessage::LinkSalesforce(SalesforceConfig {
+                is_linked: true,
+                object_id: Some(object_id),
+                object_type: Some(object_type),
+            }));
     }
 
     pub fn unlink_object(&self) {
         logging::log!("SalesforceService: Unlinking");
-        self.send_signal.call(ClientMessage::LinkSalesforce(SalesforceConfig {
-            is_linked: false,
-            object_id: None,
-            object_type: None,
-        }));
+        self.send_signal
+            .call(ClientMessage::LinkSalesforce(SalesforceConfig {
+                is_linked: false,
+                object_id: None,
+                object_type: None,
+            }));
     }
 }
 

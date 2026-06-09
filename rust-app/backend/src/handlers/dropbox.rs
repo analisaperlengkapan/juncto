@@ -39,6 +39,7 @@ mod tests {
             shared_video_url: Arc::new(Mutex::new(None)),
             speaking_start_times: Arc::new(Mutex::new(HashMap::new())),
             feedback: Arc::new(Mutex::new(Vec::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
             remote_control_sessions: Arc::new(Mutex::new(HashMap::new())),
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
@@ -52,6 +53,9 @@ mod tests {
         let responses = handle_save_to_dropbox("user1", "test_file.txt".to_string(), &state);
 
         assert_eq!(responses.len(), 1);
-        assert!(matches!(responses[0], ServerMessage::DropboxSaveResult(true)));
+        assert!(matches!(
+            responses[0],
+            ServerMessage::DropboxSaveResult(true)
+        ));
     }
 }

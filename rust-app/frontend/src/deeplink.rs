@@ -34,3 +34,11 @@ pub fn DeepLinking() -> impl IntoView {
 
     view! { <span style="display:none;" /> }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_deeplink_compiles() {
+        let _ = true;
+    }
+}

@@ -124,6 +124,7 @@ mod tests {
             shared_video_url: Arc::new(std::sync::Mutex::new(None)),
             speaking_start_times: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             feedback: Arc::new(std::sync::Mutex::new(Vec::new())),
+            feedback_timestamps: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             remote_control_sessions: Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
             )),

@@ -12,7 +12,8 @@ impl DropboxService {
     }
 
     pub fn save_file(&self, filename: String) {
-        self.send_signal.call(ClientMessage::SaveToDropbox(filename));
+        self.send_signal
+            .call(ClientMessage::SaveToDropbox(filename));
     }
 }
 

@@ -1,10 +1,10 @@
 use crate::analytics::{provide_analytics_context, use_analytics, AnalyticsService};
 use crate::components_ui::toast::{use_toast, ToastType};
+use crate::dropbox::provide_dropbox_context;
 use crate::face_landmarks::{
     provide_face_landmarks_context, use_face_landmarks, FaceLandmarksService,
 };
 use crate::media::{get_display_media, get_user_media, AudioMonitor};
-use crate::dropbox::provide_dropbox_context;
 use crate::remote_control::{
     provide_remote_control_context, use_remote_control, RemoteControlService,
 };
@@ -470,8 +470,16 @@ pub fn use_room_state() -> RoomState {
                     let rtt_val = rtt.get_untracked();
                     let level_val = audio_level.get_untracked();
                     let props = js_sys::Object::new();
-                    let _ = js_sys::Reflect::set(&props, &wasm_bindgen::JsValue::from_str("rtt"), &wasm_bindgen::JsValue::from_f64(rtt_val as f64));
-                    let _ = js_sys::Reflect::set(&props, &wasm_bindgen::JsValue::from_str("audio_level"), &wasm_bindgen::JsValue::from_f64(level_val));
+                    let _ = js_sys::Reflect::set(
+                        &props,
+                        &wasm_bindgen::JsValue::from_str("rtt"),
+                        &wasm_bindgen::JsValue::from_f64(rtt_val as f64),
+                    );
+                    let _ = js_sys::Reflect::set(
+                        &props,
+                        &wasm_bindgen::JsValue::from_str("audio_level"),
+                        &wasm_bindgen::JsValue::from_f64(level_val),
+                    );
                     analytics_inner.track_event("perf_stats", props.into());
                 }
                 #[cfg(not(target_arch = "wasm32"))]
