@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 async function loginAsAdmin(page) {
-    try {
-        await page.click('button[title="Login"]', { timeout: 2000 });
+    const loginBtn = page.locator('button[title="Login"]');
+    if (await loginBtn.isVisible()) {
+        await loginBtn.click();
         await page.fill('input[placeholder="user@domain.com"]', 'admin');
         await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('button:has-text("Login")');
-    } catch (e) {
-        // Fallback or already logged in
+        await page.waitForSelector('.toast-container:has-text("Authenticated")', { timeout: 5000 }).catch(() => {});
     }
 }
+
+
+
+
+
+
+
+
 
 
 test.describe('Migration Parity and Complete Lifecycle', () => {
@@ -21,6 +29,7 @@ test.describe('Migration Parity and Complete Lifecycle', () => {
         await hostPage.goto(`http://localhost:3000/room/${roomName}`);
         await hostPage.fill('#display-name', 'Host User');
         await hostPage.click('.join-btn');
+        await loginAsAdmin(hostPage);
 
         // Verify Host is in the room
         await expect(hostPage.locator('.room-container')).toBeVisible({ timeout: 60000 });

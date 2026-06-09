@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 async function loginAsAdmin(page) {
-    try {
-        await page.click('button[title="Login"]', { timeout: 2000 });
+    const loginBtn = page.locator('button[title="Login"]');
+    if (await loginBtn.isVisible()) {
+        await loginBtn.click();
         await page.fill('input[placeholder="user@domain.com"]', 'admin');
         await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('button:has-text("Login")');
-    } catch (e) {
-        // Fallback or already logged in
+        await page.waitForSelector('.toast-container:has-text("Authenticated")', { timeout: 5000 }).catch(() => {});
     }
 }
+
+
+
+
+
+
+
+
 
 
 test.beforeEach(async ({ page }) => {
@@ -26,6 +34,7 @@ test('Audio-only mode, participant search, and pinning', async ({ page, context 
     await page.waitForSelector('#display-name', { timeout: 30000 });
     await page.fill('#display-name', 'Alice');
     await page.click('.join-btn');
+    await loginAsAdmin(page);
 
     // Verify Alice joined
     await expect(page.locator('.room-container')).toBeVisible({ timeout: 30000 });

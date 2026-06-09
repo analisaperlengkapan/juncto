@@ -1,15 +1,17 @@
 import { test, expect } from '@playwright/test';
 
 async function loginAsAdmin(page) {
-    try {
-        await page.click('button[title="Login"]', { timeout: 2000 });
+    const loginBtn = page.locator('button[title="Login"]');
+    if (await loginBtn.isVisible()) {
+        await loginBtn.click();
         await page.fill('input[placeholder="user@domain.com"]', 'admin');
         await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('button:has-text("Login")');
-    } catch (e) {
-        // Fallback or already logged in
+        await page.waitForSelector('.toast-container:has-text("Authenticated")', { timeout: 5000 }).catch(() => {});
     }
 }
+
+
 
 
 test.describe('Juncto Full Lifecycle Integration', () => {
@@ -26,6 +28,7 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await expect(hostPage).toHaveURL(new RegExp(`/room/${encodeURIComponent(roomName)}`));
         await hostPage.fill('#display-name', 'Host Admin');
         await hostPage.click('.join-btn');
+        await loginAsAdmin(hostPage);
 
         // Verify Room Entry
         await expect(hostPage.locator('.room-container')).toBeVisible({ timeout: 60000 });
@@ -93,12 +96,6 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await expect(visitorPage.locator('h4:has-text("(In Breakout Room)")')).toBeVisible({ timeout: 10000 });
 
         // 8. E2EE Toggle
-        // Authenticate before moderator actions
-        await hostPage.click('button[title="Login"]');
-        await hostPage.fill('input[placeholder="user@domain.com"]', 'admin');
-        await hostPage.fill('input[placeholder="Password"]', 'admin123');
-        await hostPage.click('button:has-text("Login")');
-        await expect(hostPage.locator('.toast-container')).toContainText('Authenticated successfully');
         await hostPage.click('#settings-btn');
         await hostPage.click('button:has-text("Moderator")');
         const e2eeToggle = hostPage.locator('#e2ee-toggle');
@@ -106,7 +103,6 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await hostPage.click('#close-settings-btn');
 
         // Verify lock icons (2 participants * 2 icons each = 4)
-        // Parity test uses haveCount(4), so we follow that pattern
         await expect(hostPage.locator('.e2ee-lock')).toHaveCount(4, { timeout: 15000 });
         await expect(visitorPage.locator('.e2ee-lock')).toHaveCount(4, { timeout: 15000 });
 

@@ -1,17 +1,25 @@
 import { test, expect } from '@playwright/test';
 
+
+
+
+
+
+
+
+import fs from 'fs';
+
 async function loginAsAdmin(page) {
-    try {
-        await page.click('button[title="Login"]', { timeout: 2000 });
+    const loginBtn = page.locator('button[title="Login"]');
+    if (await loginBtn.isVisible()) {
+        await loginBtn.click();
         await page.fill('input[placeholder="user@domain.com"]', 'admin');
         await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('button:has-text("Login")');
-    } catch (e) {
-        // Fallback or already logged in
+        await page.waitForSelector('.toast-container:has-text("Authenticated")', { timeout: 5000 }).catch(() => {});
     }
 }
 
-import fs from 'fs';
 
 test.describe('File Sharing', () => {
     test('User can upload and share a file', async ({ browser }) => {

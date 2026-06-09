@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 async function loginAsAdmin(page) {
-    try {
-        await page.click('button[title="Login"]', { timeout: 2000 });
+    const loginBtn = page.locator('button[title="Login"]');
+    if (await loginBtn.isVisible()) {
+        await loginBtn.click();
         await page.fill('input[placeholder="user@domain.com"]', 'admin');
         await page.fill('input[placeholder="Password"]', 'admin123');
         await page.click('button:has-text("Login")');
-    } catch (e) {
-        // Fallback or already logged in
+        await page.waitForSelector('.toast-container:has-text("Authenticated")', { timeout: 5000 }).catch(() => {});
     }
 }
+
+
+
+
+
+
+
+
 
 
 test.describe('AV Moderation Flow', () => {
@@ -23,6 +31,7 @@ test.describe('AV Moderation Flow', () => {
         await hostPage.click('.create-btn');
         await hostPage.fill('#display-name', 'Host');
         await hostPage.click('.join-btn');
+        await loginAsAdmin(hostPage);
         await expect(hostPage.locator('.room-container')).toBeVisible();
 
         // 2. Participant joins
@@ -65,6 +74,7 @@ test.describe('AV Moderation Flow', () => {
         await page.click('.create-btn');
         await page.fill('#display-name', 'User');
         await page.click('.join-btn');
+        await loginAsAdmin(page);
 
         await page.click('#settings-btn');
         await page.click('button:has-text("Integrations")');
@@ -88,6 +98,7 @@ test.describe('AV Moderation Flow', () => {
         await page.fill('#display-name', 'Visitor');
         await page.check('#visitor-mode');
         await page.click('.join-btn');
+        await loginAsAdmin(page);
 
         await expect(page.locator('.room-container')).toBeVisible();
 

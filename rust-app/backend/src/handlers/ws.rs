@@ -75,7 +75,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // We don't have an ID yet
     let mut my_id: Option<String> = None;
     let mut is_authenticated = false;
-    let mut knocking_id: Option<String> = None;
+                                            let _ = internal_tx.send(ServerMessage::AuthenticationResult(false)).await;let mut knocking_id: Option<String> = None;
     // Track my current room locally for quick access
     let mut my_room_id: Option<String> = None;
     let mut broadcast_task: Option<tokio::task::JoinHandle<()>> = None;
