@@ -8,6 +8,7 @@ use super::remote_control;
 use super::salesforce;
 use super::whiteboard;
 use crate::AppState;
+use tracing;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -1610,10 +1611,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         if analytics_count > 10 {
                                             continue;
                                         }
-                                        // TODO: use proper tracing/logging framework
                                         let safe_name: String = name.chars().take(200).filter(|c| !c.is_control()).collect();
                                         let safe_props: String = properties.chars().take(1000).filter(|c| !c.is_control()).collect();
-                                        println!("INFO: Received Analytics Event from {}: {} - {}", uid, safe_name, safe_props);
+                                        tracing::info!(target: "analytics", user_id = %uid, event = %safe_name, properties = %safe_props, "Received Analytics Event");
                                     }
                                 },
                                 ClientMessage::MuteParticipant(target_id) => {

@@ -43,6 +43,8 @@ pub struct AppState {
     pub pending_remote_control_requests: Arc<Mutex<HashSet<(String, String)>>>,
     pub unmute_permissions: Arc<Mutex<HashSet<String>>>,
     pub camera_permissions: Arc<Mutex<HashSet<String>>>,
+    /// Rate limiting for feedback: tracks timestamps of submissions per user/IP
+    pub feedback_timestamps: Arc<Mutex<HashMap<String, Vec<std::time::Instant>>>>,
 }
 
 #[tokio::main]
@@ -73,6 +75,7 @@ async fn main() {
     let pending_remote_control_requests = Arc::new(Mutex::new(HashSet::new()));
     let unmute_permissions = Arc::new(Mutex::new(HashSet::new()));
     let camera_permissions = Arc::new(Mutex::new(HashSet::new()));
+    let feedback_timestamps = Arc::new(Mutex::new(HashMap::new()));
 
     let app_state = Arc::new(AppState {
         tx,
@@ -91,6 +94,7 @@ async fn main() {
         pending_remote_control_requests,
         unmute_permissions,
         camera_permissions,
+        feedback_timestamps,
     });
 
     // Define the router
