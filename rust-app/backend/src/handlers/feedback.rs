@@ -11,6 +11,31 @@ pub async fn submit_feedback(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<Feedback>,
 ) -> impl IntoResponse {
+    // Rate Limiting (Bug 3): Max 3 submissions per 10 minutes per ID/IP
+    let client_id = payload
+        .user_id
+        .clone()
+        .unwrap_or_else(|| "anonymous".to_string());
+    let now = std::time::Instant::now();
+    let ten_minutes = std::time::Duration::from_secs(600);
+
+    {
+        let mut timestamps = state.feedback_timestamps.lock().unwrap();
+        let user_ts = timestamps.entry(client_id).or_default();
+
+        // Remove old entries
+        user_ts.retain(|&ts| now.duration_since(ts) < ten_minutes);
+
+        if user_ts.len() >= 3 {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many feedback submissions. Please try again later.",
+            )
+                .into_response();
+        }
+        user_ts.push(now);
+    }
+
     // Validate stars (Bug 1)
     if payload.stars < 1 || payload.stars > 5 {
         return (StatusCode::BAD_REQUEST, "Stars must be between 1 and 5").into_response();
@@ -25,7 +50,6 @@ pub async fn submit_feedback(
 
     feedback_store.push(payload);
 
-    // TODO: Add rate limiting and authentication for production (Bug 3)
     (StatusCode::OK, "Feedback received").into_response()
 }
 
@@ -61,6 +85,7 @@ mod tests {
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
             camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let app = Router::new()
@@ -112,6 +137,7 @@ mod tests {
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
             camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let app = Router::new()

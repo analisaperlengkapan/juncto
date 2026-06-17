@@ -96,6 +96,8 @@ pub async fn create_room(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+    use std::collections::HashMap;
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
@@ -132,6 +134,7 @@ mod tests {
             )),
             unmute_permissions: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
             camera_permissions: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let config = RoomConfig {

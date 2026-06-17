@@ -116,6 +116,7 @@ mod tests {
             pending_remote_control_requests: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unmute_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
             camera_permissions: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            feedback_timestamps: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
