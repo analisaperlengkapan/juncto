@@ -334,6 +334,7 @@ pub enum ClientMessage {
     },
     FetchCalendar,
     LinkSalesforce(SalesforceConfig),
+    LinkDropbox(DropboxConfig),
     SaveToDropbox(String), // Filename or File ID
     AnalyticsEvent {
         name: String,
@@ -513,6 +514,7 @@ pub enum ServerMessage {
     AuthenticationResult(bool),
     CalendarEvents(Vec<String>),
     SalesforceUpdated(SalesforceConfig),
+    DropboxUpdated(DropboxConfig),
     DropboxSaveResult(bool),
     Error(String),
 }

@@ -884,6 +884,15 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_room_config.update(|c| {
                 c.salesforce = config;
             });
+            ctx.add_toast.call((
+                "Salesforce object linked successfully!".to_string(),
+                ToastType::Success,
+            ));
+        }
+        ServerMessage::DropboxUpdated(config) => {
+            ctx.set_room_config.update(|c| {
+                c.dropbox = config;
+            });
         }
         ServerMessage::DropboxSaveResult(success) => {
             if success {

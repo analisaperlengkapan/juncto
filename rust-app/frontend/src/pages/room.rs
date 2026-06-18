@@ -558,6 +558,8 @@ pub fn Room() -> impl IntoView {
                             on_toggle_lobby=state.toggle_lobby
                             on_set_branding=state.set_branding
                             current_branding=state.branding.into()
+                            on_link_salesforce=state.set_salesforce_config
+                            on_link_dropbox=state.set_dropbox_config
                         />
                         <SharedVideoDialog
                             show=show_shared_video_dialog

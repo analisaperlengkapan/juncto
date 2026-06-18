@@ -186,6 +186,8 @@ pub struct RoomState {
     pub mute_camera_all: Callback<()>,
     pub stop_screen_share_all: Callback<()>,
     pub set_branding: Callback<shared::BrandingConfig>,
+    pub set_salesforce_config: Callback<shared::SalesforceConfig>,
+    pub set_dropbox_config: Callback<shared::DropboxConfig>,
     pub transfer_host: Callback<String>,
     pub set_presence: Callback<shared::PresenceStatus>,
     pub toggle_local_recording: Callback<bool>,
@@ -1582,6 +1584,24 @@ pub fn use_room_state() -> RoomState {
         }
     });
 
+    let set_salesforce_config = Callback::new(move |c: shared::SalesforceConfig| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::LinkSalesforce(c);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
+    let set_dropbox_config = Callback::new(move |c: shared::DropboxConfig| {
+        if let Some(socket) = ws.get() {
+            let msg = ClientMessage::LinkDropbox(c);
+            if let Ok(json) = serde_json::to_string(&msg) {
+                let _ = socket.send_with_str(&json);
+            }
+        }
+    });
+
     let transfer_host = Callback::new(move |id: String| {
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::TransferHost(id);
@@ -1800,70 +1820,19 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_camera = analytics.clone();
     let toggle_camera = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() {
-            return;
-        }
-
-        let is_currently_off = if let Some(stream) = local_stream.get_untracked() {
-            stream.get_video_tracks().length() == 0
-        } else {
-            true
-        };
-
-        if is_currently_off {
-            let is_mod_enabled = room_config.with_untracked(|c| c.video_moderation_enabled);
-            let has_perm = has_camera_permission.get_untracked();
-            if is_mod_enabled && !has_perm && !is_host.get_untracked() {
-                add_toast(
-                    "Camera is moderated. Request permission to enable.".to_string(),
-                    ToastType::Error,
-                );
-                return;
-            }
-        }
-
-        // If the camera was disabled by the host, re-enable the existing
-        // tracks instead of restarting the media stream. This mirrors
-        // toggle_mic which checks is_muted to determine the current state.
-        if is_camera_off.get_untracked() {
-            set_is_camera_off.set(false);
-            analytics_for_camera.track_toggle_media("camera", true);
-            if let Some(raw) = raw_local_stream.get_untracked() {
-                let video_tracks = raw.get_video_tracks();
-                for i in 0..video_tracks.length() {
-                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                        track.set_enabled(true);
-                    }
-                }
-            }
-            if let Some(stream) = local_stream.get_untracked() {
-                let video_tracks = stream.get_video_tracks();
-                for i in 0..video_tracks.length() {
-                    if let Ok(track) = video_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                        track.set_enabled(true);
-                    }
-                }
-            }
-            return;
-        }
-
-        // Check if we currently have video tracks active
-        let has_video = if let Some(stream) = local_stream.get_untracked() {
-            stream.get_video_tracks().length() > 0
-        } else {
-            false
-        };
-        let new_state = !has_video;
-        analytics_for_camera.track_toggle_media("camera", new_state);
-
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::SetCameraMuteStatus(!new_state);
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
-            }
-        }
-
-        start_media_stream.call(new_state);
+        crate::media_service::toggle_camera_logic(
+            is_visitor,
+            local_stream,
+            room_config,
+            has_camera_permission,
+            is_host,
+            is_camera_off,
+            set_is_camera_off,
+            analytics_for_camera.clone(),
+            raw_local_stream,
+            ws,
+            start_media_stream,
+        );
     });
 
     let set_input_devices = Callback::new(
@@ -1918,48 +1887,18 @@ pub fn use_room_state() -> RoomState {
 
     let analytics_for_mic = analytics.clone();
     let toggle_mic = Callback::new(move |_: ()| {
-        if is_visitor.get_untracked() {
-            return;
-        }
-
-        let is_currently_muted = is_muted.get_untracked();
-        if is_currently_muted {
-            let is_mod_enabled = room_config.with_untracked(|c| c.audio_moderation_enabled);
-            let has_perm = has_unmute_permission.get_untracked();
-            if is_mod_enabled && !has_perm && !is_host.get_untracked() {
-                add_toast(
-                    "Audio is moderated. Request permission to unmute.".to_string(),
-                    ToastType::Error,
-                );
-                return;
-            }
-        }
-
-        let new_state = !is_currently_muted;
-        set_is_muted.set(new_state);
-        analytics_for_mic.track_toggle_media("microphone", !new_state);
-
-        if let Some(stream) = local_stream.get() {
-            let audio_tracks = stream.get_audio_tracks();
-            for i in 0..audio_tracks.length() {
-                if let Ok(track) = audio_tracks.get(i).dyn_into::<web_sys::MediaStreamTrack>() {
-                    track.set_enabled(!new_state); // enabled = !muted
-                }
-            }
-
-            set_audio_monitor.update(|monitor: &mut Option<AudioMonitor>| {
-                if let Some(m) = monitor.as_mut() {
-                    m.set_muted(new_state);
-                }
-            });
-        }
-
-        if let Some(socket) = ws.get() {
-            let msg = ClientMessage::SetMuteStatus(new_state);
-            if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = socket.send_with_str(&json);
-            }
-        }
+        crate::media_service::toggle_mic_logic(
+            is_visitor,
+            is_muted,
+            set_is_muted,
+            room_config,
+            has_unmute_permission,
+            is_host,
+            analytics_for_mic.clone(),
+            local_stream,
+            set_audio_monitor,
+            ws,
+        );
     });
 
     let authenticate = Callback::new(move |(username, password): (String, Option<String>)| {
@@ -2112,6 +2051,8 @@ pub fn use_room_state() -> RoomState {
         mute_camera_all,
         stop_screen_share_all,
         set_branding,
+        set_salesforce_config,
+        set_dropbox_config,
         transfer_host,
         start_share_video,
         stop_share_video,

@@ -42,6 +42,8 @@ pub fn SettingsDialog(
     #[prop(optional)] on_toggle_lobby: Option<Callback<()>>,
     #[prop(optional)] on_set_branding: Option<Callback<shared::BrandingConfig>>,
     #[prop(optional)] current_branding: Option<Signal<shared::BrandingConfig>>,
+    #[prop(optional)] on_link_salesforce: Option<Callback<shared::SalesforceConfig>>,
+    #[prop(optional)] on_link_dropbox: Option<Callback<shared::DropboxConfig>>,
 ) -> impl IntoView {
     let toast_ctx = use_toast();
     let (active_tab, set_active_tab) = create_signal("profile");
@@ -501,37 +503,52 @@ pub fn SettingsDialog(
                         </Show>
                         <Show when=move || active_tab.get() == "integrations">
                             <div class="integrations-list" style="display: flex; flex-direction: column; gap: 10px;">
-                                {let services = ["Dropbox", "Salesforce", "Google Calendar"];
-                                services.into_iter().map(|s| {
-                                    let (connected, set_connected) = create_signal(false);
-                                    let s_clone = s.to_string();
-                                    view! {
-                                        <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
-                                            <span>{s}</span>
-                                            <button
-                                                on:click={
-                                                    let s_clone = s_clone.clone();
-                                                    move |_| {
-                                                        if !connected.get() {
-                                                            let s_clone_2 = s_clone.clone();
-                                                            toast_ctx.add(format!("Connecting to {} (mock)...", s_clone), ToastType::Info);
-                                                            set_timeout(move || {
-                                                                set_connected.set(true);
-                                                                toast_ctx.add(format!("Connected to {}", s_clone_2), ToastType::Success);
-                                                            }, std::time::Duration::from_millis(1500));
-                                                        } else {
-                                                            set_connected.set(false);
-                                                            toast_ctx.add(format!("Disconnected from {}", s_clone), ToastType::Info);
-                                                        }
-                                                    }
-                                                }
-                                                style=move || format!("padding: 5px 10px; background: {}; color: white; border: none; border-radius: 4px; cursor: pointer;", if connected.get() { "#dc3545" } else { "#007bff" })
-                                            >
-                                                {move || if connected.get() { "Disconnect".to_string() } else { t("connect") }}
-                                            </button>
-                                        </div>
-                                    }
-                                }).collect::<Vec<_>>()}
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>"Salesforce"</span>
+                                    <button
+                                        id="link-salesforce-btn"
+                                        on:click=move |_| {
+                                            if let Some(cb) = on_link_salesforce {
+                                                cb.call(shared::SalesforceConfig {
+                                                    is_linked: true,
+                                                    object_id: Some("001mock".to_string()),
+                                                    object_type: Some("Account".to_string()),
+                                                });
+                                            }
+                                        }
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
+                                </div>
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>"Dropbox"</span>
+                                    <button
+                                        id="link-dropbox-btn"
+                                        on:click=move |_| {
+                                            if let Some(cb) = on_link_dropbox {
+                                                cb.call(shared::DropboxConfig {
+                                                    is_connected: true,
+                                                    folder_path: Some("/Juncto".to_string()),
+                                                });
+                                            }
+                                        }
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
+                                </div>
+                                <div class="integration-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                                    <span>"Google Calendar"</span>
+                                    <button
+                                        on:click=move |_| {
+                                            toast_ctx.add("Google Calendar connection (mock) initialized".to_string(), ToastType::Info);
+                                        }
+                                        style="padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        {move || t("connect")}
+                                    </button>
+                                </div>
                             </div>
                         </Show>
                         <Show when=move || active_tab.get() == "branding">

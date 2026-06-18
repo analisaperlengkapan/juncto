@@ -199,6 +199,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
+                                ClientMessage::LinkDropbox(config) => {
+                                    if let Some(uid) = &my_id {
+                                        let msgs = dropbox::handle_link_dropbox(uid, config, &state);
+                                        for m in msgs {
+                                            let _ = tx.send(m);
+                                        }
+                                    }
+                                },
                                 ClientMessage::SaveToDropbox(filename) => {
                                     if let Some(uid) = &my_id {
                                         let msgs = dropbox::handle_save_to_dropbox(uid, filename, &state);

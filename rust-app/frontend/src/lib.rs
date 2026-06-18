@@ -9,6 +9,7 @@ mod giphy;
 mod i18n;
 mod media;
 mod media_recorder;
+mod media_service;
 mod pages;
 mod participants;
 mod polls;
