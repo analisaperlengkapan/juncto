@@ -56,6 +56,14 @@ impl Default for BrandingConfig {
 pub struct RoomConfig {
     pub room_name: String,
     pub is_locked: bool,
+    /// Access password for a locked room. Server-side only: never
+    /// serialized into outbound messages. Incoming client messages that try
+    /// to set it are ignored (see `Default` + `skip_deserializing`).
+    #[serde(skip_serializing, skip_deserializing)]
+    pub access_password: Option<String>,
+    /// Public indicator that the lock is password-protected (safe to send).
+    #[serde(default)]
+    pub has_password: bool,
     pub is_recording: bool,
     pub is_lobby_enabled: bool,
     pub max_participants: u32,
@@ -85,6 +93,8 @@ impl Default for RoomConfig {
         Self {
             room_name: "Default Room".to_string(),
             is_locked: false,
+            access_password: None,
+            has_password: false,
             is_recording: false,
             is_lobby_enabled: false,
             max_participants: 100,
@@ -223,6 +233,10 @@ pub enum ClientMessage {
         is_visitor: bool,
         #[serde(default)]
         avatar_url: Option<String>,
+        /// Room access password, required when the room is locked with a
+        /// password. Never logged or echoed back to other participants.
+        #[serde(default)]
+        password: Option<String>,
     },
     Chat {
         content: String,
@@ -231,7 +245,10 @@ pub enum ClientMessage {
         #[serde(default)]
         room_id: Option<String>,
     },
-    ToggleRoomLock,
+    /// Lock/unlock the room. When locking with `Some(password)`, the password
+    /// is stored on the room and required for subsequent joins. `None` locks
+    /// without a password (joins are rejected outright).
+    ToggleRoomLock(Option<String>),
     ToggleRecording,
     ToggleAudioModeration,
     ToggleVideoModeration,

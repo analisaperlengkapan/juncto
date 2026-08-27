@@ -40,6 +40,9 @@ pub struct JoinOptions {
     pub video_device_id: Option<String>,
     pub is_visitor: bool,
     pub avatar_url: Option<String>,
+    /// Access password for password-locked rooms.
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Clone)]
@@ -147,7 +150,10 @@ pub struct RoomState {
     pub send_message: crate::chat::ChatSendCallback, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
-    pub toggle_lock: Callback<()>,
+    pub toggle_lock: Callback<Option<String>>,
+    /// True when the server rejected the join because the room is locked
+    /// with a password. The prejoin UI shows a password field in that case.
+    pub password_required: ReadSignal<bool>,
     pub toggle_e2ee: Callback<()>,
     pub toggle_participant_e2ee: Callback<bool>,
     pub toggle_etherpad: Callback<Option<String>>,
@@ -218,6 +224,7 @@ pub fn use_room_state() -> RoomState {
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (password_required, set_password_required) = create_signal(false);
     let (is_e2ee_enabled, set_is_e2ee_enabled) = create_signal(false);
     let (_e2ee_key, set_e2ee_key) = create_signal(None::<String>);
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
@@ -888,6 +895,7 @@ pub fn use_room_state() -> RoomState {
                                 room_config,
                                 set_show_etherpad,
                                 set_is_locked,
+                                set_password_required,
                                 set_is_e2ee_enabled,
                                 is_recording,
                                 set_is_recording,
@@ -1070,10 +1078,10 @@ pub fn use_room_state() -> RoomState {
     );
 
     let analytics_for_lock = analytics.clone();
-    let toggle_lock = Callback::new(move |_: ()| {
+    let toggle_lock = Callback::new(move |password: Option<String>| {
         analytics_for_lock.track_interaction("toggle_lock");
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::ToggleRoomLock;
+            let msg = ClientMessage::ToggleRoomLock(password);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1097,6 +1105,14 @@ pub fn use_room_state() -> RoomState {
             } else {
                 "disable_e2ee"
             });
+            // Tell the server our per-participant E2EE preference so other
+            // participants see the lock indicator on our tile.
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::UpdateE2EE(enabled);
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
+            }
             if enabled {
                 // Generate a mock key for this participant
                 let key = js_sys::Math::random().to_string();
@@ -1109,13 +1125,6 @@ pub fn use_room_state() -> RoomState {
                 }
             } else {
                 set_e2ee_key.set(None);
-            }
-
-            if let Some(socket) = ws.get() {
-                let msg = ClientMessage::UpdateE2EE(enabled);
-                if let Ok(json) = serde_json::to_string(&msg) {
-                    let _ = socket.send_with_str(&json);
-                }
             }
         }
     });
@@ -1425,12 +1434,14 @@ pub fn use_room_state() -> RoomState {
         let display_name = options.display_name;
         let is_visitor = options.is_visitor;
         let avatar_url = options.avatar_url;
+        let password = options.password;
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join {
                 name: display_name,
                 is_visitor,
                 avatar_url,
+                password,
             };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
@@ -2090,6 +2101,7 @@ pub fn use_room_state() -> RoomState {
         send_ping,
         send_message,
         toggle_lock,
+        password_required,
         toggle_e2ee,
         toggle_participant_e2ee,
         toggle_etherpad,

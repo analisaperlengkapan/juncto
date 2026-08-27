@@ -133,6 +133,7 @@ pub fn Room() -> impl IntoView {
                             let state = state.clone();
                             move || state.room_config.get().subject.clone()
                         })
+                        password_required=state.password_required
                     />
                 }.into_view(),
                 RoomConnectionState::Lobby => view! {

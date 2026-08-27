@@ -1,19 +1,19 @@
 # Juncto Migration Gap Matrix
 
-Gap matrix for the React → Rust (Leptos + Axum) migration. Status values:
+Gap matrix for the React Ôćĺ Rust (Leptos + Axum) migration. Status values:
 
-- **migrated** — feature is implemented in `rust-app/` and exercised end-to-end.
-- **partial** — exists in `rust-app/` but with reduced function; noted under Reason.
-- **missing** — not yet implemented in `rust-app/`.
-- **skip** — deliberately excluded; the Reason column must justify.
+- **migrated** ÔÇö feature is implemented in `rust-app/` and exercised end-to-end.
+- **partial** ÔÇö exists in `rust-app/` but with reduced function; noted under Reason.
+- **missing** ÔÇö not yet implemented in `rust-app/`.
+- **skip** ÔÇö deliberately excluded; the Reason column must justify.
 
 Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user decision and is not listed.
 
 ## Health baseline (Step 0 audit)
 
-- `bash rust-app/build.sh`: ✅ succeeds (WASM + bindings generated, backend serves `:3000`).
-- `cargo test --workspace`: ✅ green — 101 tests (29 + 48 + 24 across three crates).
-- Playwright suite `rust-app/tests/e2e`: ✅ **77 passed, 2 skipped, 0 failed** (~1.9m, chromium). This becomes the consolidated suite in Step 7; `rust-app/e2e/` duplication is scheduled for removal.
+- `bash rust-app/build.sh`: Ôťů succeeds (WASM + bindings generated, backend serves `:3000`).
+- `cargo test --workspace`: Ôťů green ÔÇö 101 tests (29 + 48 + 24 across three crates).
+- Playwright suite `rust-app/tests/e2e`: Ôťů **77 passed, 2 skipped, 0 failed** (~1.9m, chromium). This becomes the consolidated suite in Step 7; `rust-app/e2e/` duplication is scheduled for removal.
 
 ## Feature matrix
 
@@ -48,10 +48,10 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | PII visibility | skip | N/A |
 | display-name | migrated | Handled via `state.save_profile`. |
 | overlay | skip | Legacy overlay infra from React; not needed. |
-| toggle (room-lock) | partial | `ToggleRoomLock` boolean; password prompt per Step 4 pending. |
-| security | partial | Settings dialog has moderation/branding; dedicated security dialog pending. |
-| visitors | partial | `is_visitor` flag wired; role logic restricted by Step 4. |
-| e2ee | partial | Toggle wired to proto `UpdateE2EE`; indicator shows "indicator only — actual E2EE is not yet implemented"; activation deferred to Step 4. |
+| toggle (room-lock) | migrated | `ToggleRoomLock(Option<password>)` end-to-end: settings moderator tab has password input; join validates password; `room_lock_password.spec.ts` parity green. |
+| security | migrated | Moderator/security tab in settings carries lock+password; parity spec green. |
+| visitors | migrated | `is_visitor` flows prejoin -> `Join` -> participant; toolbox hides controls for visitors. |
+| e2ee | migrated (indicator) | Per-participant `UpdateE2EE` and room `ToggleE2EE` wired; `.e2ee-lock` tile badge and `#e2ee-indicator` banner; `e2ee_parity.spec.ts` green. Actual crypto still indicator-only (documented). |
 | presence-status | migrated | `state.set_presence`, `PresenceStatus` in `shared`. |
 | analytics | migrated | `analytics.rs` tracks interactions. |
 | av-moderation | migrated | Permission grant/request flows in `state.rs` + moderation handler. |
@@ -72,9 +72,9 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | subtitles | partial | Toggle wired; receives no transcription without STT. |
 | shared-video | migrated | `components_ui/shared_video_dialog.rs`; `shared_video.spec.ts`. |
 | noise-suppression | migrated | Constraint-based fallback (no rnnoise port); `toggle` in settings. |
-| noise-detection | migrated | `noise_detected` event → toast in `state.rs`. |
+| noise-detection | migrated | `noise_detected` event Ôćĺ toast in `state.rs`. |
 | no-audio-signal | migrated | `on_no_audio` callback fires toast in `state.rs`. |
-| talk-while-muted | migrated | `talk_while_muted` event → toast in `state.rs`. |
+| talk-while-muted | migrated | `talk_while_muted` event Ôćĺ toast in `state.rs`. |
 | video-quality | migrated | HD/SD selector in settings device tab. |
 | pip | migrated | `requestPictureInPicture` via `<video>` elements on all tiles. |
 | stream-effects | partial | Only virtual background; blur pipeline exists through canvas in `media.rs`. |
@@ -92,10 +92,10 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | deeplink (mobile) | skip | Mobile excluded. |
 | remote-control | migrated | `remote_control.rs` + handler; `remote_control.spec.ts`. |
 | rtcstats | skip | Debug logging pipeline; low value. |
-| chrome-extension-banner | skip | Per shelf decision §3 of plan. |
-| old-client-notification | skip | Per plan §3 (irrelevant after rewrite). |
+| chrome-extension-banner | skip | Per shelf decision ┬ž3 of plan. |
+| old-client-notification | skip | Per plan ┬ž3 (irrelevant after rewrite). |
 | web-hid | skip | No HID hardware integration by default. |
-| external-api | skip | No postMessage bridge required (embed todo: iframe only). Decision: simple embed URL → `embed_meeting.rs` suffices. See note below. |
+| external-api | skip | No postMessage bridge required (embed todo: iframe only). Decision: simple embed URL Ôćĺ `embed_meeting.rs` suffices. See note below. |
 | file-sharing | migrated | `components_ui/file_sharing.rs`; server chat attachment recycle. |
 | feedback | migrated | `components_ui/feedback.rs` + handler; `feedback.spec.ts`. |
 | screenshot-capture (worker) | migrated | Used for thumbnails. |
@@ -103,9 +103,15 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 
 ## external-api decision (Langkah 0(d))
 
-- Current usage: embedded meetings via iframe only → skip public command/event bridge.
-- Public API behavior: **not kept** — the external JS API does not exist post-cutover; embedders use iframe embed (URL params) only.
+- Current usage: embedded meetings via iframe only Ôćĺ skip public command/event bridge.
+- Public API behavior: **not kept** ÔÇö the external JS API does not exist post-cutover; embedders use iframe embed (URL params) only.
 - If future deployments require the bridge, Step 6 describes the `web-sys` postMessage implementation.
+
+## Auth decision (Step 4)
+
+- Anonymous joins remain the default and only mode, matching how the React client behaves for public deployments.
+- `shared::Join.user_id` / `Participant { user_id }` stay as reserved fields; no session/JWT layer is added.
+- Room-level security is enforced via lobby + lock + password (Step 4). Enterprise auth (JWT/JaaS-style) is out of scope, same as in the legacy React web client.
 
 ## Local spec consolidation (Langkah 7)
 
@@ -124,10 +130,10 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 ## Verified broken/missing (Step 0 evidence)
 
 1. `backend/static/styles.css` has exactly **1 @media** query (`@media (max-width: 768px)`, toolbox only).
-2. `frontend/src/pages/room.rs` lines 164-170 compute inline `margin-right` = 320px × panel count — replaced with CSS in Step 2.
+2. `frontend/src/pages/room.rs` lines 164-170 compute inline `margin-right` = 320px ├Ś panel count ÔÇö replaced with CSS in Step 2.
 3. `video_grid.rs` has all tile styles inline; no classes for filmstrip/thumbnails.
 4. `ToggleRoomLock` exists (boolean); no password UI; is successive for Step 4.
-5. E2EE toggle → `UpdateE2EE` exists; E2EEKeyExchange variant reserved; key-exchange flow deferred to Step 4.
+5. E2EE toggle Ôćĺ `UpdateE2EE` exists; E2EEKeyExchange variant reserved; key-exchange flow deferred to Step 4.
 6. `subtitles` overlay exists with "Transcriptions will appear here" stub; STT backend absent.
-7. Two parallel Playwright suites (`rust-app/e2e/` + `rust-app/tests/e2e/`) → keep `tests/e2e`.
+7. Two parallel Playwright suites (`rust-app/e2e/` + `rust-app/tests/e2e/`) Ôćĺ keep `tests/e2e`.
 

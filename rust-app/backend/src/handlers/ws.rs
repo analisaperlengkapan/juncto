@@ -733,7 +733,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::Join { name, is_visitor, avatar_url } => {
+                                ClientMessage::Join { name, is_visitor, avatar_url, password } => {
                                     if my_id.is_some() || knocking_id.is_some() { continue; } // Already joined or knocking
 
                                     // Sanitize avatar URL on join: since `avatar_url` is an
@@ -748,14 +748,53 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                     });
 
                                     // Check if room is locked or lobby is enabled
-                                    let (is_locked, is_lobby, max_participants, host_exists) = {
+                                    let (is_locked, room_password, is_lobby, max_participants, host_exists) = {
                                         let config = room_config_mutex.lock().unwrap();
-                                        (config.is_locked, config.is_lobby_enabled, config.max_participants, config.host_id.is_some())
+                                        (
+                                            config.is_locked,
+                                            config.access_password.clone(),
+                                            config.is_lobby_enabled,
+                                            config.max_participants,
+                                            config.host_id.is_some(),
+                                        )
                                     };
 
                                     if is_locked {
-                                        let _ = internal_tx.send(ServerMessage::Error("Room is locked".to_string())).await;
-                                        continue;
+                                        match &room_password {
+                                            // Password-protected lock: accept only an exact match.
+                                            Some(expected) => {
+                                                match password.as_deref() {
+                                                    Some(provided) if provided == expected => {
+                                                        // Correct password: fall through to join.
+                                                    }
+                                                    Some(_) => {
+                                                        let _ = internal_tx
+                                                            .send(ServerMessage::Error(
+                                                                "Invalid room password".to_string(),
+                                                            ))
+                                                            .await;
+                                                        continue;
+                                                    }
+                                                    None => {
+                                                        let _ = internal_tx
+                                                            .send(ServerMessage::Error(
+                                                                "Password required".to_string(),
+                                                            ))
+                                                            .await;
+                                                        continue;
+                                                    }
+                                                }
+                                            }
+                                            // Hard lock without a password: no way in.
+                                            None => {
+                                                let _ = internal_tx
+                                                    .send(ServerMessage::Error(
+                                                        "Room is locked".to_string(),
+                                                    ))
+                                                    .await;
+                                                continue;
+                                            }
+                                        }
                                     }
 
                                     let id = uuid::Uuid::new_v4().to_string();
@@ -1189,7 +1228,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                         }
                                     }
                                 },
-                                ClientMessage::ToggleRoomLock => {
+                                ClientMessage::ToggleRoomLock(password) => {
                                     if let Some(uid) = &my_id {
                                         let is_host = {
                                             room_config_mutex.lock().unwrap().host_id == Some(uid.clone())
@@ -1198,6 +1237,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                                             let new_config = {
                                                 let mut config = room_config_mutex.lock().unwrap();
                                                 config.is_locked = !config.is_locked;
+                                                if config.is_locked {
+                                                    // Locking: store (or clear) the password.
+                                                    let pw = password
+                                                        .filter(|p| !p.trim().is_empty());
+                                                    config.access_password = pw;
+                                                    config.has_password = config.access_password.is_some();
+                                                } else {
+                                                    // Unlocking always clears any stored password.
+                                                    config.access_password = None;
+                                                    config.has_password = false;
+                                                }
                                                 config.clone()
                                             };
                                             let _ = tx.send(ServerMessage::RoomUpdated(new_config));
