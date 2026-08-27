@@ -43,6 +43,8 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await expect(visitorPage.locator('#chat-input')).not.toHaveAttribute('placeholder', /Visitor Mode/);
 
         // 4. Multi-User Chat
+        // Panels are mutually exclusive: switch host back to chat
+        await hostPage.click('#toggle-chat-btn');
         // Host sends message
         await hostPage.fill('#chat-input', 'Hello everyone!');
         await hostPage.press('#chat-input', 'Enter');
@@ -67,7 +69,10 @@ test.describe('Juncto Full Lifecycle Integration', () => {
         await expect(hostPage.locator('.poll-item:has-text("Is Rust the best?")').first()).toContainText(/[1-9]\d* votes/, { timeout: 10000 });
         await hostPage.click('#close-polls-btn');
 
-        // 6. AV Moderation: Mute All
+        // 6. AV Moderation: Mute All (participants panel)
+        if (await hostPage.locator('#mute-all-btn').isHidden()) {
+            await hostPage.click('#toggle-participants-btn');
+        }
         await hostPage.click('#mute-all-btn');
         // Toast notification on visitor side
         await expect(visitorPage.locator('.toast-container')).toContainText('You have been muted by the host');

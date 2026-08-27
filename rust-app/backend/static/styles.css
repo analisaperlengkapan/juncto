@@ -71,6 +71,16 @@ body {
     transition: margin-right 0.3s ease;
 }
 
+/* Open side panel shifts the stage so tiles stay clickable (desktop only) */
+.main-content.panel-open {
+    margin-right: var(--side-panel-width);
+}
+@media (max-width: 768px) {
+    .main-content.panel-open {
+        margin-right: 0;
+    }
+}
+
 .side-panel {
     width: var(--side-panel-width);
     height: 100vh;
@@ -80,9 +90,10 @@ body {
     flex-direction: column;
     position: fixed;
     top: 0;
+    right: 0;
     z-index: 100;
     box-shadow: -2px 0 10px rgba(0,0,0,0.5);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s;
 }
 
 .panel-header {
@@ -247,9 +258,8 @@ body {
         height: auto;
     }
 
-    /* Side panel fully overlaying when open */
-    .side-panel { transform: translateX(0); transition: transform 0.3s; }
-    .side-panel.panel-hidden { transform: translateX(-100%); visibility: hidden; }
+    /* Panel slides from right even on small screens */
+    .side-panel { transition: transform 0.3s; }
 
     /* Header tools go into hidden drawer */
     .room-header { padding: var(--space-sm); }
@@ -367,6 +377,9 @@ body {
     visibility: hidden;
     pointer-events: none;
     opacity: 0;
+}
+.side-panel.panel-hidden {
+    transform: translateX(100%);
 }
 
 /* Animations */

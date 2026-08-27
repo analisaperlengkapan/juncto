@@ -51,9 +51,18 @@ pub fn Room() -> impl IntoView {
     let (show_shared_video_dialog, set_show_shared_video_dialog) = create_signal(false);
     let (show_invite, set_show_invite) = create_signal(false);
     let (show_embed, set_show_embed) = create_signal(false);
-    let (show_chat, set_show_chat) = create_signal(true);
-    let (show_participants, set_show_participants) = create_signal(true);
-    let (show_files, set_show_files) = create_signal(false);
+    // Side panels are mutually exclusive; at most one is open at a time to
+    // avoid squeezing/overlapping the stage (esp. on narrow viewports).
+    let (active_panel, set_active_panel) = create_signal(Some("chat"));
+    let show_chat = Signal::derive(move || active_panel.get() == Some("chat"));
+    let show_participants = Signal::derive(move || active_panel.get() == Some("participants"));
+    let show_files = Signal::derive(move || active_panel.get() == Some("files"));
+    let toggle_panel = move |kind: &'static str| {
+        set_active_panel.update(|p| *p = if *p == Some(kind) { None } else { Some(kind) });
+    };
+    let toggle_chat_cb = Callback::new(move |_| toggle_panel("chat"));
+    let toggle_participants_cb = Callback::new(move |_| toggle_panel("participants"));
+    let toggle_files_cb = Callback::new(move |_| toggle_panel("files"));
     let (show_dial_in, set_show_dial_in) = create_signal(false);
     let (show_salesforce, set_show_salesforce) = create_signal(false);
 
@@ -152,8 +161,8 @@ pub fn Room() -> impl IntoView {
                             on_toggle_camera=state.toggle_camera
                             on_raise_hand=state.toggle_raise_hand
                             on_screen_share=state.toggle_screen_share
-                            on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
-                            on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
+                            on_toggle_chat=toggle_chat_cb
+                            on_toggle_participants=toggle_participants_cb
                             on_toggle_local_recording=Callback::new({
                                 let toggle = state.toggle_local_recording;
                                 move |_| {
@@ -166,13 +175,7 @@ pub fn Room() -> impl IntoView {
                             on_ping=state.send_ping
                             rtt=state.rtt
                         />
-                        <div class="main-content room-root" style=move || {
-                            let mut margin = 0;
-                            if show_chat.get() { margin += 320; }
-                            if show_participants.get() { margin += 320; }
-                            if show_files.get() { margin += 320; }
-                            format!("margin-right: {}px;", margin)
-                        }>
+                        <div class="main-content room-root" class:panel-open=move || active_panel.get().is_some()>
                             <Show when=move || state.show_login_dialog.get()>
                                 <LoginDialog
                                     auth_error=state.auth_error
@@ -370,8 +373,8 @@ pub fn Room() -> impl IntoView {
                                 })
                                 on_set_presence=state.set_presence
                                 on_invite=Callback::new(move |_| set_show_invite.set(true))
-                                on_toggle_chat=Callback::new(move |_| set_show_chat.update(|v| *v = !*v))
-                                on_toggle_participants=Callback::new(move |_| set_show_participants.update(|v| *v = !*v))
+                                on_toggle_chat=toggle_chat_cb
+                                on_toggle_participants=toggle_participants_cb
                                 on_settings=Callback::new(move |_| state.set_show_settings.set(true))
                                 is_talking_while_muted=state.is_talking_while_muted
                                 is_recording_locally=state.is_recording_locally
@@ -409,7 +412,7 @@ pub fn Room() -> impl IntoView {
                                     state.set_show_login_dialog.set(true);
                                 })
                                 on_calendar=Callback::new(move |_| state.set_show_calendar.set(true))
-                                on_files=Callback::new(move |_| set_show_files.update(|v| *v = !*v))
+                                on_files=toggle_files_cb
                                 on_dial_in=Callback::new(move |_| set_show_dial_in.set(true))
                                 on_salesforce=Callback::new(move |_| set_show_salesforce.set(true))
                                 on_leave=leave_room
@@ -418,15 +421,10 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <div
                             class="side-panel chat-container" id="chat-panel" class:panel-hidden=move || !show_chat.get()
-                            style=move || {
-                            let mut offset = 0;
-                            if show_participants.get() { offset += 320; }
-                            if show_files.get() { offset += 320; }
-                            format!("transform: translateX({}px); right: {}px;", if show_chat.get() { 0 } else { 320 }, offset)
-                        }>
+                        >
                             <div class="panel-header">
                                 <h3>"Chat"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"×"</button>
+                                <button class="close-btn" on:click=move |_| set_active_panel.set(None)>"×"</button>
                             </div>
                             <div class="panel-content p0">
                                 <Chat
@@ -444,14 +442,10 @@ pub fn Room() -> impl IntoView {
                         </div>
                         <div
                             class="side-panel participants-container" id="participants-panel" class:panel-hidden=move || !show_participants.get()
-                            style=move || {
-                            let mut offset = 0;
-                            if show_files.get() { offset += 320; }
-                            format!("transform: translateX({}px); right: {}px;", if show_participants.get() { 0 } else { 320 }, offset)
-                        }>
+                        >
                             <div class="panel-header">
                                 <h3>"Participants"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"×"</button>
+                                <button class="close-btn" on:click=move |_| set_active_panel.set(None)>"×"</button>
                             </div>
                             <div class="panel-content p0">
                                 <ParticipantsList
@@ -488,12 +482,10 @@ pub fn Room() -> impl IntoView {
                                 />
                             </div>
                         </div>
-                        <div class="side-panel files-container" style=move || {
-                            format!("transform: translateX({}px); right: 0;", if show_files.get() { 0 } else { 320 })
-                        }>
+                        <div class="side-panel files-container" class:panel-hidden=move || !show_files.get()>
                             <div class="panel-header">
                                 <h3>"Files"</h3>
-                                <button class="close-btn" on:click=move |_| set_show_files.set(false)>"×"</button>
+                                <button class="close-btn" on:click=move |_| set_active_panel.set(None)>"×"</button>
                             </div>
                             <div class="panel-content p0">
                                 <crate::components_ui::file_sharing::FileSharing

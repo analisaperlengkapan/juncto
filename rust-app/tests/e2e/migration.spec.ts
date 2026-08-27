@@ -1136,6 +1136,10 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     // Use more specific locator to avoid strict mode violation
     await expect(page1.locator('.participants-container .participants-list').getByText('Eve')).toBeVisible();
 
+    // Panels are mutually exclusive: switch back to chat before messaging
+    await page1.click('#toggle-chat-btn');
+    await expect(page1.locator('.chat-container input[type="text"]')).toBeVisible();
+
     // Alice sends private message to Bob
     // Select Bob from dropdown
     // Note: The value of option is user ID. We need to find the option with text "Bob".

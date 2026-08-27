@@ -18,7 +18,10 @@ test.describe('Notification Center', () => {
         await expect(hostPage.locator('.video-grid')).toBeVisible();
         await expect(visitorPage.locator('.video-grid')).toBeVisible();
 
-        // Host triggers a toast on visitor via mute-all
+        // Host triggers a toast on visitor via mute-all (participants panel)
+        if (await hostPage.locator('#mute-all-btn').isHidden()) {
+            await hostPage.click('#toggle-participants-btn');
+        }
         await hostPage.click('#mute-all-btn');
         await expect(visitorPage.locator('.toast-container')).toContainText('You have been muted by the host');
 
