@@ -199,51 +199,50 @@ pub fn Room() -> impl IntoView {
                                 on_close_all=state.close_all_breakout_rooms
                                 on_auto_assign=state.auto_assign_to_breakout_rooms
                             />
-                            <div style="position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                                <div class="video-container" style=move || {
+                            <div class="room-main">
+                                <div class="video-container flex-col" style=move || {
                                     if state.show_etherpad.get() {
                                         "height: 30%; border-bottom: 1px solid var(--border-color);"
                                     } else {
                                         "height: 100%;"
                                     }
-                                } style="display: flex; flex-direction: column;">
-                                    <div id="capture-area" style="flex: 1; display: flex; flex-direction: column;">
-                                        <div class="room-header" style="display: flex; align-items: center; justify-content: center; gap: 15px; padding: 10px;">
+                                }>
+                                    <div id="capture-area" class="capture-area">
+                                        <div class="room-header">
                                             <Show when=move || state.branding.get().logo_url.as_ref().is_some_and(|l| !l.is_empty())>
                                                 <img
                                                     id="room-logo"
                                                     src=move || state.branding.get().logo_url.unwrap_or_default()
                                                     alt="Branding Logo"
-                                                    style="height: 40px; width: auto; object-fit: contain;"
                                                 />
                                             </Show>
-                                            <h2 style="margin: 0; font-size: 1.2rem;">{move || format!("Meeting Room: {}", room_id())}</h2>
+                                            <h2>{move || format!("Meeting Room: {}", room_id())}</h2>
                                             <Show when=move || state.room_config.get().subject.as_ref().is_some_and(|s| !s.is_empty())>
-                                                <span id="meeting-subject" class="badge-info" style="padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+                                                <span id="meeting-subject" class="badge-info">
                                                     {move || state.room_config.get().subject.unwrap_or_default()}
                                                 </span>
                                             </Show>
-                                            <span class="meeting-timer" style="font-family: monospace; font-size: 1.1rem; color: var(--text-muted);">
+                                            <span class="meeting-timer">
                                                 {format_time}
                                             </span>
                                             <ConnectionIndicator rtt=state.rtt />
                                             <Show when=move || !state.is_locked.get()>
-                                                <span class="badge-success" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Unlocked"</span>
+                                                <span class="badge-success">"Unlocked"</span>
                                             </Show>
                                             <Show when=move || state.is_locked.get()>
-                                                <span class="badge-danger" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Locked"</span>
+                                                <span class="badge-danger">"Locked"</span>
                                             </Show>
                                         </div>
                                         <Show when=move || state.current_room_id.get().is_some()>
-                                            <h4 style="color: #17a2b8;">" (In Breakout Room)"</h4>
+                                            <h4 class="breakout-heading">" (In Breakout Room)"</h4>
                                         </Show>
                                         <Show when=move || state.is_recording.get()>
-                                            <div class="rec-indicator" style="background: red; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px; margin-right: 5px;">
+                                            <div class="rec-indicator">
                                                 "REC"
                                             </div>
                                         </Show>
                                         <Show when=move || state.is_e2ee_enabled.get()>
-                                            <div id="e2ee-indicator" style="background: #6c757d; color: white; padding: 5px; border-radius: 4px; display: inline-block; margin-bottom: 10px;" title="End-to-End Encryption indicator only — actual E2EE is not yet implemented">
+                                            <div id="e2ee-indicator" class="e2ee-indicator" title="End-to-End Encryption indicator only — actual E2EE is not yet implemented">
                                                 "🔒 E2EE (indicator)"
                                             </div>
                                         </Show>
@@ -282,13 +281,13 @@ pub fn Room() -> impl IntoView {
                                 </div>
                                 <ReactionDisplay last_reaction=state.last_reaction />
                                 <Show when=move || state.is_subtitles_enabled.get()>
-                                    <div class="subtitles-overlay" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2em; text-align: center; z-index: 100; max-width: 80%; min-width: 200px;">
+                                    <div class="subtitles-overlay">
                                         <For
                                             each=move || state.subtitles.get()
                                             key=|(uid, text, ts)| format!("{}-{}-{}", uid, text, ts)
                                             children=move |(_uid, text, _ts)| {
                                                 view! {
-                                                    <div style="margin-bottom: 5px;">{text}</div>
+                                                    <div class="subtitle-line">{text}</div>
                                                 }
                                             }
                                         />
@@ -308,7 +307,7 @@ pub fn Room() -> impl IntoView {
                                     />
                                 </Show>
                                 <Show when=move || state.show_etherpad.get()>
-                                    <div style="height: 70%; width: 100%;">
+                                    <div class="etherpad-wrapper">
                                         <crate::components_ui::etherpad::Etherpad
                                             url=Signal::derive(move || state.room_config.get().etherpad_url)
                                         />
@@ -320,8 +319,7 @@ pub fn Room() -> impl IntoView {
                                 is_host=state.is_host
                                 is_visitor=state.is_visitor
                                 _is_lobby_enabled=state.is_lobby_enabled
-                                class="room-toolbox"
-                                style="position: relative; z-index: 20;" // Ensure toolbox is above whiteboard
+                                class="room-toolbox toolbox-wrapper"
                                 is_recording=state.is_recording
                                 _on_toggle_lock=state.toggle_lock
                                 _on_toggle_lobby=state.toggle_lobby
@@ -427,7 +425,7 @@ pub fn Room() -> impl IntoView {
                                 <h3>"Chat"</h3>
                                 <button class="close-btn" on:click=move |_| set_show_chat.set(false)>"×"</button>
                             </div>
-                            <div class="panel-content" style="padding: 0;">
+                            <div class="panel-content p0">
                                 <Chat
                                     messages=state.messages
                                     typing_users=state.typing_users
@@ -452,7 +450,7 @@ pub fn Room() -> impl IntoView {
                                 <h3>"Participants"</h3>
                                 <button class="close-btn" on:click=move |_| set_show_participants.set(false)>"×"</button>
                             </div>
-                            <div class="panel-content" style="padding: 0;">
+                            <div class="panel-content p0">
                                 <ParticipantsList
                                     participants=state.participants
                                     knocking_participants=state.knocking_participants
@@ -494,7 +492,7 @@ pub fn Room() -> impl IntoView {
                                 <h3>"Files"</h3>
                                 <button class="close-btn" on:click=move |_| set_show_files.set(false)>"×"</button>
                             </div>
-                            <div class="panel-content" style="padding: 0;">
+                            <div class="panel-content p0">
                                 <crate::components_ui::file_sharing::FileSharing
                                     messages=state.messages
                                 />
