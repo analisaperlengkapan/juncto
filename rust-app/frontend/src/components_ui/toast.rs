@@ -20,6 +20,8 @@ pub struct Toast {
 #[derive(Clone, Copy)]
 pub struct ToastContext {
     pub toasts: RwSignal<Vec<Toast>>,
+    pub history: RwSignal<Vec<Toast>>,
+    pub unread: RwSignal<u32>,
     counter: RwSignal<u64>,
 }
 
@@ -38,17 +40,24 @@ impl ToastContext {
         let id = self.counter.get_untracked() + 1;
         self.counter.set(id);
 
+        let toast = Toast {
+            id,
+            message: message.clone(),
+            toast_type,
+            persistent,
+            priority,
+        };
+
         self.toasts.update(|t| {
-            t.push(Toast {
-                id,
-                message,
-                toast_type,
-                persistent,
-                priority,
-            });
+            t.push(toast.clone());
             // Sort by priority (descending)
             t.sort_by_key(|b| std::cmp::Reverse(b.priority));
         });
+
+        self.history.update(|h| {
+            h.push(toast);
+        });
+        self.unread.update(|v| *v += 1);
 
         #[cfg(target_arch = "wasm32")]
         if !persistent {
@@ -65,17 +74,88 @@ impl ToastContext {
     pub fn remove(&self, id: u64) {
         self.toasts.update(|t| t.retain(|item| item.id != id));
     }
+
+    pub fn mark_all_read(&self) {
+        self.unread.set(0);
+    }
+
+    pub fn clear_history(&self) {
+        self.history.update(|h| h.clear());
+        self.unread.set(0);
+    }
 }
 
 pub fn provide_toast_context() {
     provide_context(ToastContext {
         toasts: create_rw_signal(Vec::new()),
+        history: create_rw_signal(Vec::new()),
+        unread: create_rw_signal(0u32),
         counter: create_rw_signal(0),
     });
 }
 
 pub fn use_toast() -> ToastContext {
     use_context::<ToastContext>().expect("ToastContext must be provided")
+}
+
+#[component]
+pub fn NotificationBell() -> impl IntoView {
+    let ctx = use_toast();
+    let (open, set_open) = create_signal(false);
+
+    view! {
+        <div style="position: absolute; right: 12px; top: 12px; z-index: 9000;">
+            <button
+                id="notif-bell-btn"
+                title="Notifications"
+                on:click=move |_| {
+                    let opening = !open.get();
+                    set_open.set(opening);
+                    if opening {
+                        ctx.mark_all_read();
+                    }
+                }
+                style="background: rgba(0,0,0,0.4); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 16px;"
+            >
+                "🔔"
+                <Show when=move || (ctx.unread.get() > 0)>
+                    <span class="notif-badge" style="background: #dc3545; border-radius: 50%; padding: 2px 5px; font-size: 10px; margin-left: 4px;">
+                        {move || ctx.unread.get()}
+                    </span>
+                </Show>
+            </button>
+            <Show when=move || open.get()>
+                <div id="notif-panel" style="position: absolute; right: 0; top: 36px; width: 280px; max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #eee; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); padding: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <h4 style="margin: 0;">"Notifications"</h4>
+                        <button on:click=move |_| ctx.clear_history() style="background: none; border: none; color: #999; cursor: pointer; font-size: 12px;">"Clear"</button>
+                    </div>
+                    <Show
+                        when=move || !ctx.history.get().is_empty()
+                        fallback=move || view! { <div style="color: #999;">"No notifications"</div> }
+                    >
+                        <For
+                            each=move || {
+                                let mut items = ctx.history.get();
+                                items.reverse();
+                                items
+                            }
+                            key=|t| t.id
+                            children=move |t| {
+                                let cls = match t.toast_type {
+                                    ToastType::Error => "notif-item notif-error",
+                                    ToastType::Success => "notif-item notif-success",
+                                    ToastType::Warning => "notif-item notif-warning",
+                                    ToastType::Info => "notif-item notif-info",
+                                };
+                                view! { <div class=cls style="padding: 6px 8px; border-bottom: 1px solid #333; font-size: 13px;">{t.message}</div> }
+                            }
+                        />
+                    </Show>
+                </div>
+            </Show>
+        </div>
+    }
 }
 
 #[component]
@@ -136,6 +216,8 @@ mod tests {
         let _runtime = create_runtime();
         let ctx = ToastContext {
             toasts: create_rw_signal(Vec::new()),
+            history: create_rw_signal(Vec::new()),
+            unread: create_rw_signal(0u32),
             counter: create_rw_signal(0),
         };
 
@@ -149,5 +231,10 @@ mod tests {
         assert_eq!(toasts[1].message, "Msg 1");
         assert!(toasts[0].persistent);
         assert!(!toasts[1].persistent);
+
+        assert_eq!(ctx.history.get().len(), 2);
+        assert_eq!(ctx.unread.get(), 2);
+        ctx.mark_all_read();
+        assert_eq!(ctx.unread.get(), 0);
     }
 }

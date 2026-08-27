@@ -24,7 +24,7 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | conference | migrated | `webrtc.rs` + `pages/room.rs` drive the conference. |
 | chat | migrated | `chat.rs` module + `backend/handlers/chat.rs`, parity specs exist. |
 | polls | migrated | `polls.rs` + `backend/handlers/polls.rs`; specs `polls.spec.ts`. |
-| polls-history | missing | Only active polls live in `state.polls`. |
+| polls-history | migrated | Polls dialog has Active/History tabs; closed polls archived via `on_close_poll`. |
 | whiteboard | migrated | `whiteboard.rs` + handler; `whiteboard.spec.ts`. |
 | reactions | migrated | `reactions.rs`; `reactions.spec.ts`. |
 | lobby | migrated | `components_ui/lobby.rs`; VisitVisitor flow over `backend/handlers/room.rs` lobby endpoints. |
@@ -79,8 +79,8 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | pip | migrated | `requestPictureInPicture` via `<video>` elements on all tiles. |
 | stream-effects | partial | Only virtual background; blur pipeline exists through canvas in `media.rs`. |
 | recording | partial | Local recorder (`media_recorder.rs`) + `ToggleRecording` broadcast; no Jibri. |
-| recent-list | partial | `storage.rs` holds `recent_rooms`; UI on Home pending; Step 5. |
-| notifications | partial | `components_ui/toast.rs` exists; center queue pending; Step 5. |
+| recent-list | migrated | `storage.rs` holds `recent_rooms`; Home renders "Recent Meetings" list. |
+| notifications | migrated | Toast center: `NotificationBell` in room header with unread badge + history panel; `notification_center.spec.ts` green. |
 | rejoin | migrated | Blocking overlay with "Rejoin now" button on WS drop. |
 | reconnect logic | migrated | `on_close/on_error` triggers rejoin overlay when joined. |
 | unsupported-browser | migrated | `lib.rs` blocks when no WebRTC. |

@@ -11,6 +11,7 @@ use crate::components_ui::invite::InviteDialog;
 use crate::components_ui::lobby::LobbyScreen;
 use crate::components_ui::prejoin::PrejoinScreen;
 use crate::components_ui::screenshot_capture::ScreenshotCapture;
+use crate::components_ui::toast::NotificationBell;
 use crate::components_ui::shared_video_dialog::SharedVideoDialog;
 use crate::components_ui::video_grid::VideoGrid;
 use crate::connection_stats::ConnectionStats;
@@ -247,6 +248,7 @@ pub fn Room() -> impl IntoView {
                                                 "🔒 E2EE (indicator)"
                                             </div>
                                         </Show>
+                                        <NotificationBell />
                                         <Show when=move || state.is_connected.get()>
                                             <AlwaysOnTop
                                                 is_video_muted=Signal::derive(move || state.local_stream.get().is_none_or(|s| s.get_video_tracks().length() == 0))
