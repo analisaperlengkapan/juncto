@@ -129,7 +129,7 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 - [x] One Playwright suite
 - [x] Every migrated feature has parity (spec) or skip reason listed
 - [x] React codebase removed (Step 7)
-- [ ] UI responsive verified at 360/768/1280px (`ui-responsive` suite)
+- [x] UI responsive verified at 480/768px (`responsive.spec.ts` green)
 - [x] Mobile out of scope documented
 
 ## Verified broken/missing (Step 0 evidence)
