@@ -68,8 +68,9 @@ test('Audio-only mode, participant search, and pinning', async ({ page, context 
     // Use dispatchEvent to avoid overlay issues if any
     await pinBtn.dispatchEvent('click');
 
-    // Switch to spotlight to see pinning effect
-    await page.click('button:has-text("Switch to Spotlight")');
+    // Switch to Speaker view to see pinning effect
+    await page.click('.layout-menu-btn');
+    await page.click('.layout-option:has-text("Speaker view")');
 
     // Bob should be the spotlighted card
     const spotlightCard = page.locator('.video-grid.spotlight .video-card.spotlighted');

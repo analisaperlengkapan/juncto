@@ -2,6 +2,8 @@ use crate::chat::Chat;
 use crate::components_ui::always_on_top::AlwaysOnTop;
 use crate::components_ui::authentication::LoginDialog;
 use crate::components_ui::breakout::BreakoutRooms;
+use crate::components_ui::connection_indicator::ConnectionIndicator;
+use crate::components_ui::rejoin_overlay::RejoinOverlay;
 use crate::components_ui::calendar::CalendarList;
 use crate::components_ui::dial_in::DialInDialog;
 use crate::components_ui::feedback::FeedbackDialog;
@@ -142,6 +144,7 @@ pub fn Room() -> impl IntoView {
                         <PowerMonitor on_update=state.update_power_status />
                         <DeepLinking />
                         <ScreenshotCapture />
+                        <RejoinOverlay show=state.show_rejoin on_rejoin=state.rejoin />
                         <KeyboardShortcuts
                             on_toggle_mic=state.toggle_mic
                             on_toggle_camera=state.toggle_camera
@@ -223,6 +226,7 @@ pub fn Room() -> impl IntoView {
                                             <span class="meeting-timer" style="font-family: monospace; font-size: 1.1rem; color: var(--text-muted);">
                                                 {format_time}
                                             </span>
+                                            <ConnectionIndicator rtt=state.rtt />
                                             <Show when=move || !state.is_locked.get()>
                                                 <span class="badge-success" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">"Unlocked"</span>
                                             </Show>
@@ -268,6 +272,11 @@ pub fn Room() -> impl IntoView {
                                             pinned_participant=state.pinned_participant
                                             is_audio_only=state.is_audio_only.into()
                                             is_flipped=state.is_flipped.into()
+                                            on_pin_participant=state.pin_participant
+                                            on_kick_participant=state.kick_participant
+                                            participant_volumes=state.participant_volumes
+                                            on_set_voltage=state.set_participant_volume
+                                            is_host=state.is_host
                                         />
                                     </div>
                                 </div>

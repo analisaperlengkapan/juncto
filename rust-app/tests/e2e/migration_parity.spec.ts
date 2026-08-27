@@ -63,15 +63,16 @@ test.describe('Migration Parity and Complete Lifecycle', () => {
         await expect(visitorPage.locator('.e2ee-lock')).toHaveCount(4);
 
         // 5. Layout synchronization (Follow Me)
-        // Switch to Spotlight
-        await hostPage.click('button:has-text("Switch to Spotlight")');
+        await hostPage.click('.layout-menu-btn');
+        await hostPage.click('.layout-option:has-text("Speaker view")');
         await expect(hostPage.locator('.video-grid.spotlight')).toBeVisible();
 
         // Verify Visitor's layout updated automatically
         await expect(visitorPage.locator('.video-grid.spotlight')).toBeVisible();
 
         // Switch back to Grid
-        await hostPage.click('button:has-text("Switch to Grid")');
+        await hostPage.click('.layout-menu-btn');
+        await hostPage.click('.layout-option:has-text("Tile view")');
         await expect(hostPage.locator('.video-grid.grid')).toBeVisible();
         await expect(visitorPage.locator('.video-grid.grid')).toBeVisible();
 
