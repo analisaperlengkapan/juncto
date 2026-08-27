@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Cutover note (Step 7):** The React/Webpack web codebase has been deleted and the
+> source of truth is the Rust workspace in `rust-app/` (Leptos WASM frontend + Axum
+> backend). Build with `bash rust-app/build.sh`, test with `cargo test --workspace`,
+> run parity suite at `rust-app/tests/e2e`. The commands below apply only to the
+> removed React codebase and are kept for historical reference.
+
 ## Development Commands
 
 ### Building and Development

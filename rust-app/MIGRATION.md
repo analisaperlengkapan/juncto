@@ -115,16 +115,21 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 
 ## Local spec consolidation (Langkah 7)
 
-- Keep `rust-app/tests/e2e/` (rich: full lifecycle, migration parity, UI verification) and drop `rust-app/e2e/` dir entirely.
-- Consolidate PNG artifacts under a `screenshots/` folder if retained; else delete.
+- Keep `rust-app/tests/e2e/` (rich: full lifecycle, migration parity, UI verification); `rust-app/e2e/` dir removed in Step 7.
+- PNG artifacts retained under `verification*.png`; directory kept.
+
+## Cutover status (Step 7)
+
+- React web codebase deleted: `react/`, `modules/`, `css/`, `tests/` (WDIO), `webpack.config.js`, npm build deps (`package.json`), Makefile web targets replaced with `rust-app` delegates.
+- CI runs Rust toolchain only (`.github/workflows/rust-ci.yml`).
 
 ## Exit criteria checklist
 
-- [ ] `cargo test` green, build green
-- [ ] One Playwright suite
-- [ ] Every migrated feature has parity (spec) or skip reason listed
-- [ ] React codebase removed (Step 7)
-- [ ] UI responsive verified at 360/768/1280px
+- [x] `cargo test` green, build green
+- [x] One Playwright suite
+- [x] Every migrated feature has parity (spec) or skip reason listed
+- [x] React codebase removed (Step 7)
+- [ ] UI responsive verified at 360/768/1280px (`ui-responsive` suite)
 - [x] Mobile out of scope documented
 
 ## Verified broken/missing (Step 0 evidence)
