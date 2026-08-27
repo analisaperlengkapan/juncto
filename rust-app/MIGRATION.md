@@ -72,11 +72,11 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 | subtitles | partial | Toggle wired; receives no transcription without STT. |
 | shared-video | migrated | `components_ui/shared_video_dialog.rs`; `shared_video.spec.ts`. |
 | noise-suppression | migrated | Constraint-based fallback (no rnnoise port); `toggle` in settings. |
-| noise-detection | missing | Not implemented; Step 3 adds it. |
-| no-audio-signal | partial | Audio level zero → "no signal" toast still pending; Step 3. |
-| talk-while-muted | partial | Detected (`is_talking_while_muted`); Step 3 wires the toast end. |
-| video-quality | missing | No resolution selector UI; Step 3. |
-| pip | partial | PiP buttons on video cards; dedicated toggle + Document PiP via Step 3. |
+| noise-detection | migrated | `noise_detected` event → toast in `state.rs`. |
+| no-audio-signal | migrated | `on_no_audio` callback fires toast in `state.rs`. |
+| talk-while-muted | migrated | `talk_while_muted` event → toast in `state.rs`. |
+| video-quality | migrated | HD/SD selector in settings device tab. |
+| pip | migrated | `requestPictureInPicture` via `<video>` elements on all tiles. |
 | stream-effects | partial | Only virtual background; blur pipeline exists through canvas in `media.rs`. |
 | recording | partial | Local recorder (`media_recorder.rs`) + `ToggleRecording` broadcast; no Jibri. |
 | recent-list | partial | `storage.rs` holds `recent_rooms`; UI on Home pending; Step 5. |
