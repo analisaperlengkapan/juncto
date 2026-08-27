@@ -13,7 +13,7 @@ Mobile (`react/features/mobile/`, `ios/`, `android/`) is out of scope per user d
 
 - `bash rust-app/build.sh`: Ôťů succeeds (WASM + bindings generated, backend serves `:3000`).
 - `cargo test --workspace`: Ôťů green ÔÇö 101 tests (29 + 48 + 24 across three crates).
-- Playwright suite `rust-app/tests/e2e`: Ôťů **77 passed, 2 skipped, 0 failed** (~1.9m, chromium). This becomes the consolidated suite in Step 7; `rust-app/e2e/` duplication is scheduled for removal.
+- Playwright suite `rust-app/tests/e2e`: Ôťů **88 passed, 2 skipped, 0 failed** (~2.4m, chromium), incl. `screenshot-gallery.spec.ts` capturing 10 UI views to `tests/screenshots/`. `rust-app/e2e/` duplication removed in Step 7.
 
 ## Feature matrix
 
