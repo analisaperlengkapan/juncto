@@ -44,12 +44,24 @@ developed you can also sign up for our open beta testing here:
 
 ## Running your own instance
 
-If you'd like to run your own Juncto installation head over to the [handbook](https://juncto.github.io/handbook/docs/devops-guide/) to get started.
+The web client in this repository now lives in [`rust-app/`](rust-app/), a Leptos (WASM) frontend
+backed by an Axum server. The previous React/Webpack implementation has been removed.
 
-We provide Debian packages and a comprehensive Docker setup to make deployments as simple as possible.
-Advanced users also have the possibility of building all the components from source.
+```sh
+cd rust-app
+bash build.sh        # builds the WASM frontend and copies static assets
+cd backend && cargo run --release   # serves the app on :3000
+```
 
-You can check the latest releases [here](https://juncto.github.io/handbook/docs/releases).
+Rust unit tests and the single consolidated Playwright suite:
+
+```sh
+cd rust-app && cargo test --workspace             # unit tests
+cd rust-app/tests/e2e && npx playwright test      # end-to-end parity suite
+```
+
+Legacy guidance below applies to the removed legacy React implementation and is
+kept for historical reference.
 
 ## Juncto as a Service
 

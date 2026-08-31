@@ -14,7 +14,7 @@ pub fn Toolbox(
     _is_etherpad_active: Signal<bool>,
     is_etherpad_open: Signal<bool>,
     current_presence: Signal<shared::PresenceStatus>,
-    #[prop(optional)] _on_toggle_lock: Option<Callback<()>>,
+    #[prop(optional)] _on_toggle_lock: Option<Callback<Option<String>>>,
     #[prop(optional)] _on_toggle_lobby: Option<Callback<()>>,
     on_toggle_recording: Callback<()>,
     on_toggle_subtitles: Callback<()>,

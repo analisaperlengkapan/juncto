@@ -37,11 +37,11 @@ test.describe('Migration Parity Features', () => {
         await page.keyboard.press('C');
         await expect(page.locator('.side-panel.chat-container')).toBeVisible();
 
-        // Test Participants shortcut 'P'
-        await page.keyboard.press('P');
-        await expect(page.locator('.participants-container')).toBeHidden();
+        // Test Participants shortcut 'P' (participants hidden by default; panels are exclusive)
         await page.keyboard.press('P');
         await expect(page.locator('.participants-container')).toBeVisible();
+        await page.keyboard.press('P');
+        await expect(page.locator('.participants-container')).toBeHidden();
     });
 
     test('Local Recording and Host Request Unmute', async ({ browser, request }) => {

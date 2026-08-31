@@ -1083,25 +1083,18 @@ test('Layout Switching E2E', async ({ page, request }) => {
     await page.locator('.prejoin-container input[type="text"]').fill('Viewer');
     await page.click('button.join-btn');
 
-    // Check Toggle Button
-    const toggleBtn = page.getByRole('button', { name: 'Switch to Spotlight' });
-    await expect(toggleBtn).toBeVisible();
-
-    // Verify initial grid layout class or style
+    // Verify initial grid layout class
     await expect(page.locator('.video-grid')).toHaveClass(/grid/);
 
-    // Switch to Spotlight
-    await toggleBtn.click();
-
-    // Verify button text changes
-    await expect(page.getByRole('button', { name: 'Switch to Grid' })).toBeVisible();
-
-    // Verify layout class change
+    // Open layout menu and switch to Spotlight
+    await page.click('.layout-menu-btn');
+    await page.click('.layout-option:has-text("Speaker view")');
     await expect(page.locator('.video-grid')).toHaveClass(/spotlight/);
 
-    // Switch back
-    await page.getByRole('button', { name: 'Switch to Grid' }).click();
-    await expect(page.getByRole('button', { name: 'Switch to Spotlight' })).toBeVisible();
+    // Switch back to Grid
+    await page.click('.layout-menu-btn');
+    await page.click('.layout-option:has-text("Tile view")');
+    await expect(page.locator('.video-grid')).toHaveClass(/grid/);
 });
 
 test('Private Messaging E2E', async ({ browser, request }) => {
@@ -1142,6 +1135,10 @@ test('Private Messaging E2E', async ({ browser, request }) => {
     if (await page1.locator('.participants-list').isHidden()) { await page1.click('.toolbox button:has-text("Participants")'); }
     // Use more specific locator to avoid strict mode violation
     await expect(page1.locator('.participants-container .participants-list').getByText('Eve')).toBeVisible();
+
+    // Panels are mutually exclusive: switch back to chat before messaging
+    await page1.click('#toggle-chat-btn');
+    await expect(page1.locator('.chat-container input[type="text"]')).toBeVisible();
 
     // Alice sends private message to Bob
     // Select Bob from dropdown

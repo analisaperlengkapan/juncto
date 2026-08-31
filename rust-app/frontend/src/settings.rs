@@ -34,7 +34,7 @@ pub fn SettingsDialog(
     #[prop(optional)] is_flipped: Option<ReadSignal<bool>>,
     #[prop(optional)] on_toggle_audio_only: Option<Callback<bool>>,
     #[prop(optional)] on_toggle_flip: Option<Callback<bool>>,
-    #[prop(optional)] on_toggle_lock: Option<Callback<()>>,
+    #[prop(optional)] on_toggle_lock: Option<Callback<Option<String>>>,
     #[prop(optional)] on_toggle_e2ee: Option<Callback<()>>,
     #[prop(optional)] on_toggle_audio_moderation: Option<Callback<()>>,
     #[prop(optional)] on_toggle_video_moderation: Option<Callback<()>>,
@@ -93,6 +93,7 @@ pub fn SettingsDialog(
     let (selected_video, set_selected_video) = create_signal(init_video);
     let (selected_audio, set_selected_audio) = create_signal(init_audio);
     let (video_quality, set_video_quality) = create_signal(init_res);
+    let (lock_password, set_lock_password) = create_signal(String::new());
     let (noise_suppression, set_noise_suppression) = create_signal(
         current_noise_suppression
             .map(|s| s.get_untracked())
@@ -613,13 +614,25 @@ pub fn SettingsDialog(
                                         prop:checked=move || is_locked.map(|l| l.get()).unwrap_or(false)
                                         on:change=move |_| {
                                             if let Some(cb) = on_toggle_lock {
-                                                cb.call(());
+                                                let pw = lock_password.get_untracked();
+                                                cb.call(if pw.trim().is_empty() { None } else { Some(pw) });
                                             }
                                         }
                                         style="margin-right: 10px;"
                                     />
                                     {move || t("lock_room")}
                                 </label>
+                                <input
+                                    type="password"
+                                    id="lock-password-input"
+                                    placeholder="Password (optional)"
+                                    on:input=move |ev| set_lock_password.set(event_target_value(&ev))
+                                    prop:value=move || lock_password.get()
+                                    style="margin-top: 8px; padding: 6px 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                                />
+                                <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    "Set a password before locking to require it for new joins."
+                                </p>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
