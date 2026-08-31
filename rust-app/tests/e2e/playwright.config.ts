@@ -16,9 +16,9 @@ export default defineConfig({
   },
   webServer: {
     // Build frontend first, then run backend
-    command: 'export PATH=$HOME/.cargo/bin:$PATH && cd ../.. && ./build.sh && cargo run --bin backend',
+    command: 'export PATH=$HOME/.cargo/bin:$PATH && cd "$PWD" && while [ ! -d "rust-app" ]; do cd ..; done && cd rust-app && ./build.sh && cargo run --bin backend',
     port: 3000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 300000, // Increase timeout for build
   },
 });

@@ -18,65 +18,71 @@ pub fn Home() -> impl IntoView {
     };
 
     view! {
-        <div class="welcome-container" style="text-align: center; margin-top: 50px;">
-            <h1>"Welcome to Juncto (Rust Edition)"</h1>
-            <p>"Migration to Leptos + Axum complete."</p>
-            <input
-                type="text"
-                id="meeting-name"
-                on:input=move |ev| set_room_name.set(event_target_value(&ev))
-                prop:value=room_name
-                style="padding: 10px; margin: 10px;"
-                placeholder="Meeting Name"
-            />
-            <button
-                on:click=create_meeting
-                class="create-btn"
-                style="padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer;"
-            >
-                "Start Meeting"
-            </button>
+        <div class="welcome-container">
+            <div class="hero-card">
+                <h1>"Welcome to Juncto"</h1>
+                <p>"High-Performance WebRTC Video Conferencing in Rust"</p>
 
-            <Show when=move || !recent_rooms.get().is_empty()>
-                <div style="margin-top: 30px; text-align: center;">
-                    <h3>"Recent Meetings"</h3>
-                    <ul style="list-style: none; padding: 0;">
-                        <For
-                            each=move || recent_rooms.get()
-                            key=|r| r.clone()
-                            children={
-                                let nav_loop = navigate.clone();
-                                move |r| {
-                                    let r_clone = r.clone();
-                                    let nav = nav_loop.clone();
-                                    view! {
-                                        <li style="margin-bottom: 8px;">
+                <div class="input-group">
+                    <label class="input-label" for="meeting-name">"Room Name"</label>
+                    <input
+                        type="text"
+                        id="meeting-name"
+                        class="styled-input"
+                        on:input=move |ev| set_room_name.set(event_target_value(&ev))
+                        prop:value=room_name
+                        placeholder="Enter meeting name..."
+                    />
+                </div>
+
+                <button
+                    on:click=create_meeting
+                    class="create-btn btn btn-primary"
+                    style="width: 100%; padding: 12px; font-size: 1rem; font-weight: 600;"
+                >
+                    "🚀 Start Meeting"
+                </button>
+
+                <Show when=move || !recent_rooms.get().is_empty()>
+                    <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px; text-align: left;">
+                        <span class="input-label">"Recent Meetings"</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;">
+                            <For
+                                each=move || recent_rooms.get()
+                                key=|r| r.clone()
+                                children={
+                                    let nav_loop = navigate.clone();
+                                    move |r| {
+                                        let r_clone = r.clone();
+                                        let nav = nav_loop.clone();
+                                        view! {
                                             <button
+                                                class="btn btn-outline"
+                                                style="border-radius: var(--radius-full); padding: 6px 14px; font-size: var(--font-size-xs);"
                                                 on:click=move |_| {
                                                     let url = format!("/room/{}", urlencoding::encode(&r_clone));
                                                     nav(&url, Default::default());
                                                 }
-                                                style="background: none; border: 1px solid #ccc; padding: 5px 15px; border-radius: 20px; cursor: pointer; color: #007bff;"
                                             >
-                                                {r}
+                                                "📌 " {r}
                                             </button>
-                                        </li>
+                                        }
                                     }
                                 }
-                            }
-                        />
-                    </ul>
-                </div>
-            </Show>
+                            />
+                        </div>
+                    </div>
+                </Show>
+            </div>
         </div>
     }
 }
+
 #[cfg(test)]
 mod tests {
 
     #[test]
     fn test_home_compiles() {
-        // dummy test
         let _ = true;
     }
 }
