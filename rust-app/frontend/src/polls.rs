@@ -69,37 +69,37 @@ pub fn PollsDialog(
 
     view! {
         <Show when=move || show.get()>
-            <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-                <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 450px; max-width: 95%;">
-                    <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3>"Polls"</h3>
-                        <button id="close-polls-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">"📊 Polls"</h3>
+                        <button id="close-polls-btn" class="modal-close-btn" on:click=move |_| on_close.call(())>"✕"</button>
                     </div>
 
-                    <div class="tabs" style="display: flex; border-bottom: 1px solid #ccc; margin-bottom: 20px;">
+                    <div class="tabs modal-tabs">
                         <button
+                            class=move || format!("modal-tab-btn {}", if active_tab.get() == "active" { "active" } else { "" })
                             on:click=move |_| set_active_tab.set("active")
-                            style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "active" { "#007bff" } else { "transparent" })
                         >
                             "Active Polls"
                         </button>
                         <button
+                            class=move || format!("modal-tab-btn {}", if active_tab.get() == "history" { "active" } else { "" })
                             on:click=move |_| set_active_tab.set("history")
-                            style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "history" { "#007bff" } else { "transparent" })
                         >
                             "History"
                         </button>
                         <Show when=move || is_host.get()>
                             <button
+                                class=move || format!("modal-tab-btn {}", if active_tab.get() == "create" { "active" } else { "" })
                                 on:click=move |_| set_active_tab.set("create")
-                                style=move || format!("padding: 10px; border: none; background: none; cursor: pointer; border-bottom: 2px solid {}", if active_tab.get() == "create" { "#007bff" } else { "transparent" })
                             >
                                 "Create Poll"
                             </button>
                         </Show>
                     </div>
 
-                    <div class="tab-content" style="max-height: 400px; overflow-y: auto;">
+                    <div class="tab-content modal-body custom-scrollbar">
                         <Show when=move || active_tab.get() == "active">
                             <div class="polls-list">
                                 <For
@@ -109,22 +109,22 @@ pub fn PollsDialog(
                                         let pid = p.id.clone();
                                         let pid_for_votes = pid.clone();
                                         view! {
-                                            <div class="poll-item" style="border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
-                                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                                    <h4 style="margin-top: 0;">{p.question.clone()}</h4>
+                                            <div class="poll-card poll-item">
+                                                <div class="poll-card-header">
+                                                    <h4>{p.question.clone()}</h4>
                                                     <Show when=move || is_host.get()>
                                                         <button
+                                                            class="btn btn-sm btn-danger"
                                                             on:click={
                                                                 let pid_inner = pid.clone();
                                                                 move |_| on_close_poll.call(pid_inner.clone())
                                                             }
-                                                            style="padding: 2px 6px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
                                                         >
                                                             "Close Poll"
                                                         </button>
                                                     </Show>
                                                 </div>
-                                                <ul style="list-style: none; padding: 0;">
+                                                <ul class="poll-options-list">
                                                     <For
                                                         each={
                                                             let opts = p.options.clone();
@@ -143,20 +143,19 @@ pub fn PollsDialog(
                                                                 };
 
                                                                 view! {
-                                                                    <li style="margin-bottom: 10px; position: relative; padding: 8px; border-radius: 4px; background: #f8f9fa;">
-                                                                        <div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2;">
-                                                                            <span>{opt.text}</span>
-                                                                            <div style="display: flex; align-items: center;">
-                                                                                <span style="margin-right: 10px; font-weight: bold; font-size: 12px;">
-                                                                                    <span>{opt.votes} " votes"</span>
-                                                                                    " (" {format!("{:.0}", percent)} "%)"
+                                                                    <li class="poll-option-item">
+                                                                        <div class="poll-option-content">
+                                                                            <span class="poll-option-text">{opt.text}</span>
+                                                                            <div class="poll-option-actions">
+                                                                                <span class="poll-votes-badge">
+                                                                                    {opt.votes} " votes (" {format!("{:.0}", percent)} "%)"
                                                                                 </span>
                                                                                 <button
+                                                                                    class="btn btn-sm btn-primary"
                                                                                     on:click={
                                                                                         let pid_inner3 = pid_inner2.clone();
                                                                                         move |_| on_vote.call((pid_inner3.clone(), opt.id))
                                                                                     }
-                                                                                    style="padding: 4px 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
                                                                                 >
                                                                                     "Vote"
                                                                                 </button>
@@ -164,7 +163,7 @@ pub fn PollsDialog(
                                                                         </div>
                                                                         <div
                                                                             class="poll-bar"
-                                                                            style=format!("position: absolute; top: 0; left: 0; height: 100%; width: {}%; background-color: rgba(0, 123, 255, 0.15); border-radius: 4px; z-index: 1; transition: width 0.3s ease;", percent)
+                                                                            style=format!("width: {}%;", percent)
                                                                         ></div>
                                                                     </li>
                                                                 }
@@ -177,7 +176,9 @@ pub fn PollsDialog(
                                     }
                                 />
                                 <Show when=move || active_polls.get().is_empty()>
-                                    <p style="text-align: center; color: #666;">"No active polls."</p>
+                                    <div class="empty-state">
+                                        <p class="text-muted">"No active polls at the moment."</p>
+                                    </div>
                                 </Show>
                             </div>
                         </Show>
@@ -189,12 +190,12 @@ pub fn PollsDialog(
                                     key=|p| (p.id.clone(), p.options.iter().map(|o| o.votes).sum::<u32>())
                                     children=move |p| {
                                         view! {
-                                            <div class="poll-item" style="border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 4px; opacity: 0.8; background: #fafafa;">
-                                                <div style="display: flex; justify-content: space-between;">
-                                                    <h4 style="margin-top: 0; color: #666;">{p.question.clone()}</h4>
-                                                    <span style="font-size: 10px; background: #eee; padding: 2px 4px; border-radius: 3px;">"CLOSED"</span>
+                                            <div class="poll-card poll-item closed">
+                                                <div class="poll-card-header">
+                                                    <h4>{p.question.clone()}</h4>
+                                                    <span class="badge badge-closed">"CLOSED"</span>
                                                 </div>
-                                                <ul style="list-style: none; padding: 0;">
+                                                <ul class="poll-options-list">
                                                     <For
                                                         each={
                                                             let opts = p.options.clone();
@@ -209,16 +210,16 @@ pub fn PollsDialog(
                                                                 0.0
                                                             };
                                                             view! {
-                                                                <li style="margin-bottom: 5px; position: relative; padding: 6px; border-radius: 4px;">
-                                                                    <div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; font-size: 13px;">
-                                                                        <span>{opt.text}</span>
-                                                                        <span style="font-weight: bold;">
-                                                                            <span>{opt.votes} " votes"</span>
-                                                                            " (" {format!("{:.0}", percent)} "%)"
+                                                                <li class="poll-option-item">
+                                                                    <div class="poll-option-content">
+                                                                        <span class="poll-option-text">{opt.text}</span>
+                                                                        <span class="poll-votes-badge">
+                                                                            {opt.votes} " votes (" {format!("{:.0}", percent)} "%)"
                                                                         </span>
                                                                     </div>
                                                                     <div
-                                                                        style=format!("position: absolute; top: 0; left: 0; height: 100%; width: {}%; background-color: rgba(0, 0, 0, 0.05); border-radius: 4px; z-index: 1;", percent)
+                                                                        class="poll-bar"
+                                                                        style=format!("width: {}%;", percent)
                                                                     ></div>
                                                                 </li>
                                                             }
@@ -230,52 +231,56 @@ pub fn PollsDialog(
                                     }
                                 />
                                 <Show when=move || history_polls.get().is_empty()>
-                                    <p style="text-align: center; color: #666;">"No poll history."</p>
+                                    <div class="empty-state">
+                                        <p class="text-muted">"No poll history available."</p>
+                                    </div>
                                 </Show>
                             </div>
                         </Show>
 
                         <Show when=move || active_tab.get() == "create">
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Question"</label>
-                                <input
-                                    type="text"
-                                    id="poll-question"
-                                    prop:value=question
-                                    on:input=move |ev| set_question.set(event_target_value(&ev))
-                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                                    placeholder="e.g. What is your favorite color?"
-                                />
+                            <div class="poll-create-form">
+                                <div class="form-group">
+                                    <label class="form-label">"Poll Question"</label>
+                                    <input
+                                        type="text"
+                                        id="poll-question"
+                                        class="form-control"
+                                        prop:value=question
+                                        on:input=move |ev| set_question.set(event_target_value(&ev))
+                                        placeholder="e.g. What is your favorite color?"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">"Option 1"</label>
+                                    <input
+                                        type="text"
+                                        id="poll-option-1"
+                                        class="form-control"
+                                        prop:value=option1
+                                        on:input=move |ev| set_option1.set(event_target_value(&ev))
+                                        placeholder="Option 1"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">"Option 2"</label>
+                                    <input
+                                        type="text"
+                                        id="poll-option-2"
+                                        class="form-control"
+                                        prop:value=option2
+                                        on:input=move |ev| set_option2.set(event_target_value(&ev))
+                                        placeholder="Option 2"
+                                    />
+                                </div>
+                                <button
+                                    id="create-poll-submit-btn"
+                                    class="btn btn-success btn-full"
+                                    on:click=create
+                                >
+                                    "Create Poll"
+                                </button>
                             </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Option 1"</label>
-                                <input
-                                    type="text"
-                                    id="poll-option-1"
-                                    prop:value=option1
-                                    on:input=move |ev| set_option1.set(event_target_value(&ev))
-                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                                    placeholder="Option 1"
-                                />
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="display: block; margin-bottom: 5px;">"Option 2"</label>
-                                <input
-                                    type="text"
-                                    id="poll-option-2"
-                                    prop:value=option2
-                                    on:input=move |ev| set_option2.set(event_target_value(&ev))
-                                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                                    placeholder="Option 2"
-                                />
-                            </div>
-                            <button
-                                id="create-poll-submit-btn"
-                                on:click=create
-                                style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;"
-                            >
-                                "Create Poll"
-                            </button>
                         </Show>
                     </div>
                 </div>

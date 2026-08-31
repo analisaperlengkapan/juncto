@@ -49,11 +49,8 @@ pub fn PrejoinScreen(
             let v_devices = get_video_input_devices().await.ok().unwrap_or_default();
             let a_devices = get_audio_input_devices().await.ok().unwrap_or_default();
 
-            // Batch updates to avoid multiple stream restarts
             batch(move || {
                 set_video_devices.set(v_devices.clone());
-                // Fall back to first device if no saved ID or if the saved ID
-                // is stale (device was unplugged since settings were persisted).
                 let saved_vid = selected_video_device.get_untracked();
                 let vid_valid = saved_vid
                     .as_ref()
@@ -99,15 +96,7 @@ pub fn PrejoinScreen(
         let v_id = selected_video_device.get();
         let a_id = selected_audio_device.get();
 
-        // Use a tracking variable to debounce if multiple signals change in same microtask?
-        // Leptos effects are synchronous but scheduled.
-        // If we want to avoid multiple calls, we can assume Leptos batches signal updates.
-        // However, spawn_local runs on the next tick essentially.
-        // To be safe against rapid changes (like initial load), we could check if we are already requesting?
-        // For now, let's trust Leptos 0.6 batching, but we'll add a check.
-
         spawn_local(async move {
-            // Stop existing first
             if let Some(stream) = local_stream.get_untracked() {
                 let tracks = stream.get_tracks();
                 for i in 0..tracks.length() {
@@ -120,28 +109,7 @@ pub fn PrejoinScreen(
             set_audio_monitor.set(None);
 
             if cam_on || mic_on {
-                // Request both if mic is also requested, otherwise just video?
-                // Actually get_user_media handles both options.
-                // If mic is off, we might still want the stream to have an audio track that is muted?
-                // Or we just request video only?
-                // If we request audio but mute it, we can still monitor levels (if track is enabled but gain is 0? No, track enabled=false stops data).
-                // Let's request what is needed.
-
-                // Note: If cam is OFF, we don't show preview video.
-                // If Cam is ON, show video.
-                // If Mic is ON, we want to monitor audio.
-                // If Cam is OFF but Mic is ON, we still want to monitor audio?
-                // Current logic: This effect runs if ANY change.
-
-                // We need a stream
-                // If cam_on is false, we pass None for video_device_id? No, get_user_media treats None as "any".
-                // We need to change get_user_media to accept "No Video".
-                // Current get_user_media always sets video constraints if ID is provided OR constraints are new.
-                // Let's assume for Preview, we always want video if cam_on is true.
-
-                // Pass cam_on as enable_video flag
                 if let Ok(stream) = get_user_media(cam_on, true, v_id, a_id, Some("hd")).await {
-                    // Apply mute state to audio track
                     let audio_tracks = stream.get_audio_tracks();
                     for i in 0..audio_tracks.length() {
                         if let Ok(track) =
@@ -202,52 +170,59 @@ pub fn PrejoinScreen(
     });
 
     view! {
-        <div class="prejoin-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f0f0; font-family: sans-serif;">
-            <div class="card" style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; max-width: 500px; width: 100%;">
-                <h2 style="margin-bottom: 20px; color: #333;">"Join Meeting"</h2>
+        <div class="prejoin-container">
+            <div class="prejoin-card">
+                <h2>"Join Meeting"</h2>
                 <Show when=move || subject.get().as_ref().is_some_and(|s| !s.is_empty())>
                     <div
                         id="prejoin-subject"
                         class="badge-info"
-                        style="margin-bottom: 20px; padding: 8px; border-radius: 4px; font-weight: bold; background: #e7f3ff; color: #007bff;"
+                        style="margin-bottom: 20px; text-align: center; justify-content: center; width: 100%;"
                     >
                         {move || subject.get().unwrap_or_default()}
                     </div>
                 </Show>
 
-                // Video Preview
-                <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 20px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                    <Show when=move || is_camera_on.get() fallback=|| view! { <div class="camera-off-text" style="color: white;">"Camera is Off"</div> }>
+                // Video Preview Box
+                <div style="position: relative; width: 100%; height: 240px; background: #090d16; margin-bottom: 20px; border-radius: var(--radius-lg); overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); box-shadow: var(--shadow-md);">
+                    <Show when=move || is_camera_on.get() fallback=|| view! {
+                        <div class="camera-off-text" style="color: var(--text-muted); font-size: var(--font-size-sm); display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                            <span style="font-size: 2rem;">"📷"</span>
+                            <span>"Camera is Off"</span>
+                        </div>
+                    }>
                         <video
                             node_ref=video_ref
                             autoplay
-                            muted // Always mute local preview to avoid feedback
+                            muted
                             playsinline
                             style="width: 100%; height: 100%; object-fit: cover;"
                         />
                     </Show>
 
-                    // Audio Meter Indicator
+                    // Audio Meter / Status Badge
                     <Show when=move || is_speaking.get() && is_mic_on.get()>
-                        <div style="position: absolute; bottom: 10px; right: 10px; width: 15px; height: 15px; background: #28a745; border-radius: 50%; border: 2px solid white;"></div>
+                        <div style="position: absolute; bottom: 12px; right: 12px; width: 16px; height: 16px; background: var(--success-color); border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px var(--success-glow);"></div>
                     </Show>
                     <Show when=move || !is_mic_on.get()>
-                        <div style="position: absolute; bottom: 10px; right: 10px; color: #dc3545; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; font-size: 12px;">"Muted"</div>
+                        <div style="position: absolute; bottom: 12px; right: 12px; color: #f87171; background: rgba(15, 23, 42, 0.8); backdrop-filter: var(--glass-backdrop); padding: 4px 10px; border-radius: var(--radius-sm); font-size: var(--font-size-xs); border: 1px solid var(--border-color);">
+                            "🔇 Muted"
+                        </div>
                     </Show>
                 </div>
 
-                // Controls
-                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                // Media Toggle Controls
+                <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 24px;">
                     <button
                         on:click=move |_| set_is_camera_on.update(|v| *v = !*v)
-                        style=move || format!("padding: 10px; border-radius: 50%; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; background-color: {};", if is_camera_on.get() { "#007bff" } else { "#dc3545" })
+                        class=move || format!("toolbox-btn {}", if is_camera_on.get() { "active" } else { "danger" })
                         title="Toggle Camera"
                     >
                          {move || if is_camera_on.get() { "📷" } else { "🚫" }}
                     </button>
                     <button
                         on:click=move |_| set_is_mic_on.update(|v| *v = !*v)
-                        style=move || format!("padding: 10px; border-radius: 50%; border: none; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; background-color: {};", if is_mic_on.get() { "#007bff" } else { "#dc3545" })
+                        class=move || format!("toolbox-btn {}", if is_mic_on.get() { "active" } else { "danger" })
                         title="Toggle Microphone"
                     >
                          {move || if is_mic_on.get() { "🎤" } else { "🔇" }}
@@ -255,101 +230,101 @@ pub fn PrejoinScreen(
                 </div>
 
                 // Device Selectors
-                <div style="margin-bottom: 20px; text-align: left;">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Camera"</label>
-                        <select
-                            on:change=move |ev| set_selected_video_device.set(Some(event_target_value(&ev)))
-                            prop:value=move || selected_video_device.get().unwrap_or_default()
-                            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                            disabled=move || !is_camera_on.get()
-                        >
-                            <For
-                                each=move || video_devices.get()
-                                key=|d| d.device_id.clone()
-                                children=move |device| {
-                                    view! {
-                                        <option value=device.device_id>{device.label}</option>
-                                    }
+                <div class="input-group">
+                    <label class="input-label">"Camera Device"</label>
+                    <select
+                        class="styled-select"
+                        on:change=move |ev| set_selected_video_device.set(Some(event_target_value(&ev)))
+                        prop:value=move || selected_video_device.get().unwrap_or_default()
+                        disabled=move || !is_camera_on.get()
+                    >
+                        <For
+                            each=move || video_devices.get()
+                            key=|d| d.device_id.clone()
+                            children=move |device| {
+                                view! {
+                                    <option value=device.device_id>{device.label}</option>
                                 }
-                            />
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Microphone"</label>
-                        <select
-                            on:change=move |ev| set_selected_audio_device.set(Some(event_target_value(&ev)))
-                            prop:value=move || selected_audio_device.get().unwrap_or_default()
-                            style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                        >
-                            <For
-                                each=move || audio_devices.get()
-                                key=|d| d.device_id.clone()
-                                children=move |device| {
-                                    view! {
-                                        <option value=device.device_id>{device.label}</option>
-                                    }
-                                }
-                            />
-                        </select>
-                    </div>
+                            }
+                        />
+                    </select>
                 </div>
 
-                // Name Input & Join Type
-                <div style="margin-bottom: 20px; text-align: left;">
-                    <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Display Name"</label>
+                <div class="input-group">
+                    <label class="input-label">"Microphone Device"</label>
+                    <select
+                        class="styled-select"
+                        on:change=move |ev| set_selected_audio_device.set(Some(event_target_value(&ev)))
+                        prop:value=move || selected_audio_device.get().unwrap_or_default()
+                    >
+                        <For
+                            each=move || audio_devices.get()
+                            key=|d| d.device_id.clone()
+                            children=move |device| {
+                                view! {
+                                    <option value=device.device_id>{device.label}</option>
+                                }
+                            }
+                        />
+                    </select>
+                </div>
+
+                // Name Input & Avatar
+                <div class="input-group">
+                    <label class="input-label" for="display-name">"Display Name"</label>
                     <input
                         type="text"
                         id="display-name"
+                        class="styled-input"
                         on:input=move |ev| set_display_name.set(event_target_value(&ev))
                         prop:value=move || display_name.get()
-                        style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                         placeholder="Enter your name"
                     />
                 </div>
 
-                <div style="margin-bottom: 20px; text-align: left;">
-                    <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Avatar URL (Optional)"</label>
+                <div class="input-group">
+                    <label class="input-label" for="avatar-url">"Avatar URL (Optional)"</label>
                     <input
                         type="url"
                         id="avatar-url"
+                        class="styled-input"
                         maxlength="2048"
                         on:input=move |ev| set_avatar_url.set(event_target_value(&ev))
                         prop:value=move || avatar_url.get()
-                        style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                         placeholder="https://example.com/avatar.png"
                     />
                 </div>
 
-                <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #666;">
+                <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: var(--font-size-sm); color: var(--text-secondary); text-align: left;">
                     <input
                         type="checkbox"
                         id="visitor-mode"
+                        style="accent-color: var(--primary-color); width: 16px; height: 16px; cursor: pointer;"
                         prop:checked=is_visitor
                         on:change=move |ev| set_is_visitor.set(event_target_checked(&ev))
                     />
-                    <label for="visitor-mode">"Join as Visitor (Read-only)"</label>
+                    <label for="visitor-mode" style="cursor: pointer;">"Join as Visitor (Read-only)"</label>
                 </div>
 
                 <Show when=move || password_required.get()>
-                    <div style="margin-bottom: 20px; text-align: left;">
-                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Room Password"</label>
+                    <div class="input-group">
+                        <label class="input-label" for="room-password">"Room Password"</label>
                         <input
                             type="password"
                             id="room-password"
+                            class="styled-input"
                             on:input=move |ev| set_room_password.set(event_target_value(&ev))
                             prop:value=move || room_password.get()
-                            style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                             placeholder="Enter room password"
                         />
                     </div>
                 </Show>
 
                 <button
-                    class="join-btn"
+                    class="join-btn btn btn-success"
                     on:click=handle_join
                     disabled=move || !is_connected.get()
-                    style=move || format!("padding: 12px 24px; background-color: {}; color: white; border: none; border-radius: 4px; cursor: {}; font-size: 16px; font-weight: bold; width: 100%;", if is_connected.get() { "#28a745" } else { "#6c757d" }, if is_connected.get() { "pointer" } else { "not-allowed" })
+                    style="width: 100%; padding: 14px; font-size: 1rem; font-weight: 600; margin-top: 8px;"
                 >
                     {move || if is_connected.get() { "Join Meeting" } else { "Connecting..." }}
                 </button>
