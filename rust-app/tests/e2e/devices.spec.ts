@@ -29,6 +29,11 @@ test.describe('Device Selection', () => {
         await expect(page.locator('label:has-text("Camera")')).toBeVisible();
         await expect(page.locator('label:has-text("Microphone")')).toBeVisible();
 
+        // Video quality selector present in Devices tab (Step 3 parity)
+        await expect(page.locator('label:has-text("Video Quality")')).toBeVisible();
+        await expect(page.locator('option[value="hd"]')).toHaveText('HD (720p)');
+        await expect(page.locator('option[value="sd"]')).toHaveText('SD (360p)');
+
         // Check if "Apply Devices" button exists
         await expect(page.locator('button:has-text("Apply Devices")')).toBeVisible();
 

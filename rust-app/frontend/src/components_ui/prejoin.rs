@@ -11,6 +11,9 @@ pub fn PrejoinScreen(
     on_join: Callback<JoinOptions>,
     is_connected: ReadSignal<bool>,
     #[prop(into, optional)] subject: Signal<Option<String>>,
+    /// True when the server rejected a previous join because the room is
+    /// locked with a password — shows the password input.
+    #[prop(into, optional)] password_required: Signal<bool>,
 ) -> impl IntoView {
     let initial_settings = crate::storage::load_settings();
     let (display_name, set_display_name) = create_signal(
@@ -169,9 +172,12 @@ pub fn PrejoinScreen(
         stop_stream();
     });
 
+    let (room_password, set_room_password) = create_signal(String::new());
+
     let handle_join = move |_| {
         stop_stream();
         let av = avatar_url.get_untracked();
+        let pw = room_password.get_untracked();
         on_join.call(JoinOptions {
             display_name: display_name.get_untracked(),
             mic_enabled: is_mic_on.get_untracked(),
@@ -180,6 +186,7 @@ pub fn PrejoinScreen(
             video_device_id: selected_video_device.get_untracked(),
             is_visitor: is_visitor.get_untracked(),
             avatar_url: if av.is_empty() { None } else { Some(av) },
+            password: if pw.is_empty() { None } else { Some(pw) },
         });
     };
 
@@ -323,6 +330,20 @@ pub fn PrejoinScreen(
                     />
                     <label for="visitor-mode">"Join as Visitor (Read-only)"</label>
                 </div>
+
+                <Show when=move || password_required.get()>
+                    <div style="margin-bottom: 20px; text-align: left;">
+                        <label style="display: block; font-size: 12px; margin-bottom: 4px; color: #666;">"Room Password"</label>
+                        <input
+                            type="password"
+                            id="room-password"
+                            on:input=move |ev| set_room_password.set(event_target_value(&ev))
+                            prop:value=move || room_password.get()
+                            style="padding: 10px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                            placeholder="Enter room password"
+                        />
+                    </div>
+                </Show>
 
                 <button
                     class="join-btn"

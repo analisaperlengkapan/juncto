@@ -1,4 +1,5 @@
 use crate::components_ui::audio_level_indicator::AudioLevelIndicator;
+use crate::components_ui::context_menu::VideoContextMenu;
 use leptos::*;
 use shared::Participant;
 use std::collections::{HashMap, HashSet};
@@ -16,6 +17,7 @@ impl GridItem {
     // Helper for key generation for DOM elements.
     // It should strictly represent identity, not mutable properties,
     // to prevent component teardown and flickering on state changes.
+    #[allow(dead_code)]
     fn unique_key(&self) -> String {
         match self {
             GridItem::User(p) => p.id.clone(),
@@ -58,6 +60,11 @@ pub fn VideoGrid(
     #[prop(optional)] pinned_participant: Option<ReadSignal<Option<String>>>,
     #[prop(optional)] is_audio_only: Option<Signal<bool>>,
     #[prop(optional)] is_flipped: Option<Signal<bool>>,
+    #[prop(optional)] on_pin_participant: Option<Callback<Option<String>>>,
+    #[prop(optional)] on_kick_participant: Option<Callback<String>>,
+    #[prop(optional)] participant_volumes: Option<ReadSignal<HashMap<String, f64>>>,
+    #[prop(optional)] on_set_voltage: Option<Callback<(String, f64)>>,
+    #[prop(optional)] is_host: Option<Signal<bool>>,
 ) -> impl IntoView {
     let video_ref = create_node_ref::<html::Video>();
     let screen_ref = create_node_ref::<html::Video>();
@@ -79,6 +86,16 @@ pub fn VideoGrid(
             }
         }
     });
+
+    // Context menu state (opened on right-click of a remote tile)
+    let (menu_open, set_menu_open) = create_signal(false);
+    let (menu_x, set_menu_x) = create_signal(0i32);
+    let (menu_y, set_menu_y) = create_signal(0i32);
+    let (menu_target, set_menu_target) = create_signal(Option::<String>::None);
+
+    let on_kick_sv = on_kick_participant.map(|cb| store_value(cb));
+    let on_pin_sv = on_pin_participant.map(|cb| store_value(cb));
+    let on_volume_sv = on_set_voltage.map(|cb| store_value(cb));
 
     // Prepare grid items: remote users + remote screens + shared video
     let grid_items = create_memo(move |_| {
@@ -104,8 +121,7 @@ pub fn VideoGrid(
 
             // Push the spotlighted participant first (rendered as the main tile),
             // then push the remaining remote participants so they appear as
-            // thumbnails. Without this, switching to spotlight would hide every
-            // other participant, which is confusing for users.
+            // thumbnails (filmstrip).
             if let Some(sid) = &spotlight_id {
                 if let Some(p) = list.iter().find(|p| &p.id == sid) {
                     if Some(p.id.clone()) != my_id_val {
@@ -142,38 +158,43 @@ pub fn VideoGrid(
         items
     });
 
+    let (layout_open, set_layout_open) = create_signal(false);
+    let layout_icon_label = |l: &str| {
+        if l == "spotlight" { "Speaker view" } else { "Tile view" }
+    };
+
     view! {
-        <div class="video-grid-container" style="display: flex; flex-direction: column; width: 100%; height: 100%; position: relative;">
-            <div class="layout-controls" style="position: absolute; top: 10px; right: 10px; z-index: 100;">
+        <div class="video-grid-container">
+            <div class="layout-menu-wrapper">
                 <button
-                    on:click=move |_| on_set_layout.call(if layout.get() == "grid" { "spotlight".to_string() } else { "grid".to_string() })
-                    style="padding: 5px 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;"
+                    class="btn btn-outline layout-menu-btn"
+                    on:click=move |_| set_layout_open.update(|v| *v = !*v)
+                    title="Video layout"
                 >
-                    {move || if layout.get() == "grid" { "Switch to Spotlight" } else { "Switch to Grid" }}
+                    {move || format!("▦ {}", layout_icon_label(&layout.get()))}
                 </button>
+                <Show when=move || layout_open.get()>
+                    <div class="layout-menu">
+                        <button
+                            class=move || format!("layout-option {}", if layout.get() == "grid" { "active" } else { "" })
+                            on:click=move |_| { on_set_layout.call("grid".to_string()); set_layout_open.set(false); }
+                        >"Tile view"</button>
+                        <button
+                            class=move || format!("layout-option {}", if layout.get() == "spotlight" { "active" } else { "" })
+                            on:click=move |_| { on_set_layout.call("spotlight".to_string()); set_layout_open.set(false); }
+                        >"Speaker view"</button>
+                    </div>
+                </Show>
             </div>
 
-            <div
-                class=move || format!("video-grid {}", layout.get())
-                style=move || if layout.get() == "grid" {
-                    "display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%; align-items: center; align-content: flex-start;"
-                } else {
-                    "display: flex; flex-direction: column; gap: 10px; padding: 10px; box-sizing: border-box; overflow-y: auto; height: 100%;"
-                }
-            >
-            // Local Screen Share
+            // ---- Local screen share tile (feature area in spotlight) ----
             <Show when=move || local_screen_stream.get().is_some()>
-                <div class="video-card screen-share" style=move || if layout.get() == "spotlight" {
-                    "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
-                } else {
-                    "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #28a745;"
-                }>
+                <div class="video-card local-screen" class:featured=move || layout.get() == "spotlight">
                     <video
                         node_ref=screen_ref
                         autoplay
                         playsinline
                         muted
-                        style="width: 100%; height: 100%; object-fit: contain;"
                     />
                     <button
                         on:click=move |_| {
@@ -188,30 +209,124 @@ pub fn VideoGrid(
                                 }
                             }
                         }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
+                        class="pip-btn"
                         title="Picture-in-Picture"
                     >
                         "PiP"
                     </button>
-                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                        "My Screen"
-                    </div>
+                    <div class="name-tag">"My Screen"</div>
                 </div>
             </Show>
 
-            // Local User Video
-            <div class="video-card local-video" style=move || if layout.get() == "spotlight" && local_screen_stream.get().is_none() {
-                 "width: 100%; flex: 1; min-height: 0; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
-            } else {
-                 "flex: 1 1 300px; max-width: 100%; height: 240px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #007bff;"
-            }>
-                <Show when=move || {
+            // ---- All remote tiles, structured spotlight vs tiling ----
+            {move || {
+                let items = grid_items.get();
+                if layout.get() == "spotlight" {
+                    let (featured, filmstrip) = if items.is_empty() {
+                        (Vec::new(), Vec::new())
+                    } else {
+                        (items[..1].to_vec(), items[1..].to_vec())
+                    };
+                    view! {
+                        <div class="video-grid spotlight">
+                        <div class="spotlight-main">
+                            {featured.into_iter().map(|item| {
+                                render_remote_item(
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
+                                    true, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
+                                )
+                            }).collect_view()}
+                        </div>
+                        <div class="filmstrip">
+                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped, video_ref) }
+                            {filmstrip.into_iter().map(|item| {
+                                render_remote_item(
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
+                                    false, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
+                                )
+                            }).collect_view()}
+                        </div>
+                        </div>
+                    }.into_view()
+                } else {
+                    view! {
+                        <div class="video-grid grid">
+                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped, video_ref) }
+                            {items.into_iter().map(|item| {
+                                render_remote_item(
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
+                                    false, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
+                                )
+                            }).collect_view()}
+                        </div>
+                    }.into_view()
+                }
+            }}
+
+            // ---- Video context menu ----
+            <VideoContextMenu
+                open=menu_open
+                x=menu_x
+                y=menu_y
+                is_host=is_host.unwrap_or(Signal::derive(|| false))
+                is_pinned=Signal::derive(move || menu_target.with(|t| t.as_ref().map(|t| pinned_participant.and_then(|s| s.get()) == Some(t.clone())).unwrap_or(false)))
+                volume=Signal::derive(move || {
+                    let target = menu_target.get();
+                    let vols = participant_volumes.map(|s| s.get());
+                    target.and_then(|t| vols.as_ref().and_then(|m| m.get(&t).copied())).unwrap_or(1.0)
+                })
+                on_pin=Callback::new(move |_| {
+                    if let Some(t) = menu_target.get_untracked() {
+                        if let Some(cb) = on_pin_sv {
+                            let pinned_now = pinned_participant.and_then(|s| s.get());
+                            cb.get_value().call(if pinned_now == Some(t.clone()) { None } else { Some(t) });
+                        }
+                    }
+                })
+                on_kick=Callback::new(move |_| {
+                    if let Some(t) = menu_target.get_untracked() {
+                        if let Some(cb) = on_kick_sv {
+                            cb.get_value().call(t);
+                        }
+                    }
+                })
+                on_volume=Callback::new(move |v: f64| {
+                    if let Some(t) = menu_target.get_untracked() {
+                        if let Some(cb) = on_volume_sv {
+                            cb.get_value().call((t, v));
+                        }
+                    }
+                })
+                on_close=Callback::new(move |_| set_menu_open.set(false))
+            />
+        </div>
+    }
+}
+
+/// Renders the local-user tile (self preview).
+fn render_local_user_tile(
+    local_stream: ReadSignal<Option<MediaStream>>,
+    my_id: ReadSignal<Option<String>>,
+    participants: ReadSignal<Vec<Participant>>,
+    my_audio_level: Signal<f64>,
+    speaking_peers: ReadSignal<HashSet<String>>,
+    is_flipped: Option<Signal<bool>>,
+    video_ref: NodeRef<html::Video>,
+) -> View {
+    view! {
+        <div class="video-card local-video">
+            <Show
+                when=move || {
                     local_stream.get()
                         .map(|s| s.get_video_tracks().length() > 0)
                         .unwrap_or(false)
-                } fallback=move || {
+                }
+                fallback=move || {
                     let my_id_val = my_id.get();
-                    let my_id_val_clone = my_id_val.clone();
+                    let my_id_val_c = my_id_val.clone();
                     let avatar_url = Signal::derive(move || {
                         my_id_val.clone().and_then(|id| {
                             participants.with(|ps| {
@@ -220,55 +335,306 @@ pub fn VideoGrid(
                         })
                     });
                     let initial = Signal::derive(move || {
-                        my_id_val_clone.clone().and_then(|id| {
+                        my_id_val_c.clone().and_then(|id| {
                             participants.with(|ps| {
                                 ps.iter().find(|p| p.id == id).map(|p| p.name.chars().next().unwrap_or('?').to_uppercase().to_string())
                             })
                         }).unwrap_or_else(|| "Me".to_string())
                     });
-
-                    // Track image load errors so a broken avatar URL falls back
-                    // to the initial-letter circle instead of showing a broken
-                    // image icon. The signal is reset whenever the URL changes.
                     let (avatar_failed, set_avatar_failed) = create_signal(false);
                     create_effect(move |_| {
                         let _ = avatar_url.get();
                         set_avatar_failed.set(false);
                     });
-
                     view! {
-                        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; background: #222;">
-                            <span style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;">"Camera Off"</span>
-                            <div class="avatar-container" style="width: 80px; height: 80px;">
+                        <div class="video-placeholder">
+                            <span class="sr-only">"Camera Off"</span>
+                            <div class="avatar-container">
                                 <Show when=move || avatar_url.get().is_some() && !avatar_failed.get() fallback=move || view! {
-                                    <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                        {initial.get()}
-                                    </div>
+                                    <div class="avatar">{initial.get()}</div>
                                 }>
                                     <img
                                         src=move || avatar_url.get().unwrap_or_default()
                                         on:error=move |_| set_avatar_failed.set(true)
-                                        style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
+                                        class="avatar-img"
                                         alt="Avatar"
                                     />
                                 </Show>
                             </div>
                         </div>
                     }
-                }>
-                    <video
-                        node_ref=video_ref
-                        autoplay
-                        playsinline
-                        muted // Mute local video to avoid feedback
-                        style=move || {
-                            let flipped = is_flipped.map(|s| s.get()).unwrap_or(true);
-                            format!("width: 100%; height: 100%; object-fit: cover; transform: {};", if flipped { "scaleX(-1)" } else { "none" })
+                }
+            >
+                <video
+                    node_ref=video_ref
+                    autoplay
+                    playsinline
+                    muted
+                    class=move || if is_flipped.map(|s| s.get()).unwrap_or(true) { "flipped" } else { "" }
+                />
+                <button
+                    on:click=move |_| {
+                        if let Some(video) = video_ref.get() {
+                            let js_video: &wasm_bindgen::JsValue = video.as_ref();
+                            let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
+                            if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
+                                if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                                    let promise = func.call0(js_video);
+                                    let _ = promise;
+                                }
+                            }
                         }
-                    />
+                    }
+                    class="pip-btn"
+                    title="Picture-in-Picture"
+                >
+                    "PiP"
+                </button>
+            </Show>
+            <Show when=move || speaking_peers.get().contains(&my_id.get().unwrap_or_default())>
+                <div class="speaking-ring"></div>
+            </Show>
+            <div class="name-tag">"Me"</div>
+            <div class="status-icons">
+                <Show when=move || {
+                    my_id.get().map(|id| {
+                        participants.with(|ps| {
+                            ps.iter().find(|p| p.id == id).map(|p| p.e2ee_enabled).unwrap_or(false)
+                        })
+                    }).unwrap_or(false)
+                }>
+                    <span class="e2ee-lock" title="End-to-End Encrypted">"🔒"</span>
+                </Show>
+                <Show when=move || { my_audio_level.get() > 0.0 }>
+                    <AudioLevelIndicator audio_level=my_audio_level />
+                </Show>
+            </div>
+        </div>
+    }.into_view()
+}
+
+/// Renders one remote grid item (remote user / remote screen / shared video).
+#[allow(clippy::too_many_arguments)]
+fn render_remote_item(
+    item: GridItem,
+    participants: ReadSignal<Vec<Participant>>,
+    _my_id: ReadSignal<Option<String>>,
+    is_audio_only: Option<Signal<bool>>,
+    _is_flipped: Option<Signal<bool>>,
+    speaking_peers: ReadSignal<HashSet<String>>,
+    remote_streams: ReadSignal<HashMap<String, Vec<MediaStream>>>,
+    _layout: ReadSignal<String>,
+    pinned_participant: Option<ReadSignal<Option<String>>>,
+    featured: bool,
+    set_menu_open: WriteSignal<bool>,
+    set_menu_x: WriteSignal<i32>,
+    set_menu_y: WriteSignal<i32>,
+    set_menu_target: WriteSignal<Option<String>>,
+) -> View {
+    match item {
+        GridItem::SharedVideo(url) => {
+            let video_id = if url.contains("youtube.com") || url.contains("youtu.be") {
+                if let Some(idx) = url.find("v=") {
+                    url[idx+2..].split('&').next().unwrap_or("").to_string()
+                } else if let Some(idx) = url.rfind('/') {
+                    url[idx+1..].split('?').next().unwrap_or("").to_string()
+                } else {
+                    "".to_string()
+                }
+            } else {
+                "".to_string()
+            };
+            let embed_url = if !video_id.is_empty() {
+                format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
+            } else {
+                "".to_string()
+            };
+            view! {
+                <div class="video-card shared-video">
+                    <iframe
+                        width="100%"
+                        height="100%"
+                        src=embed_url
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                    <div class="name-tag">"Shared Video"</div>
+                </div>
+            }.into_view()
+        }
+        _ => {
+            let p = item.participant().unwrap().clone();
+            let is_screen = item.is_screen();
+            let id = p.id.clone();
+            let id_for_stream = id.clone();
+            let id_for_ctx = id.clone();
+            let id_for_pinicon = id.clone();
+
+            let id_s = id.clone();
+            let p_name = Signal::derive(move || {
+                participants.with(|ps| {
+                    ps.iter()
+                        .find(|pp| pp.id == id_s)
+                        .map(|pp| {
+                            if is_screen {
+                                format!("{}'s Screen", pp.name)
+                            } else {
+                                pp.name.clone()
+                            }
+                        })
+                        .unwrap_or_else(|| "Unknown".to_string())
+                })
+            });
+
+            let id_hand = id.clone();
+            let is_hand_raised = Signal::derive(move || {
+                participants.with(|ps| {
+                    ps.iter().find(|pp| pp.id == id_hand).map(|pp| pp.is_hand_raised).unwrap_or(false)
+                })
+            });
+
+            let id_e2ee = id.clone();
+            let is_p_e2ee = Signal::derive(move || {
+                participants.with(|ps| {
+                    ps.iter().find(|pp| pp.id == id_e2ee).map(|pp| pp.e2ee_enabled).unwrap_or(false)
+                })
+            });
+
+            let id_init = id.clone();
+            let initial_char = Signal::derive(move || {
+                participants.with(|ps| {
+                    ps.iter().find(|pp| pp.id == id_init)
+                        .and_then(|pp| pp.name.chars().next())
+                        .unwrap_or('?')
+                        .to_uppercase()
+                        .to_string()
+                })
+            });
+
+            let id_av = id.clone();
+            let avatar_url_sig = Signal::derive(move || {
+                participants.with(|ps| {
+                    ps.iter().find(|pp| pp.id == id_av).and_then(|pp| pp.avatar_url.clone())
+                })
+            });
+            let (avatar_failed, set_avatar_failed) = create_signal(false);
+            create_effect(move |_| {
+                let _ = avatar_url_sig.get();
+                set_avatar_failed.set(false);
+            });
+
+            let id_speak = id.clone();
+            let is_speaking = create_memo(move |_| speaking_peers.get().contains(&id_speak));
+            let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
+            create_effect(move |_| {
+                if is_speaking.get() {
+                    let window = web_sys::window().unwrap();
+                    let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
+                        let random_val = js_sys::Math::random() * 0.8;
+                        set_audio_level_sig.set(random_val);
+                    }) as Box<dyn FnMut()>);
+                    let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 200).unwrap();
+                    on_cleanup(move || {
+                        let window = web_sys::window().unwrap();
+                        window.clear_interval_with_handle(interval_id);
+                        drop(cb);
+                    });
+                } else {
+                    set_audio_level_sig.set(0.0);
+                }
+            });
+
+            let remote_video_ref = create_node_ref::<html::Video>();
+            let stream_signal = Signal::derive(move || {
+                remote_streams.with(|map| {
+                    if let Some(streams) = map.get(&id_for_stream) {
+                        if is_screen {
+                            // Prefer displaySurface-tagged stream; else fall back to last.
+                            let screen_stream = streams.iter().find(|s| {
+                                let tracks = s.get_video_tracks();
+                                for i in 0..tracks.length() {
+                                    let track_val = tracks.get(i);
+                                    if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
+                                        let settings = track.get_settings();
+                                        if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
+                                            if !val.is_undefined() {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                                false
+                            });
+                            screen_stream
+                                .or_else(|| streams.last())
+                                .cloned()
+                        } else {
+                            streams.first().cloned()
+                        }
+                    } else {
+                        None
+                    }
+                })
+            });
+            create_effect(move |_| {
+                if let Some(stream) = stream_signal.get() {
+                    if let Some(video_el) = remote_video_ref.get() {
+                        video_el.set_src_object(Some(&stream));
+                        let _ = video_el.play();
+                    }
+                }
+            });
+
+            let css_featured = if featured { "featured spotlighted" } else { "" };
+            let is_speaking_class = Signal::derive(move || if is_speaking.get() { "speaking" } else { "" });
+
+            // Right-click handler opens the context menu
+            let menu_target_open = move |ev: web_sys::MouseEvent| {
+                ev.prevent_default();
+                if is_screen { return; }
+                set_menu_x.set(ev.client_x());
+                set_menu_y.set(ev.client_y());
+                set_menu_target.set(Some(id_for_ctx.clone()));
+                set_menu_open.set(true);
+            };
+
+            view! {
+                <div
+                    class=move || format!("video-card {} {}", css_featured, is_speaking_class.get())
+                    on:contextmenu=menu_target_open
+                >
+                    <Show when=move || stream_signal.get().is_some() && !is_audio_only.map(|s| s.get()).unwrap_or(false) fallback=move || {
+                        if is_screen {
+                            view! {
+                                <div class="screen-placeholder">"Waiting for screen..."</div>
+                            }.into_view()
+                        } else {
+                            view! {
+                                <div class="avatar-container">
+                                    <Show when=move || avatar_url_sig.get().is_some() && !avatar_failed.get() fallback=move || view! {
+                                        <div class="avatar">{initial_char.get()}</div>
+                                    }>
+                                        <img
+                                            src=move || avatar_url_sig.get().unwrap_or_default()
+                                            on:error=move |_| set_avatar_failed.set(true)
+                                            class="avatar-img"
+                                            alt="Avatar"
+                                        />
+                                    </Show>
+                                </div>
+                            }.into_view()
+                        }
+                    }>
+                        <video
+                            node_ref=remote_video_ref
+                            autoplay
+                            playsinline
+                        />
+                    </Show>
                     <button
                         on:click=move |_| {
-                            if let Some(video) = video_ref.get() {
+                            if let Some(video) = remote_video_ref.get() {
                                 let js_video: &wasm_bindgen::JsValue = video.as_ref();
                                 let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
                                 if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
@@ -279,402 +645,30 @@ pub fn VideoGrid(
                                 }
                             }
                         }
-                        style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
+                        class="pip-btn"
                         title="Picture-in-Picture"
                     >
                         "PiP"
                     </button>
-                </Show>
-
-                <Show when=move || speaking_peers.get().contains(&my_id.get().unwrap_or_default())>
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 3px solid #28a745; box-sizing: border-box; border-radius: 8px; pointer-events: none; z-index: 5;"></div>
-                </Show>
-                <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                    "Me"
+                    <div class="name-tag">{move || p_name.get()}</div>
+                    <div class="status-icons">
+                        <Show when=move || is_p_e2ee.get() && !is_screen>
+                            <span class="e2ee-lock" title="End-to-End Encrypted">"🔒"</span>
+                        </Show>
+                        <Show when=move || is_hand_raised.get() && !is_screen>
+                            <span title="Hand Raised">"✋"</span>
+                        </Show>
+                        <AudioLevelIndicator audio_level=audio_level_sig />
+                        <Show when=move || {
+                            let id = id_for_pinicon.clone();
+                            pinned_participant.and_then(|s| s.get()) == Some(id)
+                        }>
+                            <span title="Pinned">"📍"</span>
+                        </Show>
+                    </div>
                 </div>
-                <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                    <Show when=move || {
-                        my_id.get().map(|id| {
-                            participants.with(|ps| {
-                                ps.iter().find(|p| p.id == id).map(|p| p.e2ee_enabled).unwrap_or(false)
-                            })
-                        }).unwrap_or(false)
-                    }>
-                        <span class="e2ee-lock" style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
-                    </Show>
-                    // The AudioMonitor reports 0.0 while muted, so guarding on
-                    // a non-zero level avoids rendering invisible indicator dots
-                    // when there is no signal to display. This mirrors the
-                    // explicit mute guard used by the AlwaysOnTop toolbar.
-                    <Show when=move || { my_audio_level.get() > 0.0 }>
-                        <AudioLevelIndicator audio_level=my_audio_level />
-                    </Show>
-                </div>
-            </div>
-
-            // Remote Items
-            <For
-                each=move || grid_items.get()
-                key=|item| item.unique_key()
-                children=move |item| {
-                    match item {
-                        GridItem::SharedVideo(url) => {
-                            // Extract video ID if YouTube
-                            let video_id = if url.contains("youtube.com") || url.contains("youtu.be") {
-                                // Basic extraction
-                                if let Some(idx) = url.find("v=") {
-                                    url[idx+2..].split('&').next().unwrap_or("").to_string()
-                                } else if let Some(idx) = url.rfind('/') {
-                                    url[idx+1..].split('?').next().unwrap_or("").to_string()
-                                } else {
-                                    "".to_string()
-                                }
-                            } else {
-                                "".to_string()
-                            };
-
-                            let embed_url = if !video_id.is_empty() {
-                                format!("https://www.youtube.com/embed/{}?autoplay=1", video_id)
-                            } else {
-                                "".to_string()
-                            };
-
-                            view! {
-                                <div class="video-card shared-video" style="flex: 1 1 100%; max-width: 800px; height: 450px; background: black; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #fd7e14;">
-                                    <iframe
-                                        width="100%"
-                                        height="100%"
-                                        src=embed_url
-                                        frameborder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowfullscreen
-                                    ></iframe>
-                                    <div class="name-tag" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                        "Shared Video"
-                                    </div>
-                                </div>
-                            }
-                        },
-                        _ => {
-                            let p = item.participant().unwrap().clone();
-                            let is_screen = item.is_screen();
-                            let id_clone = p.id.clone();
-                            let id_clone_2 = id_clone.clone();
-                            let id_clone_3 = id_clone.clone();
-
-                            // Determine whether this tile should be visually
-                            // "featured" (large) in spotlight mode. The
-                            // featured tile is the dominant speaker, falling
-                            // back to the first remote participant when no
-                            // one has been promoted yet — mirroring the
-                            // selection logic in `grid_items` above. Screen
-                            // shares are always rendered large in spotlight.
-                            let p_id_for_spot = p.id.clone();
-                            let is_spotlighted = Signal::derive(move || {
-                                if layout.get() != "spotlight" {
-                                    return false;
-                                }
-                                if is_screen {
-                                    return true;
-                                }
-                                if let Some(d) = dominant_speaker.get() {
-                                    return d == p_id_for_spot;
-                                }
-                                // Fallback: feature the first remote participant.
-                                let me = my_id.get();
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| Some(pp.id.clone()) != me)
-                                        .map(|pp| pp.id == p_id_for_spot)
-                                        .unwrap_or(false)
-                                })
-                            });
-
-                            // Derive reactive participant properties using the `participants` signal
-                            let p_id_for_props = p.id.clone();
-                            let p_name = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_props)
-                                        .map(|pp| {
-                                            if is_screen {
-                                                format!("{}'s Screen", pp.name)
-                                            } else {
-                                                pp.name.clone()
-                                            }
-                                        })
-                                        .unwrap_or_else(|| "Unknown".to_string())
-                                })
-                            });
-
-                            let p_id_for_hand = p.id.clone();
-
-                            let p_id_for_presence = p.id.clone();
-                            let _is_connected = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_presence)
-                                        .map(|pp| pp.presence == shared::PresenceStatus::Connected)
-                                        .unwrap_or(false)
-                                })
-                            });
-
-                            let is_hand_raised = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_hand)
-                                        .map(|pp| pp.is_hand_raised)
-                                        .unwrap_or(false)
-                                })
-                            });
-
-                            let p_id_for_e2ee = p.id.clone();
-                            let is_p_e2ee_enabled = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_e2ee)
-                                        .map(|pp| pp.e2ee_enabled)
-                                        .unwrap_or(false)
-                                })
-                            });
-
-                            let p_id_for_initial = p.id.clone();
-                            let initial_char = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_initial)
-                                        .and_then(|pp| pp.name.chars().next())
-                                        .unwrap_or('?')
-                                        .to_uppercase()
-                                        .to_string()
-                                })
-                            });
-
-                            let p_id_for_avatar = p.id.clone();
-                            let avatar_url_sig = Signal::derive(move || {
-                                participants.with(|ps| {
-                                    ps.iter()
-                                        .find(|pp| pp.id == p_id_for_avatar)
-                                        .and_then(|pp| pp.avatar_url.clone())
-                                })
-                            });
-
-                            // Track image load errors so a broken avatar URL
-                            // falls back to the initial-letter circle instead
-                            // of showing a broken image icon. The signal is
-                            // reset whenever the URL changes.
-                            let (avatar_failed, set_avatar_failed) = create_signal(false);
-                            create_effect(move |_| {
-                                let _ = avatar_url_sig.get();
-                                set_avatar_failed.set(false);
-                            });
-
-                            let is_speaking_memo = create_memo(move |_| speaking_peers.get().contains(&id_clone));
-                            let (audio_level_sig, set_audio_level_sig) = create_signal(0.0f64);
-
-                            create_effect(move |_| {
-                                if is_speaking_memo.get() {
-                                    let window = web_sys::window().unwrap();
-                                    let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
-                                        // Use a wider range starting near 0.0 to ensure the outer dots actually fade in and out.
-                                        let random_val = js_sys::Math::random() * 0.8;
-                                        set_audio_level_sig.set(random_val);
-                                    }) as Box<dyn FnMut()>);
-                                    let interval_id = window.set_interval_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 200).unwrap();
-
-                                    on_cleanup(move || {
-                                        let window = web_sys::window().unwrap();
-                                        window.clear_interval_with_handle(interval_id);
-                                        drop(cb);
-                                        // Do not reset to 0.0 here, only in the else branch, to prevent flashing
-                                    });
-                                } else {
-                                    set_audio_level_sig.set(0.0);
-                                }
-                            });
-
-                            // Remote Stream Logic
-                            let remote_video_ref = create_node_ref::<html::Video>();
-                            let stream_signal = Signal::derive(move || {
-                                // Performance: Use .with() to avoid cloning the entire HashMap of streams
-                                remote_streams.with(|map| {
-                                    if let Some(streams) = map.get(&id_clone_2) {
-                                        if is_screen {
-                                            // Bug 4: Stream disambiguation relies on displaySurface (not universally supported).
-                                            // Fallback assumes second stream is screen share.
-
-                                            // Try to find a stream with displaySurface (best effort)
-                                            let screen_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    // use Reflect to check displaySurface prop safely
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return true;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            false
-                                        });
-
-                                        if let Some(s) = screen_stream {
-                                            return Some(s.clone());
-                                        }
-
-                                        // Fallback: use second stream if available (assuming order: camera, screen)
-                                        if streams.len() > 1 {
-                                            Some(streams[1].clone())
-                                        } else {
-                                            streams.first().cloned()
-                                        }
-                                    } else {
-                                        // User card: use the first stream (or one that isn't screen)
-                                         let camera_stream = streams.iter().find(|s| {
-                                            let tracks = s.get_video_tracks();
-                                            for i in 0..tracks.length() {
-                                                let track_val = tracks.get(i);
-                                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>() {
-                                                    let settings = track.get_settings();
-                                                    if let Ok(val) = js_sys::Reflect::get(&settings, &"displaySurface".into()) {
-                                                        if !val.is_undefined() {
-                                                            return false; // This is a screen
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            true // Assume camera if no displaySurface
-                                        });
-
-                                        if let Some(s) = camera_stream {
-                                            Some(s.clone())
-                                        } else {
-                                            streams.first().cloned()
-                                        }
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                })
-                            });
-
-                            create_effect(move |_| {
-                                if let Some(video) = remote_video_ref.get() {
-                                    if let Some(s) = stream_signal.get() {
-                                        video.set_src_object(Some(&s));
-                                        let _ = video.play();
-                                    } else {
-                                        video.set_src_object(None);
-                                    }
-                                }
-                            });
-
-                            view! {
-                                <div class=move || if is_spotlighted.get() { "video-card spotlighted" } else { "video-card" } style=move || {
-                                    let border = if is_speaking_memo.get() { "3px solid #28a745" } else { "1px solid #444" };
-                                    if is_spotlighted.get() {
-                                        // Featured tile: take the full width
-                                        // and a large share of the spotlight
-                                        // column so the dominant speaker is
-                                        // visually prominent.
-                                        format!("width: 100%; flex: 1 1 auto; min-height: 0; height: 60vh; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
-                                    } else if layout.get() == "spotlight" {
-                                        // Thumbnail tile in spotlight mode:
-                                        // smaller fixed height so multiple
-                                        // remote participants fit alongside
-                                        // the featured tile.
-                                        format!("width: 100%; flex: 0 0 auto; height: 120px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
-                                    } else {
-                                        format!("flex: 1 1 300px; max-width: 100%; height: 240px; background: #222; border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; border: {}; overflow: hidden;", border)
-                                    }
-                                }>
-                                    <Show when=move || stream_signal.get().is_some() && !is_audio_only.map(|s| s.get()).unwrap_or(false) fallback=move || {
-                                        if is_screen {
-                                            view! {
-                                                <div class="screen-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #aaa; background: #111;">
-                                                    "Waiting for screen..."
-                                                </div>
-                                            }.into_view()
-                                        } else {
-                                            view! {
-                                                <div class="avatar-container" style="width: 80px; height: 80px; position: relative;">
-                                                    <Show when=move || avatar_url_sig.get().is_some() && !avatar_failed.get() fallback=move || view! {
-                                                        <div class="avatar" style="width: 100%; height: 100%; background: #555; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;">
-                                                            {initial_char.get()}
-                                                        </div>
-                                                    }>
-                                                        <img
-                                                            src=move || avatar_url_sig.get().unwrap_or_default()
-                                                            on:error=move |_| set_avatar_failed.set(true)
-                                                            style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
-                                                            alt="Avatar"
-                                                        />
-                                                    </Show>
-                                                </div>
-                                            }.into_view()
-                                        }
-                                    }>
-                                        <video
-                                            node_ref=remote_video_ref
-                                            autoplay
-                                            playsinline
-                                            style=move || if is_screen {
-                                                "width: 100%; height: 100%; object-fit: contain;"
-                                            } else {
-                                                "width: 100%; height: 100%; object-fit: cover;"
-                                            }
-                                        />
-                                        <button
-                                            on:click=move |_| {
-                                                if let Some(video) = remote_video_ref.get() {
-                                                    let js_video: &wasm_bindgen::JsValue = video.as_ref();
-                                                    let prop = wasm_bindgen::JsValue::from_str("requestPictureInPicture");
-                                                    if let Ok(func) = js_sys::Reflect::get(js_video, &prop) {
-                                                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                                                            let promise = func.call0(js_video);
-                                                            let _ = promise;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; z-index: 10;"
-                                            title="Picture-in-Picture"
-                                        >
-                                            "PiP"
-                                        </button>
-                                    </Show>
-
-                                    <div class="name-tag" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-                                        {move || p_name.get()}
-                                    </div>
-
-
-                                    <div class="status-icons" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                                        <Show when=move || is_p_e2ee_enabled.get() && !is_screen>
-                                            <span class="e2ee-lock" style="font-size: 20px;" title="End-to-End Encrypted">"🔒"</span>
-                                        </Show>
-                                        <Show when=move || is_hand_raised.get() && !is_screen>
-                                            <span style="font-size: 20px;" title="Hand Raised">"✋"</span>
-                                        </Show>
-                                        <AudioLevelIndicator audio_level=audio_level_sig />
-                                        <Show when=move || {
-                                            let id = id_clone_3.clone();
-                                            pinned_participant.and_then(|s| s.get()) == Some(id)
-                                        }>
-                                            <span style="font-size: 20px;" title="Pinned">"📍"</span>
-                                        </Show>
-                                    </div>
-                                </div>
-                            }
-                        }
-                    }
-                }
-            />
-            </div>
-        </div>
+            }.into_view()
+        }
     }
 }
 
@@ -700,12 +694,10 @@ mod tests {
         };
 
         let item_user = GridItem::User(p.clone());
-        // Key format: id
         assert_eq!(item_user.unique_key(), "user1");
         assert!(!item_user.is_screen());
 
         let item_screen = GridItem::RemoteScreen(p.clone());
-        // Key format: id_screen
         assert_eq!(item_screen.unique_key(), "user1_screen");
         assert!(item_screen.is_screen());
 
