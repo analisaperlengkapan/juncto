@@ -18,6 +18,9 @@ test.describe('Advanced Moderation', () => {
     await guestPage.click('button:has-text("Join Meeting")');
 
     // 3. Host opens participants list and clicks Mute All
+    if (await hostPage.locator('.participants-list').isHidden()) {
+      await hostPage.click('#toggle-participants-btn');
+    }
     await hostPage.waitForSelector('.participants-list');
     // Wait for the guest to appear in the host's participant list before muting
     await expect(hostPage.locator('.participants-list li').filter({ hasText: 'Guest' })).toBeVisible({ timeout: 15000 });
@@ -29,6 +32,9 @@ test.describe('Advanced Moderation', () => {
     // 4. Verify guest is muted
     // Guest should see a toast or their own mute indicator
     // In participants list, guest should show 🔇
+    if (await guestPage.locator('.participants-list').isHidden()) {
+      await guestPage.click('#toggle-participants-btn');
+    }
     const guestEntry = guestPage.locator('.participants-list li').filter({ hasText: 'Guest' });
     await expect(guestEntry.locator('text=🔇')).toBeVisible();
 

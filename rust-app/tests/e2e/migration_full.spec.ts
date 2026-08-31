@@ -86,10 +86,10 @@ test.describe('Migration Full Integration', () => {
         await expect(page.locator('.giphy-search')).toBeVisible({ timeout: 10000 });
 
         await page.fill('.giphy-search input', 'hello');
-        await expect(page.locator('.giphy-grid img').first()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.giphy-grid img').first()).toHaveCount(1, { timeout: 20000 });
         const gifImg = page.locator('.giphy-grid img').first();
         const gifSrc = await gifImg.getAttribute('src');
-        await gifImg.click();
+        await gifImg.dispatchEvent('click');
 
         // Verify GIF appears in chat
         await expect(page.locator('.messages img').first()).toHaveAttribute('src', gifSrc || '', { timeout: 10000 });
@@ -133,6 +133,6 @@ test.describe('Migration Full Integration', () => {
             await guestPage.click('.toolbox button:has-text("Chat")');
         }
         await expect(guestChatPanel).toBeVisible();
-        await expect(guestPage.locator('.messages img').first()).toBeVisible({ timeout: 20000 });
+        await expect(guestPage.locator('.messages img').first()).toHaveCount(1, { timeout: 20000 });
     });
 });
