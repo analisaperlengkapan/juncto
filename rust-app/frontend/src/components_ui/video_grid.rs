@@ -587,21 +587,34 @@ fn render_remote_item(
             });
 
             let css_featured = if featured { "featured spotlighted" } else { "" };
+            let css_screen = if is_screen { "screen-share" } else { "" };
             let is_speaking_class = Signal::derive(move || if is_speaking.get() { "speaking" } else { "" });
 
-            // Right-click handler opens the context menu
+            // Right-click handler opens the context menu with position clamping
             let menu_target_open = move |ev: web_sys::MouseEvent| {
                 ev.prevent_default();
                 if is_screen { return; }
-                set_menu_x.set(ev.client_x());
-                set_menu_y.set(ev.client_y());
+                let mut x = ev.client_x();
+                let mut y = ev.client_y();
+                if let Some(window) = web_sys::window() {
+                    let win_w = window.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1024.0) as i32;
+                    let win_h = window.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(768.0) as i32;
+                    if x + 180 > win_w {
+                        x = (win_w - 190).max(10);
+                    }
+                    if y + 200 > win_h {
+                        y = (win_h - 210).max(10);
+                    }
+                }
+                set_menu_x.set(x);
+                set_menu_y.set(y);
                 set_menu_target.set(Some(id_for_ctx.clone()));
                 set_menu_open.set(true);
             };
 
             view! {
                 <div
-                    class=move || format!("video-card {} {}", css_featured, is_speaking_class.get())
+                    class=move || format!("video-card {} {} {}", css_featured, is_speaking_class.get(), css_screen)
                     on:contextmenu=menu_target_open
                 >
                     <Show when=move || stream_signal.get().is_some() && !is_audio_only.map(|s| s.get()).unwrap_or(false) fallback=move || {
@@ -630,6 +643,7 @@ fn render_remote_item(
                             node_ref=remote_video_ref
                             autoplay
                             playsinline
+                            class=move || if is_screen { "screen-share" } else { "" }
                         />
                     </Show>
                     <button

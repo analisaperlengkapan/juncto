@@ -76,7 +76,7 @@ pub fn PollsDialog(
                         <button id="close-polls-btn" class="modal-close-btn" on:click=move |_| on_close.call(())>"✕"</button>
                     </div>
 
-                    <div class="modal-tabs">
+                    <div class="tabs modal-tabs">
                         <button
                             class=move || format!("modal-tab-btn {}", if active_tab.get() == "active" { "active" } else { "" })
                             on:click=move |_| set_active_tab.set("active")
@@ -89,17 +89,15 @@ pub fn PollsDialog(
                         >
                             "History"
                         </button>
-                        <Show when=move || is_host.get()>
-                            <button
-                                class=move || format!("modal-tab-btn {}", if active_tab.get() == "create" { "active" } else { "" })
-                                on:click=move |_| set_active_tab.set("create")
-                            >
-                                "Create Poll"
-                            </button>
-                        </Show>
+                        <button
+                            class=move || format!("modal-tab-btn {}", if active_tab.get() == "create" { "active" } else { "" })
+                            on:click=move |_| set_active_tab.set("create")
+                        >
+                            "Create Poll"
+                        </button>
                     </div>
 
-                    <div class="modal-body custom-scrollbar">
+                    <div class="tab-content modal-body custom-scrollbar">
                         <Show when=move || active_tab.get() == "active">
                             <div class="polls-list">
                                 <For
@@ -109,7 +107,7 @@ pub fn PollsDialog(
                                         let pid = p.id.clone();
                                         let pid_for_votes = pid.clone();
                                         view! {
-                                            <div class="poll-card">
+                                            <div class="poll-card poll-item">
                                                 <div class="poll-card-header">
                                                     <h4>{p.question.clone()}</h4>
                                                     <Show when=move || is_host.get()>
@@ -190,7 +188,7 @@ pub fn PollsDialog(
                                     key=|p| (p.id.clone(), p.options.iter().map(|o| o.votes).sum::<u32>())
                                     children=move |p| {
                                         view! {
-                                            <div class="poll-card closed">
+                                            <div class="poll-card poll-item closed">
                                                 <div class="poll-card-header">
                                                     <h4>{p.question.clone()}</h4>
                                                     <span class="badge badge-closed">"CLOSED"</span>
@@ -278,7 +276,7 @@ pub fn PollsDialog(
                                     class="btn btn-success btn-full"
                                     on:click=create
                                 >
-                                    "✨ Create & Launch Poll"
+                                    "Create Poll"
                                 </button>
                             </div>
                         </Show>

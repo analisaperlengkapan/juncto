@@ -218,7 +218,7 @@ pub fn PrejoinScreen(
                         class=move || format!("toolbox-btn {}", if is_camera_on.get() { "active" } else { "danger" })
                         title="Toggle Camera"
                     >
-                         {move || if is_camera_on.get() { "📹" } else { "🚫" }}
+                         {move || if is_camera_on.get() { "📷" } else { "🚫" }}
                     </button>
                     <button
                         on:click=move |_| set_is_mic_on.update(|v| *v = !*v)
