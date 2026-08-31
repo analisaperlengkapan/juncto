@@ -89,12 +89,14 @@ pub fn PollsDialog(
                         >
                             "History"
                         </button>
-                        <button
-                            class=move || format!("modal-tab-btn {}", if active_tab.get() == "create" { "active" } else { "" })
-                            on:click=move |_| set_active_tab.set("create")
-                        >
-                            "Create Poll"
-                        </button>
+                        <Show when=move || is_host.get()>
+                            <button
+                                class=move || format!("modal-tab-btn {}", if active_tab.get() == "create" { "active" } else { "" })
+                                on:click=move |_| set_active_tab.set("create")
+                            >
+                                "Create Poll"
+                            </button>
+                        </Show>
                     </div>
 
                     <div class="tab-content modal-body custom-scrollbar">
@@ -246,7 +248,7 @@ pub fn PollsDialog(
                                         class="form-control"
                                         prop:value=question
                                         on:input=move |ev| set_question.set(event_target_value(&ev))
-                                        placeholder="e.g. What is your preferred meeting time?"
+                                        placeholder="e.g. What is your favorite color?"
                                     />
                                 </div>
                                 <div class="form-group">

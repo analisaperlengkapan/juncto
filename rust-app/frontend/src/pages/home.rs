@@ -20,7 +20,7 @@ pub fn Home() -> impl IntoView {
     view! {
         <div class="welcome-container">
             <div class="hero-card">
-                <h1>"Welcome to Juncto"</h1>
+                <h1>"Welcome to Juncto (Rust Edition)"</h1>
                 <p>"High-Performance WebRTC Video Conferencing in Rust"</p>
 
                 <div class="input-group">
