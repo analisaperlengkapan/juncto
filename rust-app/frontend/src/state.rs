@@ -40,6 +40,9 @@ pub struct JoinOptions {
     pub video_device_id: Option<String>,
     pub is_visitor: bool,
     pub avatar_url: Option<String>,
+    /// Access password for password-locked rooms.
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Clone)]
@@ -106,6 +109,7 @@ pub struct RoomState {
     pub branding: ReadSignal<shared::BrandingConfig>,
     pub is_recording_locally: ReadSignal<bool>,
     pub is_talking_while_muted: ReadSignal<bool>,
+    pub show_rejoin: ReadSignal<bool>,
     pub lobby_announcement: ReadSignal<Option<String>>,
     pub dominant_speaker: ReadSignal<Option<String>>,
     pub _last_face_expression: ReadSignal<Option<(String, String, u64)>>,
@@ -113,7 +117,6 @@ pub struct RoomState {
     pub is_audio_only: ReadSignal<bool>,
     pub is_flipped: ReadSignal<bool>,
     pub pinned_participant: ReadSignal<Option<String>>,
-    #[expect(dead_code)]
     pub participant_volumes: ReadSignal<HashMap<String, f64>>,
     // Setters or Actions
     pub toggle_audio_only: Callback<bool>,
@@ -147,7 +150,10 @@ pub struct RoomState {
     pub send_message: crate::chat::ChatSendCallback, // content, recipient_id, attachment
     pub start_share_video: Callback<String>,
     pub stop_share_video: Callback<()>,
-    pub toggle_lock: Callback<()>,
+    pub toggle_lock: Callback<Option<String>>,
+    /// True when the server rejected the join because the room is locked
+    /// with a password. The prejoin UI shows a password field in that case.
+    pub password_required: ReadSignal<bool>,
     pub toggle_e2ee: Callback<()>,
     pub toggle_participant_e2ee: Callback<bool>,
     pub toggle_etherpad: Callback<Option<String>>,
@@ -157,6 +163,7 @@ pub struct RoomState {
     pub grant_access: Callback<String>,
     pub deny_access: Callback<String>,
     pub join_meeting: Callback<JoinOptions>,
+    pub rejoin: Callback<()>,
     pub save_profile: Callback<String>,
     pub set_avatar_url: Callback<Option<String>>,
     pub set_subject: Callback<String>,
@@ -217,6 +224,7 @@ pub fn use_room_state() -> RoomState {
     let (ws, set_ws) = create_signal(None::<WebSocket>);
     let (is_connected, set_is_connected) = create_signal(false);
     let (is_locked, set_is_locked) = create_signal(false);
+    let (password_required, set_password_required) = create_signal(false);
     let (is_e2ee_enabled, set_is_e2ee_enabled) = create_signal(false);
     let (_e2ee_key, set_e2ee_key) = create_signal(None::<String>);
     let (is_lobby_enabled, set_is_lobby_enabled) = create_signal(false);
@@ -283,6 +291,7 @@ pub fn use_room_state() -> RoomState {
         create_signal(std::collections::HashMap::<String, shared::PowerStatus>::new());
     let (is_recording_locally, set_is_recording_locally) = create_signal(false);
     let (is_talking_while_muted, set_is_talking_while_muted) = create_signal(false);
+    let (show_rejoin, set_show_rejoin) = create_signal(false);
     let local_recorder: Rc<RefCell<Option<crate::media_recorder::LocalRecorder>>> =
         Rc::new(RefCell::new(None));
     // Holds previously-stopped recorders whose async `onstop` callbacks may
@@ -886,6 +895,7 @@ pub fn use_room_state() -> RoomState {
                                 room_config,
                                 set_show_etherpad,
                                 set_is_locked,
+                                set_password_required,
                                 set_is_e2ee_enabled,
                                 is_recording,
                                 set_is_recording,
@@ -957,12 +967,18 @@ pub fn use_room_state() -> RoomState {
 
                 let onclose_callback = Closure::<dyn FnMut()>::new(move || {
                     set_is_connected.set(false);
+                    if current_state.get_untracked() == RoomConnectionState::Joined {
+                        set_show_rejoin.set(true);
+                    }
                 });
                 socket.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
                 onclose_callback.forget();
 
                 let onerror_callback = Closure::<dyn FnMut()>::new(move || {
                     set_is_connected.set(false);
+                    if current_state.get_untracked() == RoomConnectionState::Joined {
+                        set_show_rejoin.set(true);
+                    }
                 });
                 socket.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
                 onerror_callback.forget();
@@ -1062,10 +1078,10 @@ pub fn use_room_state() -> RoomState {
     );
 
     let analytics_for_lock = analytics.clone();
-    let toggle_lock = Callback::new(move |_: ()| {
+    let toggle_lock = Callback::new(move |password: Option<String>| {
         analytics_for_lock.track_interaction("toggle_lock");
         if let Some(socket) = ws.get() {
-            let msg = ClientMessage::ToggleRoomLock;
+            let msg = ClientMessage::ToggleRoomLock(password);
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
@@ -1089,6 +1105,14 @@ pub fn use_room_state() -> RoomState {
             } else {
                 "disable_e2ee"
             });
+            // Tell the server our per-participant E2EE preference so other
+            // participants see the lock indicator on our tile.
+            if let Some(socket) = ws.get() {
+                let msg = ClientMessage::UpdateE2EE(enabled);
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = socket.send_with_str(&json);
+                }
+            }
             if enabled {
                 // Generate a mock key for this participant
                 let key = js_sys::Math::random().to_string();
@@ -1101,13 +1125,6 @@ pub fn use_room_state() -> RoomState {
                 }
             } else {
                 set_e2ee_key.set(None);
-            }
-
-            if let Some(socket) = ws.get() {
-                let msg = ClientMessage::UpdateE2EE(enabled);
-                if let Ok(json) = serde_json::to_string(&msg) {
-                    let _ = socket.send_with_str(&json);
-                }
             }
         }
     });
@@ -1417,12 +1434,14 @@ pub fn use_room_state() -> RoomState {
         let display_name = options.display_name;
         let is_visitor = options.is_visitor;
         let avatar_url = options.avatar_url;
+        let password = options.password;
 
         if let Some(socket) = ws.get() {
             let msg = ClientMessage::Join {
                 name: display_name,
                 is_visitor,
                 avatar_url,
+                password,
             };
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
@@ -1436,6 +1455,12 @@ pub fn use_room_state() -> RoomState {
             if let Ok(json) = serde_json::to_string(&msg) {
                 let _ = socket.send_with_str(&json);
             }
+        }
+    });
+
+    let rejoin = Callback::new(move |_| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.location().reload();
         }
     });
 
@@ -2050,6 +2075,7 @@ pub fn use_room_state() -> RoomState {
         branding,
         is_recording_locally,
         is_talking_while_muted,
+        show_rejoin,
         lobby_announcement,
         pending_unmute_requests,
         pending_camera_requests,
@@ -2075,6 +2101,7 @@ pub fn use_room_state() -> RoomState {
         send_ping,
         send_message,
         toggle_lock,
+        password_required,
         toggle_e2ee,
         toggle_participant_e2ee,
         toggle_etherpad,
@@ -2084,6 +2111,7 @@ pub fn use_room_state() -> RoomState {
         grant_access,
         deny_access,
         join_meeting,
+        rejoin,
         save_profile,
         set_avatar_url,
         set_subject,

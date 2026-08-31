@@ -30,6 +30,7 @@ pub struct HandlerContext {
     pub room_config: ReadSignal<shared::RoomConfig>,
     pub set_show_etherpad: WriteSignal<bool>,
     pub set_is_locked: WriteSignal<bool>,
+    pub set_password_required: WriteSignal<bool>,
     pub set_is_e2ee_enabled: WriteSignal<bool>,
     pub is_recording: ReadSignal<bool>,
     pub set_is_recording: WriteSignal<bool>,
@@ -856,6 +857,12 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             ctx.set_calendar_events.set(events);
         }
         ServerMessage::Error(err) => {
+            // A locked-with-password room rejects joins without a password;
+            // surface the password prompt on the prejoin screen so the user
+            // can retry with credentials instead of bouncing to an error.
+            if err == "Password required" || err == "Invalid room password" {
+                ctx.set_password_required.set(true);
+            }
             ctx.add_toast.call((err, ToastType::Error));
         }
         ServerMessage::Offer { source_id, sdp, .. } => {
