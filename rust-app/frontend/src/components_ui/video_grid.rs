@@ -232,18 +232,18 @@ pub fn VideoGrid(
                         <div class="spotlight-main">
                             {featured.into_iter().map(|item| {
                                 render_remote_item(
-                                    item, participants, my_id, is_audio_only, is_flipped.clone(),
-                                    speaking_peers, remote_streams, layout, pinned_participant.clone(),
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
                                     true, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
                                 )
                             }).collect_view()}
                         </div>
                         <div class="filmstrip">
-                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped.clone(), video_ref) }
+                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped, video_ref) }
                             {filmstrip.into_iter().map(|item| {
                                 render_remote_item(
-                                    item, participants, my_id, is_audio_only, is_flipped.clone(),
-                                    speaking_peers, remote_streams, layout, pinned_participant.clone(),
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
                                     false, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
                                 )
                             }).collect_view()}
@@ -253,11 +253,11 @@ pub fn VideoGrid(
                 } else {
                     view! {
                         <div class="video-grid grid">
-                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped.clone(), video_ref) }
+                            { render_local_user_tile(local_stream, my_id, participants, my_audio_level, speaking_peers, is_flipped, video_ref) }
                             {items.into_iter().map(|item| {
                                 render_remote_item(
-                                    item, participants, my_id, is_audio_only, is_flipped.clone(),
-                                    speaking_peers, remote_streams, layout, pinned_participant.clone(),
+                                    item, participants, my_id, is_audio_only, is_flipped,
+                                    speaking_peers, remote_streams, layout, pinned_participant,
                                     false, set_menu_open, set_menu_x, set_menu_y, set_menu_target,
                                 )
                             }).collect_view()}
@@ -275,7 +275,7 @@ pub fn VideoGrid(
                 is_pinned=Signal::derive(move || menu_target.with(|t| t.as_ref().map(|t| pinned_participant.and_then(|s| s.get()) == Some(t.clone())).unwrap_or(false)))
                 volume=Signal::derive(move || {
                     let target = menu_target.get();
-                    let vols = participant_volumes.and_then(|s| Some(s.get()));
+                    let vols = participant_volumes.map(|s| s.get());
                     target.and_then(|t| vols.as_ref().and_then(|m| m.get(&t).copied())).unwrap_or(1.0)
                 })
                 on_pin=Callback::new(move |_| {
@@ -414,6 +414,7 @@ fn render_local_user_tile(
 }
 
 /// Renders one remote grid item (remote user / remote screen / shared video).
+#[allow(clippy::too_many_arguments)]
 fn render_remote_item(
     item: GridItem,
     participants: ReadSignal<Vec<Participant>>,

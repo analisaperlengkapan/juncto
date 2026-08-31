@@ -12,7 +12,7 @@ impl Quality {
     fn from_rtt(rtt: u64) -> Self {
         match rtt {
             0 => Quality::Unknown,
-            0..=150 => Quality::Good,
+            1..=150 => Quality::Good,
             151..=400 => Quality::Fair,
             _ => Quality::Poor,
         }

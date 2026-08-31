@@ -224,7 +224,7 @@ impl WebRTCManager {
 
     pub fn close_all_peers(&self) {
         let mut peers = self.peers.borrow_mut();
-        for (_, pc) in peers.iter() {
+        for pc in peers.values() {
             pc.close();
         }
         peers.clear();

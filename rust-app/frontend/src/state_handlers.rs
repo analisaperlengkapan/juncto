@@ -860,9 +860,7 @@ pub fn handle_server_message(server_msg: ServerMessage, ctx: &HandlerContext) {
             // A locked-with-password room rejects joins without a password;
             // surface the password prompt on the prejoin screen so the user
             // can retry with credentials instead of bouncing to an error.
-            if err == "Password required" {
-                ctx.set_password_required.set(true);
-            } else if err == "Invalid room password" {
+            if err == "Password required" || err == "Invalid room password" {
                 ctx.set_password_required.set(true);
             }
             ctx.add_toast.call((err, ToastType::Error));
