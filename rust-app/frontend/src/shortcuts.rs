@@ -96,33 +96,40 @@ pub fn KeyboardShortcuts(
 pub fn ShortcutsDialog(show: ReadSignal<bool>, on_close: Callback<()>) -> impl IntoView {
     view! {
         <Show when=move || show.get()>
-            <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 2000;">
-                <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 400px; max-width: 90%;">
-                    <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3>"Keyboard Shortcuts"</h3>
-                        <button id="close-shortcuts-btn" on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">"⌨️ Keyboard Shortcuts"</h3>
+                        <button id="close-shortcuts-btn" class="modal-close-btn" on:click=move |_| on_close.call(())>"✕"</button>
                     </div>
-                    <ul style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"M"</strong> <span>"Toggle Microphone"</span>
+                    <ul class="modal-body custom-scrollbar" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"M"</kbd>
+                            <span style="color: var(--text-primary);">"Toggle Microphone"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"V"</strong> <span>"Toggle Camera"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"V"</kbd>
+                            <span style="color: var(--text-primary);">"Toggle Camera"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"H"</strong> <span>"Raise/Lower Hand"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"H"</kbd>
+                            <span style="color: var(--text-primary);">"Raise/Lower Hand"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"S"</strong> <span>"Share Screen"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"S"</kbd>
+                            <span style="color: var(--text-primary);">"Share Screen"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"C"</strong> <span>"Toggle Chat"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"C"</kbd>
+                            <span style="color: var(--text-primary);">"Toggle Chat"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"P"</strong> <span>"Toggle Participants"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"P"</kbd>
+                            <span style="color: var(--text-primary);">"Toggle Participants"</span>
                         </li>
-                        <li style="margin-bottom: 10px; display: flex; justify-content: space-between;">
-                            <strong>"R"</strong> <span>"Local Recording"</span>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <kbd style="background: var(--card-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-strong); font-weight: bold; color: var(--primary-color);">"R"</kbd>
+                            <span style="color: var(--text-primary);">"Local Recording"</span>
                         </li>
                     </ul>
                 </div>

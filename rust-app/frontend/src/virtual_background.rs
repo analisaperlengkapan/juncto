@@ -14,25 +14,26 @@ pub fn VirtualBackgroundDialog(
 
     view! {
         <Show when=move || show.get()>
-            <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
-                <div class="modal-content" style="background: white; padding: 20px; border-radius: 8px; width: 500px; max-width: 90%;">
-                    <div class="modal-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3>{move || t("virtual_background")}</h3>
-                        <button on:click=move |_| on_close.call(()) style="background: none; border: none; font-size: 20px; cursor: pointer;">"×"</button>
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">{move || t("virtual_background")}</h3>
+                        <button class="modal-close-btn" on:click=move |_| on_close.call(())>"✕"</button>
                     </div>
 
-                    <div class="options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                    <div class="options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px;">
                         <div
                             on:click=move |_| apply("none".to_string())
                             style=move || format!("
                                 cursor: pointer;
                                 border: 2px solid {};
-                                border-radius: 4px;
-                                padding: 10px;
+                                border-radius: 8px;
+                                padding: 12px;
                                 text-align: center;
-                            ", if current_mode.get() == "none" { "#007bff" } else { "#ccc" })
+                                background: rgba(15, 23, 42, 0.6);
+                            ", if current_mode.get() == "none" { "var(--primary-color)" } else { "var(--border-color)" })
                         >
-                            <div style="height: 60px; background: #eee; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
+                            <div style="height: 60px; background: rgba(255,255,255,0.05); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; border-radius: 4px;">
                                 {move || t("none")}
                             </div>
                             <span>{move || t("none")}</span>
@@ -43,12 +44,13 @@ pub fn VirtualBackgroundDialog(
                             style=move || format!("
                                 cursor: pointer;
                                 border: 2px solid {};
-                                border-radius: 4px;
-                                padding: 10px;
+                                border-radius: 8px;
+                                padding: 12px;
                                 text-align: center;
-                            ", if current_mode.get() == "blur" { "#007bff" } else { "#ccc" })
+                                background: rgba(15, 23, 42, 0.6);
+                            ", if current_mode.get() == "blur" { "var(--primary-color)" } else { "var(--border-color)" })
                         >
-                            <div style="height: 60px; background: #eee; margin-bottom: 5px; filter: blur(2px); display: flex; align-items: center; justify-content: center;">
+                            <div style="height: 60px; background: rgba(255,255,255,0.05); margin-bottom: 8px; filter: blur(3px); display: flex; align-items: center; justify-content: center; border-radius: 4px;">
                                 {move || t("blur")}
                             </div>
                             <span>{move || t("blur")}</span>
@@ -59,20 +61,21 @@ pub fn VirtualBackgroundDialog(
                             style=move || format!("
                                 cursor: pointer;
                                 border: 2px solid {};
-                                border-radius: 4px;
-                                padding: 10px;
+                                border-radius: 8px;
+                                padding: 12px;
                                 text-align: center;
-                            ", if current_mode.get() == "image" { "#007bff" } else { "#ccc" })
+                                background: rgba(15, 23, 42, 0.6);
+                            ", if current_mode.get() == "image" { "var(--primary-color)" } else { "var(--border-color)" })
                         >
-                            <div style="height: 60px; background: url('https://via.placeholder.com/150'); background-size: cover; margin-bottom: 5px;"></div>
+                            <div style="height: 60px; background: linear-gradient(135deg, #3b82f6, #1e1b4b); margin-bottom: 8px; border-radius: 4px;"></div>
                             <span>{move || t("image")}</span>
                         </div>
                     </div>
 
-                    <div style="margin-top: 20px; text-align: right;">
+                    <div style="margin-top: 24px; text-align: right;">
                          <button
+                            class="btn btn-primary"
                             on:click=move |_| on_close.call(())
-                            style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px;"
                         >
                             {move || t("done")}
                         </button>
